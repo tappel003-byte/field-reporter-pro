@@ -1822,6 +1822,8 @@ function renderDescriptors() {
       updateHint();
     });
   });
+  const closeBtn = document.getElementById('descClose');
+  if (closeBtn) closeBtn.addEventListener('click', () => selectSurface(state.selectedSurface));
 }
 function descChip(field, val) {
   const sel = state.selectedDescriptors[field] === val;
