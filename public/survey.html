@@ -1448,12 +1448,21 @@ function loadPlanFromFile(file) {
   const reader = new FileReader();
   reader.onload = (e) => {
     resizeImage(e.target.result, 2400, (resized) => {
-      // Snapshot before replacing so undo can restore the previous plan
-      snapshot(state.planImage ? 'Replace floor plan' : 'Load floor plan');
-      state.planImage = resized;
-      save();
-      mountPlan();
-      toast('Floor plan loaded');
+      toast('Uploading plan…');
+      uploadToCloud(resized, 'plan').then(url => {
+        snapshot(state.planImage ? 'Replace floor plan' : 'Load floor plan');
+        state.planImage = url;
+        save();
+        mountPlan();
+        toast('Floor plan loaded');
+      }).catch(err => {
+        console.error(err);
+        toast('Upload failed — using local copy');
+        snapshot(state.planImage ? 'Replace floor plan' : 'Load floor plan');
+        state.planImage = resized;
+        save();
+        mountPlan();
+      });
     });
   };
   reader.readAsDataURL(file);
