@@ -380,6 +380,9 @@
     width: 200px;
     height: 100%;
     overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
     padding: 12px 12px 60px;
   }
   .descriptors-head {
@@ -1676,7 +1679,7 @@ function renderRail() {
   const rail = $('rail');
   rail.innerHTML = SURFACES.map(s => `
     <button class="rail-btn ${state.selectedSurface === s.key ? 'selected' : ''}" data-key="${s.key}">
-      <div class="rail-swatch" style="background:${s.color}"></div>
+      <div class="rail-swatch" style="background:var(--ink-soft);opacity:.35"></div>
       <div class="rail-label">${s.name}</div>
     </button>
   `).join('');
@@ -1717,7 +1720,7 @@ function renderDescriptors() {
     // Custom-label surface (Other): show a text input instead of chip groups
     $('descriptorsInner').innerHTML = `
       <div class="descriptors-head">
-        <div class="dot" style="background:${s.color}"></div>
+        <div class="dot" style="background:var(--ink-soft);opacity:.4"></div>
         ${s.name}
       </div>
       <div class="descriptors-sub">Type a label · sticky</div>
@@ -1770,7 +1773,7 @@ function renderDescriptors() {
 
   $('descriptorsInner').innerHTML = `
     <div class="descriptors-head">
-      <div class="dot" style="background:${s.color}"></div>
+      <div class="dot" style="background:var(--ink-soft);opacity:.4"></div>
       ${s.name}
     </div>
     <div class="descriptors-sub">Tap to load · sticky</div>
