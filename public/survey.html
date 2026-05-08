@@ -1,0 +1,2330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Distress Survey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f0e8;
+    --paper: #fefcf7;
+    --ink: #1a1f2e;
+    --ink-soft: #4a5160;
+    --rule: #d8d2c4;
+    --rule-soft: #ece6d8;
+    --gold: #b8893f;
+    --shadow: 0 1px 3px rgba(26,31,46,0.08), 0 4px 16px rgba(26,31,46,0.06);
+
+    --c-drywall: #1e2a4a;
+    --c-concrete: #c0392b;
+    --c-cmu: #4a4a4a;
+    --c-stucco: #b56947;
+    --c-tile: #2a8a8a;
+    --c-window: #c89a3a;
+    --c-door: #6b4a8a;
+    --c-gap: #d97a2c;
+    --c-offset: #1a1a1a;
+    --c-other: #7a8470;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    font-family: 'DM Mono', monospace;
+    background: var(--bg);
+    color: var(--ink);
+    overscroll-behavior: none;
+  }
+  body { display: flex; flex-direction: column; touch-action: none; }
+
+  /* TOP BAR */
+  .topbar {
+    height: 48px;
+    background: var(--paper);
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 8px;
+    z-index: 30;
+    flex-shrink: 0;
+  }
+  .brand {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+  }
+  .brand small {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: var(--ink-soft);
+    margin-left: 8px;
+    text-transform: uppercase;
+    font-weight: 400;
+  }
+  .topbar-spacer { flex: 1; }
+
+  .job-addr-wrap {
+    display: flex;
+    align-items: center;
+    margin-left: 16px;
+    flex: 1;
+    max-width: 360px;
+  }
+  .job-addr-wrap input {
+    width: 100%;
+    height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    background: var(--rule-soft);
+    font-family: 'DM Mono', monospace;
+    font-size: 11.5px;
+    color: var(--ink);
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  .job-addr-wrap input:focus {
+    outline: none;
+    border-color: var(--ink);
+    background: var(--paper);
+  }
+
+  .top-btn {
+    height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .top-btn:active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .top-btn.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .top-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .top-btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .top-btn.danger { color: var(--c-concrete); border-color: var(--c-concrete); }
+  .top-btn.danger:active { background: var(--c-concrete); color: var(--paper); }
+  .top-btn input { display: none; }
+
+  /* STAGE */
+  .stage {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  /* LEFT RAIL */
+  .rail {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 72px;
+    background: var(--paper);
+    border-right: 1px solid var(--rule);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+    gap: 6px;
+    overflow-y: auto;
+    box-shadow: 1px 0 4px rgba(0,0,0,0.04);
+  }
+  .rail::-webkit-scrollbar { display: none; }
+  .rail-btn {
+    width: 60px;
+    height: 60px;
+    margin: 0 6px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    cursor: pointer;
+    border-radius: 3px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 4px;
+    flex-shrink: 0;
+    transition: all 0.12s;
+  }
+  .rail-btn:active { transform: scale(0.96); }
+  .rail-btn.selected {
+    border-color: var(--ink);
+    border-width: 2px;
+    background: var(--rule-soft);
+  }
+  .rail-swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .rail-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 8.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink);
+    line-height: 1;
+    text-align: center;
+    font-weight: 500;
+  }
+
+  /* DESCRIPTOR COLUMN */
+  .descriptors {
+    position: absolute;
+    left: 72px; top: 0; bottom: 0;
+    width: 0;
+    background: var(--paper);
+    border-right: 1px solid var(--rule);
+    z-index: 19;
+    overflow: hidden;
+    transition: width 0.18s ease;
+    box-shadow: 1px 0 6px rgba(0,0,0,0.05);
+  }
+  .descriptors.open { width: 200px; }
+  .descriptors-inner {
+    width: 200px;
+    height: 100%;
+    overflow-y: auto;
+    padding: 12px 12px 60px;
+  }
+  .descriptors-head {
+    font-family: 'Playfair Display', serif;
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .descriptors-head .dot {
+    width: 12px; height: 12px; border-radius: 50%;
+  }
+  .descriptors-sub {
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .desc-group { margin-bottom: 14px; }
+  .desc-group-label {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+    font-weight: 500;
+  }
+  .desc-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .desc-chip {
+    padding: 7px 9px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    color: var(--ink-soft);
+    font-family: 'DM Mono', monospace;
+    font-size: 10.5px;
+    cursor: pointer;
+    border-radius: 2px;
+    font-weight: 500;
+  }
+  .desc-chip:active { background: var(--rule-soft); }
+  .desc-chip.selected {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+
+  /* PLAN AREA */
+  .plan-area {
+    position: absolute;
+    left: 72px; top: 0; right: 0; bottom: 0;
+    overflow: hidden;
+    background: var(--paper);
+    transition: left 0.18s ease;
+  }
+  .plan-area.shifted { left: 272px; }
+
+  .plan-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 30px;
+    color: var(--ink-soft);
+  }
+  .plan-empty h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    color: var(--ink);
+    margin: 0 0 8px;
+  }
+  .plan-empty p {
+    font-size: 12px;
+    max-width: 360px;
+    line-height: 1.5;
+    margin: 0 0 18px;
+  }
+
+  .plan-canvas-wrap {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+  }
+  .plan-transform {
+    position: absolute;
+    top: 0; left: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+  .plan-img {
+    display: block;
+    pointer-events: none;
+    -webkit-user-drag: none;
+  }
+  .plan-svg {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  /* PINS */
+  .pin {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    pointer-events: auto;
+    cursor: pointer;
+  }
+  .pin-circle {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--c-drywall);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    border: 2px solid white;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    transition: transform 0.12s;
+  }
+  .pin.active .pin-circle {
+    transform: scale(1.2);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 0 0 3px rgba(184,137,63,0.5);
+  }
+
+  /* TOOLBAR over selected pin */
+  .pin-toolbar {
+    position: absolute;
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 3px;
+    padding: 4px;
+    display: flex;
+    gap: 2px;
+    z-index: 25;
+    transform: translate(-50%, -100%);
+    margin-top: -22px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .pin-toolbar::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid var(--ink);
+  }
+  .pin-toolbar button {
+    background: transparent;
+    border: none;
+    color: var(--paper);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    cursor: pointer;
+    border-radius: 2px;
+    font-weight: 500;
+  }
+  .pin-toolbar button:active { background: rgba(255,255,255,0.15); }
+  .pin-toolbar button.danger { color: #ff8a7d; }
+
+  /* CAMERA CLUSTER */
+  .cam-cluster {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    z-index: 25;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .active-indicator {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 6px 10px;
+    box-shadow: var(--shadow);
+    min-width: 120px;
+    text-align: right;
+  }
+  .active-indicator.has-active {
+    border-left: 3px solid var(--gold);
+    padding-left: 8px;
+  }
+  .active-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    line-height: 1.1;
+  }
+  .active-target {
+    font-family: 'Playfair Display', serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.2;
+    margin-top: 2px;
+  }
+  .active-target.unattached { color: var(--ink-soft); font-style: italic; }
+  .cam-clear-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--paper);
+    color: var(--ink-soft);
+    border: 1px solid var(--rule);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow);
+  }
+  .cam-clear-btn:active { background: var(--rule-soft); }
+  .cam-clear-btn svg { width: 18px; height: 18px; }
+  .cam-clear-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .cam-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    transition: transform 0.12s;
+  }
+  .cam-btn:active { transform: scale(0.92); }
+  .cam-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .cam-btn svg { width: 28px; height: 28px; fill: currentColor; }
+  .cam-btn input { display: none; }
+
+  /* MODE TOGGLE */
+  .mode-toggle {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    display: flex;
+    z-index: 25;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .mode-toggle button {
+    background: transparent;
+    border: none;
+    padding: 10px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+  .mode-toggle button.active {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .mode-toggle button + button { border-left: 1px solid var(--rule); }
+
+  /* ZOOM CONTROLS */
+  .zoom-ctrl {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    display: flex;
+    flex-direction: column;
+    z-index: 25;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .zoom-ctrl button {
+    width: 40px;
+    height: 40px;
+    background: transparent;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .zoom-ctrl button:active { background: var(--rule-soft); }
+  .zoom-ctrl button + button { border-top: 1px solid var(--rule); }
+
+  /* FINDINGS PANEL */
+  .findings {
+    position: absolute;
+    top: 0; bottom: 0; right: 0;
+    width: 320px;
+    background: var(--paper);
+    border-left: 1px solid var(--rule);
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+    z-index: 28;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -2px 0 8px rgba(0,0,0,0.06);
+  }
+  .findings.open { transform: translateX(0); }
+  .findings-head {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--rule-soft);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .findings-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .findings-meta {
+    font-size: 10px;
+    color: var(--ink-soft);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .findings-list {
+    flex: 1;
+    overflow-y: auto;
+  }
+  .finding-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule-soft);
+    cursor: pointer;
+  }
+  .finding-row:active { background: var(--rule-soft); }
+  .finding-row.active { background: var(--rule-soft); border-left: 3px solid var(--gold); padding-left: 11px; }
+  .finding-num {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    color: white;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .finding-text {
+    flex: 1;
+    font-size: 11.5px;
+    line-height: 1.35;
+    overflow: hidden;
+  }
+  .finding-text strong {
+    font-family: 'Playfair Display', serif;
+    font-weight: 600;
+    font-size: 12.5px;
+    display: block;
+    color: var(--ink);
+  }
+  .finding-text small {
+    color: var(--ink-soft);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+  }
+  .finding-thumb {
+    width: 36px; height: 36px;
+    border-radius: 2px;
+    background: var(--rule-soft);
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 1px solid var(--rule);
+  }
+  .finding-thumb.placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-soft);
+    font-size: 14px;
+  }
+  .thumb-badge {
+    position: relative;
+    margin-left: -14px;
+    margin-top: -10px;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 8px;
+    height: 14px;
+    line-height: 12px;
+    align-self: flex-start;
+    border: 1px solid var(--paper);
+  }
+  .findings-empty {
+    padding: 30px 20px;
+    text-align: center;
+    color: var(--ink-soft);
+    font-size: 12px;
+  }
+  .findings-section-head {
+    padding: 10px 14px;
+    background: var(--rule-soft);
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    font-weight: 500;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .findings-section-count {
+    background: var(--ink-soft);
+    color: var(--paper);
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 9.5px;
+  }
+  .unattached-row .finding-num {
+    font-style: italic;
+  }
+
+  /* DETAIL PHOTOS GRID */
+  .detail-photos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .photo-tile {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 2px;
+    overflow: hidden;
+    background: var(--rule-soft);
+    border: 1px solid var(--rule);
+  }
+  .photo-tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    cursor: pointer;
+    display: block;
+  }
+  .photo-num {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    background: rgba(26,31,46,0.85);
+    color: var(--paper);
+    font-family: 'DM Mono', monospace;
+    font-size: 9.5px;
+    padding: 2px 5px;
+    border-radius: 2px;
+    letter-spacing: 0.04em;
+  }
+  .photo-remove {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(26,31,46,0.85);
+    color: var(--paper);
+    border: none;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* LIGHTBOX */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.92);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    padding: 20px;
+  }
+  .lightbox.show { display: flex; }
+  .lightbox-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  .lightbox-info {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    color: white;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    background: rgba(0,0,0,0.5);
+    padding: 6px 12px;
+    border-radius: 2px;
+  }
+  .lightbox-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: white;
+    border: none;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    font-size: 22px;
+    cursor: pointer;
+  }
+
+  /* DETAIL PANEL */
+  .detail {
+    position: absolute;
+    top: 0; bottom: 0; right: 0;
+    width: 320px;
+    background: var(--paper);
+    border-left: 1px solid var(--rule);
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+    z-index: 29;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -2px 0 8px rgba(0,0,0,0.06);
+  }
+  .detail.open { transform: translateX(0); }
+  .detail-head {
+    padding: 12px 14px;
+    color: var(--paper);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .detail-num {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .detail-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    font-weight: 600;
+    flex: 1;
+  }
+  .detail-close {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.4);
+    color: var(--paper);
+    width: 32px; height: 32px;
+    border-radius: 2px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  .detail-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+  }
+  .detail-photo {
+    width: 100%;
+    aspect-ratio: 4/3;
+    background: var(--rule-soft);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    object-fit: cover;
+    margin-bottom: 12px;
+    display: block;
+  }
+  .detail-photo-placeholder {
+    width: 100%;
+    aspect-ratio: 4/3;
+    background: var(--rule-soft);
+    border: 1px dashed var(--rule);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-soft);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .detail-field { margin-bottom: 14px; }
+  .detail-field-label {
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 5px;
+    font-weight: 500;
+  }
+  .detail-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .detail-notes {
+    width: 100%;
+    min-height: 70px;
+    padding: 9px;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    background: var(--paper);
+    color: var(--ink);
+    resize: vertical;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  .detail-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .detail-actions button {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    font-weight: 500;
+  }
+  .detail-actions button.danger { color: var(--c-concrete); border-color: var(--c-concrete); }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--ink);
+    color: var(--paper);
+    padding: 9px 16px;
+    border-radius: 2px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    z-index: 100;
+    transition: opacity 0.2s, transform 0.2s;
+    opacity: 0;
+    pointer-events: none;
+    box-shadow: var(--shadow);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* HELP HINT */
+  .hint {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    padding: 8px 14px;
+    border-radius: 2px;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    z-index: 18;
+    box-shadow: var(--shadow);
+    pointer-events: none;
+    opacity: 0.95;
+  }
+  .hint b { color: var(--ink); font-weight: 500; }
+
+  /* Tablet & smaller adjustments */
+  @media (max-width: 900px) {
+    .brand small { display: none; }
+    .job-addr-wrap { max-width: 200px; margin-left: 8px; }
+    .active-indicator { min-width: 90px; padding: 5px 8px; }
+    .active-target { font-size: 11.5px; }
+  }
+
+  /* Phone-portrait fallback */
+  @media (max-width: 600px) and (orientation: portrait) {
+    .findings, .detail { width: 100%; }
+    .topbar { flex-wrap: wrap; height: auto; padding: 6px; gap: 6px; }
+    .job-addr-wrap { order: 5; max-width: 100%; flex: 1 1 100%; margin-left: 0; }
+    .topbar-spacer { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">Distress Survey<small>Field Tool</small></div>
+  <div class="job-addr-wrap">
+    <input type="text" id="jobAddress" placeholder="Job address (e.g. 1247 Carlisle Blvd NE)" autocomplete="off">
+  </div>
+  <div class="topbar-spacer"></div>
+  <label class="top-btn" id="uploadBtn">
+    <span>Upload Plan</span>
+    <input type="file" id="planFile" accept="image/*">
+  </label>
+  <button class="top-btn" id="findingsBtn">Findings <span id="pinCount">0</span></button>
+  <button class="top-btn" id="undoBtn" disabled>↶ Undo</button>
+  <button class="top-btn" id="exportBtn">Export</button>
+  <button class="top-btn danger" id="clearBtn">Clear</button>
+</div>
+
+<div class="stage">
+  <!-- LEFT RAIL -->
+  <div class="rail" id="rail"></div>
+
+  <!-- DESCRIPTORS -->
+  <div class="descriptors" id="descriptors">
+    <div class="descriptors-inner" id="descriptorsInner"></div>
+  </div>
+
+  <!-- PLAN -->
+  <div class="plan-area" id="planArea">
+    <div class="plan-empty" id="planEmpty">
+      <h2>Upload a floor plan</h2>
+      <p>Tap the plan to drop a numbered pin. Drag to sketch a crack line. Pinch to zoom, two-finger drag to pan.</p>
+      <label class="top-btn primary" for="planFile2">
+        Choose Image
+        <input type="file" id="planFile2" accept="image/*" style="display:none">
+      </label>
+    </div>
+    <div class="plan-canvas-wrap" id="canvasWrap" style="display:none">
+      <div class="plan-transform" id="planTransform">
+        <img class="plan-img" id="planImg" alt="">
+        <svg class="plan-svg" id="planSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div id="pinsLayer"></div>
+      </div>
+    </div>
+    <div class="hint" id="hint" style="display:none"></div>
+  </div>
+
+  <!-- ZOOM -->
+  <div class="zoom-ctrl" id="zoomCtrl" style="display:none">
+    <button id="zoomIn">+</button>
+    <button id="zoomOut">−</button>
+    <button id="zoomFit">⤢</button>
+  </div>
+
+  <!-- CAMERA CLUSTER -->
+  <div class="cam-cluster" id="camCluster" style="display:none">
+    <div class="active-indicator" id="activeIndicator">
+      <div class="active-label">Photos go to</div>
+      <div class="active-target" id="activeTarget">—</div>
+    </div>
+    <button class="cam-clear-btn" id="camClearBtn" title="Clear active pin">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+    </button>
+    <label class="cam-btn" id="camBtn" title="Camera">
+      <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm9-9.5h-3.17l-1.84-2H8.01L6.17 6H3a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2zM12 18a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z"/></svg>
+      <input type="file" id="camInput" accept="image/*" capture="environment">
+    </label>
+  </div>
+
+  <!-- FINDINGS PANEL -->
+  <div class="findings" id="findingsPanel">
+    <div class="findings-head">
+      <div class="findings-title">Findings</div>
+      <button class="top-btn" id="findingsClose">Close</button>
+    </div>
+    <div class="findings-list" id="findingsList"></div>
+  </div>
+
+  <!-- DETAIL PANEL -->
+  <div class="detail" id="detailPanel"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" id="lightboxClose">×</button>
+  <div class="lightbox-info" id="lightboxInfo"></div>
+  <img class="lightbox-img" id="lightboxImg" alt="">
+</div>
+
+<script>
+'use strict';
+
+// ============ DATA ============
+const STORAGE_KEY = 'distress_v2';
+const SURFACES = [
+  { key: 'drywall',  name: 'Drywall',  color: 'var(--c-drywall)',  hex: '#1e2a4a',
+    sizes: ['Hairline','1/32"','1/16"','1/8"','3/16"','1/4"','3/8"','1/2"','>1/2"'],
+    patterns: ['Diagonal','Vertical','Horizontal','Stair-step','Spider','Network'],
+    locations: ['Corner','Mid-wall','Door Header','Window Header','Ceiling Joint'],
+    offsets: ['None','1/16"','1/8"','1/4"','3/8"','1/2"','>1/2"'] },
+  { key: 'concrete', name: 'Concrete', color: 'var(--c-concrete)', hex: '#c0392b',
+    sizes: ['Hairline','1/16"','1/8"','3/16"','1/4"','3/8"','1/2"','3/4"','>3/4"'],
+    patterns: ['Diagonal','Vertical','Horizontal','Map','Random'],
+    locations: ['Slab','Footing','Foundation Wall','Driveway','Patio'],
+    offsets: ['None','1/16"','1/8"','1/4"','3/8"','1/2"','3/4"','1"','>1"'] },
+  { key: 'cmu',      name: 'CMU',      color: 'var(--c-cmu)',      hex: '#4a4a4a',
+    sizes: ['Hairline','1/16"','1/8"','1/4"','3/8"','1/2"','>1/2"'],
+    patterns: ['Stair-step','Vertical','Horizontal','Diagonal','Through-block'],
+    locations: ['Stem Wall','Retaining','Foundation','Pier'],
+    offsets: ['None','1/16"','1/8"','1/4"','3/8"','1/2"','3/4"','>3/4"'] },
+  { key: 'stucco',   name: 'Stucco',   color: 'var(--c-stucco)',   hex: '#b56947',
+    sizes: ['Hairline','1/16"','1/8"','1/4"','3/8"','>3/8"'],
+    patterns: ['Diagonal','Vertical','Horizontal','Map','Spider'],
+    locations: ['Corner','Mid-wall','Window','Door','Joint'],
+    offsets: ['None','1/16"','1/8"','1/4"','3/8"','1/2"','>1/2"'] },
+  { key: 'tile',     name: 'Tile',     color: 'var(--c-tile)',     hex: '#2a8a8a',
+    sizes: ['Hairline','1/32"','1/16"','1/8"','>1/8"'],
+    patterns: ['Cracked Tile','Grout Crack','Tile Lippage','Loose Tile'],
+    locations: ['Floor','Wall','Backsplash','Tub Surround'],
+    offsets: ['None','1/32"','1/16"','1/8"','3/16"','>3/16"'] },
+  { key: 'window',   name: 'Window',   color: 'var(--c-window)',   hex: '#c89a3a',
+    sizes: [],
+    patterns: ['Binding','Cracked Glass','Out of Square','Gap at Frame','Stuck'],
+    locations: ['Top','Bottom','Side','Sill','Header'] },
+  { key: 'door',     name: 'Door',     color: 'var(--c-door)',     hex: '#6b4a8a',
+    sizes: [],
+    patterns: ['Binding','Won\'t Latch','Out of Square','Gap at Top','Gap at Bottom','Gap at Side','Drag on Floor'],
+    locations: ['Interior','Exterior','Closet','Garage'] },
+  { key: 'gap',      name: 'Gap',      color: 'var(--c-gap)',      hex: '#d97a2c',
+    sizes: ['1/16"','1/8"','1/4"','3/8"','1/2"','3/4"','>3/4"'],
+    patterns: ['Floor-Wall','Wall-Ceiling','Wall-Wall','Trim Separation','Cabinet Separation'],
+    locations: ['Continuous','Localized','Tapered'] },
+  { key: 'offset',   name: 'Offset',   color: 'var(--c-offset)',   hex: '#1a1a1a',
+    sizes: ['1/16"','1/8"','1/4"','3/8"','1/2"','3/4"','1"','>1"'],
+    patterns: ['Vertical Offset','Horizontal Offset','Out-of-plane','Tilt'],
+    locations: ['Slab','Wall','Floor','Counter'] },
+  { key: 'other',    name: 'Other',    color: 'var(--c-other)',    hex: '#7a8470',
+    custom: true,
+    sizes: [],
+    patterns: [],
+    locations: [] }
+];
+
+const state = {
+  jobAddress: '',
+  planImage: null,
+  pins: [],     // { id, num, surface, x, y, descriptors, photos:[{num,data}], notes, line }
+  unattachedPhotos: [],  // [{num, data, caption}]
+  selectedSurface: null,
+  selectedDescriptors: { size: '', pattern: '', location: '', offset: '', custom: '' },
+  selectedPinId: null,
+  activePinId: null,    // which pin photos auto-attach to
+  nextNum: 1,           // next pin number
+  nextPhotoNum: 1,      // next photo number (unified across pins + unattached)
+  view: { scale: 1, tx: 0, ty: 0 },
+  imgNatural: { w: 0, h: 0 },
+  pendingLine: null
+};
+
+// ============ UNDO ============
+const UNDO_LIMIT = 25;
+const undoStack = [];
+
+function snapshot(label) {
+  // Capture state for undo. Photo data URLs are large, so we share them by reference
+  // (we never mutate a photo's data field — only add/remove photos from arrays).
+  const cloneRest = (obj) => {
+    if (Array.isArray(obj)) return obj.map(cloneRest);
+    if (obj && typeof obj === 'object') {
+      const out = {};
+      for (const k of Object.keys(obj)) {
+        // 'data' fields are large image data URLs — share by reference
+        out[k] = (k === 'data') ? obj[k] : cloneRest(obj[k]);
+      }
+      return out;
+    }
+    return obj;
+  };
+  undoStack.push({
+    label: label || 'change',
+    state: {
+      jobAddress: state.jobAddress,
+      planImage: state.planImage,
+      pins: cloneRest(state.pins),
+      unattachedPhotos: cloneRest(state.unattachedPhotos),
+      activePinId: state.activePinId,
+      selectedPinId: state.selectedPinId,
+      nextNum: state.nextNum,
+      nextPhotoNum: state.nextPhotoNum
+    }
+  });
+  if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+  updateUndoButton();
+}
+
+function undo() {
+  if (!undoStack.length) return;
+  const snap = undoStack.pop();
+  state.jobAddress = snap.state.jobAddress;
+  state.planImage = snap.state.planImage;
+  state.pins = snap.state.pins;
+  state.unattachedPhotos = snap.state.unattachedPhotos;
+  state.activePinId = snap.state.activePinId;
+  state.selectedPinId = snap.state.selectedPinId;
+  state.nextNum = snap.state.nextNum;
+  state.nextPhotoNum = snap.state.nextPhotoNum;
+  state.pendingLine = null;
+  // Clear any in-progress drawing
+  if (ptr.drawPath) { try { ptr.drawPath.remove(); } catch(e){} }
+  ptr.drawPath = null;
+  ptr.drawPoints = null;
+  // Remove any leftover dashed pending-line paths from SVG
+  const svg = $('planSvg');
+  if (svg) svg.querySelectorAll('polyline[stroke-dasharray]').forEach(p => p.remove());
+  save();
+  $('jobAddress').value = state.jobAddress || '';
+  renderPins();
+  renderLines();
+  renderFindings();
+  updateActiveIndicator();
+  if (state.selectedPinId) renderDetail();
+  else $('detailPanel').classList.remove('open');
+  updateUndoButton();
+  toast('Undid: ' + snap.label);
+}
+
+function updateUndoButton() {
+  const btn = $('undoBtn');
+  if (!btn) return;
+  btn.disabled = undoStack.length === 0;
+  if (undoStack.length > 0) {
+    btn.title = 'Undo: ' + undoStack[undoStack.length - 1].label;
+  } else {
+    btn.title = 'Nothing to undo';
+  }
+}
+
+// ============ STORAGE ============
+function save() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      jobAddress: state.jobAddress,
+      planImage: state.planImage,
+      pins: state.pins,
+      unattachedPhotos: state.unattachedPhotos,
+      nextNum: state.nextNum,
+      nextPhotoNum: state.nextPhotoNum,
+      activePinId: state.activePinId,
+      selectedSurface: state.selectedSurface,
+      selectedDescriptors: state.selectedDescriptors
+    }));
+  } catch (e) {
+    toast('Storage full — export & clear soon');
+  }
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    state.jobAddress = d.jobAddress || '';
+    state.planImage = d.planImage || null;
+    state.pins = d.pins || [];
+    state.unattachedPhotos = d.unattachedPhotos || [];
+    // Migrate old pins with single 'photo' field to 'photos' array
+    state.pins.forEach(p => {
+      if (p.photo && !p.photos) {
+        p.photos = [{ num: 0, data: p.photo }]; // 0 = pre-migration, will be re-numbered if needed
+        delete p.photo;
+      }
+      if (!p.photos) p.photos = [];
+    });
+    state.nextNum = d.nextNum || (state.pins.length ? Math.max(...state.pins.map(p=>p.num))+1 : 1);
+    // Compute next photo num from existing data if not stored
+    if (d.nextPhotoNum) {
+      state.nextPhotoNum = d.nextPhotoNum;
+    } else {
+      const allNums = [
+        ...state.pins.flatMap(p => (p.photos||[]).map(ph => ph.num || 0)),
+        ...state.unattachedPhotos.map(ph => ph.num || 0)
+      ];
+      state.nextPhotoNum = allNums.length ? Math.max(...allNums) + 1 : 1;
+    }
+    state.activePinId = d.activePinId || null;
+    // Validate activePinId references an existing pin
+    if (state.activePinId && !state.pins.find(p => p.id === state.activePinId)) {
+      state.activePinId = null;
+    }
+    state.selectedSurface = d.selectedSurface || null;
+    state.selectedDescriptors = d.selectedDescriptors || { size:'', pattern:'', location:'', custom:'' };
+  } catch(e) { console.warn(e); }
+}
+
+// ============ HELPERS ============
+function $(id) { return document.getElementById(id); }
+function getSurface(key) { return SURFACES.find(s => s.key === key); }
+function pinHex(pin) { return getSurface(pin.surface)?.hex || '#1e2a4a'; }
+function buildLabel(pin) {
+  const s = getSurface(pin.surface);
+  if (!s) return '#' + pin.num;
+  if (s.custom) {
+    return pin.descriptors.custom || 'Other (untitled)';
+  }
+  const parts = [];
+  if (pin.descriptors.size) parts.push(pin.descriptors.size);
+  parts.push(s.name.toLowerCase());
+  if (pin.descriptors.pattern) parts.push(pin.descriptors.pattern.toLowerCase());
+  if (pin.descriptors.location) parts.push('at ' + pin.descriptors.location.toLowerCase());
+  if (pin.descriptors.offset && pin.descriptors.offset !== 'None') {
+    parts.push('with ' + pin.descriptors.offset + ' offset');
+  }
+  return parts.join(' ');
+}
+function buildShortLabel(pin) {
+  const s = getSurface(pin.surface);
+  if (!s) return '—';
+  if (s.custom) {
+    return pin.descriptors.custom || 'Other';
+  }
+  const bits = [];
+  if (pin.descriptors.size) bits.push(pin.descriptors.size);
+  bits.push(s.name);
+  if (pin.descriptors.pattern) bits.push(pin.descriptors.pattern);
+  return bits.join(' ');
+}
+
+let toastT;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+// ============ RAIL ============
+function renderRail() {
+  const rail = $('rail');
+  rail.innerHTML = SURFACES.map(s => `
+    <button class="rail-btn ${state.selectedSurface === s.key ? 'selected' : ''}" data-key="${s.key}">
+      <div class="rail-swatch" style="background:${s.color}"></div>
+      <div class="rail-label">${s.name}</div>
+    </button>
+  `).join('');
+  rail.querySelectorAll('.rail-btn').forEach(btn => {
+    btn.addEventListener('click', () => selectSurface(btn.dataset.key));
+  });
+}
+
+function selectSurface(key) {
+  if (state.selectedSurface === key) {
+    // toggle off / close descriptors
+    state.selectedSurface = null;
+    state.selectedDescriptors = { size:'', pattern:'', location:'', offset:'', custom:'' };
+  } else {
+    state.selectedSurface = key;
+    // reset descriptors when switching surface
+    state.selectedDescriptors = { size:'', pattern:'', location:'', offset:'', custom:'' };
+  }
+  save();
+  renderRail();
+  renderDescriptors();
+  updateHint();
+}
+
+function renderDescriptors() {
+  const panel = $('descriptors');
+  const planArea = $('planArea');
+  if (!state.selectedSurface) {
+    panel.classList.remove('open');
+    planArea.classList.remove('shifted');
+    return;
+  }
+  const s = getSurface(state.selectedSurface);
+  panel.classList.add('open');
+  planArea.classList.add('shifted');
+
+  if (s.custom) {
+    // Custom-label surface (Other): show a text input instead of chip groups
+    $('descriptorsInner').innerHTML = `
+      <div class="descriptors-head">
+        <div class="dot" style="background:${s.color}"></div>
+        ${s.name}
+      </div>
+      <div class="descriptors-sub">Type a label · sticky</div>
+      <div class="desc-group">
+        <div class="desc-group-label">Custom Label</div>
+        <input type="text" id="customLabelInput"
+               value="${escapeHtml(state.selectedDescriptors.custom || '')}"
+               placeholder="e.g. Tree root, Moisture stain, Old repair"
+               style="width:100%;padding:9px 10px;border:1px solid var(--rule);border-radius:2px;font-family:'DM Mono',monospace;font-size:12px;background:var(--paper);color:var(--ink);-webkit-user-select:text;user-select:text;">
+        <div style="font-size:9px;color:var(--ink-soft);margin-top:6px;letter-spacing:0.06em;line-height:1.4;">
+          Stays loaded for every pin you drop until you change it.
+        </div>
+      </div>
+      <div class="desc-group">
+        <div class="desc-group-label">Quick Reuse</div>
+        <div class="desc-chips" id="customRecent"></div>
+      </div>
+    `;
+    const input = $('customLabelInput');
+    let saveT;
+    input.addEventListener('input', (e) => {
+      state.selectedDescriptors.custom = e.target.value;
+      clearTimeout(saveT);
+      saveT = setTimeout(() => { save(); updateHint(); }, 200);
+    });
+    // Recent custom labels for quick reuse
+    const recent = [...new Set(
+      state.pins
+        .filter(p => p.surface === 'other' && p.descriptors.custom)
+        .map(p => p.descriptors.custom)
+    )].slice(-8).reverse();
+    const recentEl = $('customRecent');
+    if (recent.length === 0) {
+      recentEl.innerHTML = '<div style="font-size:10px;color:var(--ink-soft);font-style:italic;">No recent labels</div>';
+    } else {
+      recentEl.innerHTML = recent.map(label => `
+        <button class="desc-chip ${state.selectedDescriptors.custom === label ? 'selected' : ''}" data-recent="${escapeHtml(label)}">${escapeHtml(label)}</button>
+      `).join('');
+      recentEl.querySelectorAll('.desc-chip').forEach(c => {
+        c.addEventListener('click', () => {
+          state.selectedDescriptors.custom = c.dataset.recent;
+          save();
+          renderDescriptors();
+          updateHint();
+        });
+      });
+    }
+    return;
+  }
+
+  $('descriptorsInner').innerHTML = `
+    <div class="descriptors-head">
+      <div class="dot" style="background:${s.color}"></div>
+      ${s.name}
+    </div>
+    <div class="descriptors-sub">Tap to load · sticky</div>
+    ${s.sizes.length ? `
+    <div class="desc-group">
+      <div class="desc-group-label">Size / Width</div>
+      <div class="desc-chips">
+        ${s.sizes.map(v => descChip('size', v)).join('')}
+      </div>
+    </div>` : ''}
+    <div class="desc-group">
+      <div class="desc-group-label">${s.key==='window'||s.key==='door' ? 'Condition' : 'Pattern'}</div>
+      <div class="desc-chips">
+        ${s.patterns.map(v => descChip('pattern', v)).join('')}
+      </div>
+    </div>
+    <div class="desc-group">
+      <div class="desc-group-label">Location</div>
+      <div class="desc-chips">
+        ${s.locations.map(v => descChip('location', v)).join('')}
+      </div>
+    </div>
+    ${(s.offsets && s.offsets.length) ? `
+    <div class="desc-group">
+      <div class="desc-group-label">Offset / Displacement</div>
+      <div class="desc-chips">
+        ${s.offsets.map(v => descChip('offset', v)).join('')}
+      </div>
+    </div>` : ''}
+  `;
+  $('descriptorsInner').querySelectorAll('.desc-chip').forEach(c => {
+    c.addEventListener('click', () => {
+      const f = c.dataset.field, v = c.dataset.val;
+      state.selectedDescriptors[f] = (state.selectedDescriptors[f] === v) ? '' : v;
+      save();
+      renderDescriptors();
+      updateHint();
+    });
+  });
+}
+function descChip(field, val) {
+  const sel = state.selectedDescriptors[field] === val;
+  return `<button class="desc-chip ${sel?'selected':''}" data-field="${escapeHtml(field)}" data-val="${escapeHtml(val)}">${escapeHtml(val)}</button>`;
+}
+
+function updateHint() {
+  const hint = $('hint');
+  if (!state.planImage) { hint.style.display = 'none'; return; }
+  if (!state.selectedSurface) {
+    hint.innerHTML = '<b>Pick a surface</b> from the left to begin';
+    hint.style.display = '';
+    return;
+  }
+  const s = getSurface(state.selectedSurface);
+  const action = (s.key === 'concrete') ? 'tap to drop pin · drag to sketch line' : 'tap to drop pin';
+  if (s.custom) {
+    const label = state.selectedDescriptors.custom || '(type a label)';
+    hint.innerHTML = `<b>Other</b> · ${escapeHtml(label)} — ${action}`;
+  } else {
+    const off = state.selectedDescriptors.offset;
+    const offBit = (off && off !== 'None') ? ' · '+escapeHtml(off)+' offset' : '';
+    hint.innerHTML = `<b>${s.name}</b> ${state.selectedDescriptors.size?'· '+escapeHtml(state.selectedDescriptors.size):''} ${state.selectedDescriptors.pattern?'· '+escapeHtml(state.selectedDescriptors.pattern):''}${offBit} — ${action}`;
+  }
+  hint.style.display = '';
+}
+
+// ============ PLAN LOAD ============
+function loadPlanFromFile(file) {
+  if (!file) return;
+  // Confirm replacement if there's already a plan and pins on it
+  if (state.planImage && state.pins.length) {
+    if (!confirm('Replace the current floor plan?\n\nYou have ' + state.pins.length + ' pin' + (state.pins.length>1?'s':'') + ' on this plan. Pins will stay but their positions may not align with the new plan. Use Undo to restore the previous plan.')) {
+      return;
+    }
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    resizeImage(e.target.result, 2400, (resized) => {
+      // Snapshot before replacing so undo can restore the previous plan
+      snapshot(state.planImage ? 'Replace floor plan' : 'Load floor plan');
+      state.planImage = resized;
+      save();
+      mountPlan();
+      toast('Floor plan loaded');
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+function resizeImage(dataUrl, maxDim, cb) {
+  const img = new Image();
+  img.onload = () => {
+    let w = img.width, h = img.height;
+    if (w > maxDim || h > maxDim) {
+      if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+      else { w = Math.round(w * maxDim / h); h = maxDim; }
+    }
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(img, 0, 0, w, h);
+    cb(c.toDataURL('image/jpeg', 0.85));
+  };
+  img.src = dataUrl;
+}
+
+function mountPlan() {
+  // Camera cluster is always available — even before a plan is loaded, you can capture unattached photos
+  $('camCluster').style.display = '';
+  if (!state.planImage) {
+    $('planEmpty').style.display = '';
+    $('canvasWrap').style.display = 'none';
+    $('zoomCtrl').style.display = 'none';
+    $('hint').style.display = 'none';
+    updateActiveIndicator();
+    return;
+  }
+  $('planEmpty').style.display = 'none';
+  $('canvasWrap').style.display = '';
+  $('zoomCtrl').style.display = '';
+  const img = $('planImg');
+  img.onload = () => {
+    state.imgNatural.w = img.naturalWidth;
+    state.imgNatural.h = img.naturalHeight;
+    const svg = $('planSvg');
+    svg.setAttribute('width', img.naturalWidth);
+    svg.setAttribute('height', img.naturalHeight);
+    svg.setAttribute('viewBox', `0 0 ${img.naturalWidth} ${img.naturalHeight}`);
+    fitView();
+    renderPins();
+    renderLines();
+    updateHint();
+    updateActiveIndicator();
+  };
+  img.src = state.planImage;
+}
+
+function updateActiveIndicator() {
+  const ind = $('activeIndicator');
+  const target = $('activeTarget');
+  const clearBtn = $('camClearBtn');
+  const activePin = state.pins.find(p => p.id === state.activePinId);
+  if (activePin) {
+    ind.classList.add('has-active');
+    target.classList.remove('unattached');
+    target.textContent = '#' + activePin.num + ' ' + (getSurface(activePin.surface)?.name || '');
+    clearBtn.disabled = false;
+  } else {
+    ind.classList.remove('has-active');
+    target.classList.add('unattached');
+    target.textContent = 'Unattached';
+    clearBtn.disabled = true;
+  }
+}
+
+// ============ VIEW (pan/zoom) ============
+function applyTransform() {
+  const t = $('planTransform');
+  t.style.transform = `translate(${state.view.tx}px, ${state.view.ty}px) scale(${state.view.scale})`;
+}
+function fitView() {
+  const area = $('planArea').getBoundingClientRect();
+  const iw = state.imgNatural.w, ih = state.imgNatural.h;
+  if (!iw || !ih) return;
+  const pad = 8;
+  const sx = (area.width - pad*2) / iw;
+  const sy = (area.height - pad*2) / ih;
+  // Use the smaller of the two so the whole image fits; allow scaling up past 1.0
+  // so small floor plans actually fill the screen instead of sitting tiny in the center.
+  const s = Math.min(sx, sy);
+  state.view.scale = s;
+  state.view.tx = (area.width - iw*s) / 2;
+  state.view.ty = (area.height - ih*s) / 2;
+  applyTransform();
+}
+function zoomBy(factor, cx, cy) {
+  const newScale = Math.max(0.2, Math.min(8, state.view.scale * factor));
+  const k = newScale / state.view.scale;
+  // zoom toward center of plan area if not provided
+  if (cx == null) {
+    const r = $('planArea').getBoundingClientRect();
+    cx = r.width/2; cy = r.height/2;
+  } else {
+    const r = $('planArea').getBoundingClientRect();
+    cx -= r.left; cy -= r.top;
+  }
+  state.view.tx = cx - (cx - state.view.tx) * k;
+  state.view.ty = cy - (cy - state.view.ty) * k;
+  state.view.scale = newScale;
+  applyTransform();
+}
+
+// Convert pointer (relative to viewport) to image coords
+function pointerToImageCoords(clientX, clientY) {
+  const r = $('planArea').getBoundingClientRect();
+  const px = clientX - r.left - state.view.tx;
+  const py = clientY - r.top - state.view.ty;
+  return { x: px / state.view.scale, y: py / state.view.scale };
+}
+
+// ============ POINTER HANDLING ============
+const ptr = {
+  pointers: new Map(),
+  mode: null, // 'pan', 'pinch', 'draw', 'pan-start'
+  startTime: 0,
+  startX: 0, startY: 0,
+  lastDist: 0,
+  lastMid: null,
+  drawPath: null,
+  drawPin: null,
+  movedThreshold: 10
+};
+
+function setupPointerEvents() {
+  const wrap = $('canvasWrap');
+  wrap.style.touchAction = 'none';
+  wrap.addEventListener('pointerdown', onPointerDown);
+  wrap.addEventListener('pointermove', onPointerMove);
+  wrap.addEventListener('pointerup', onPointerUp);
+  wrap.addEventListener('pointercancel', onPointerUp);
+  wrap.addEventListener('wheel', onWheel, { passive: false });
+}
+
+function onWheel(e) {
+  if (!state.planImage) return;
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.12 : 0.89;
+  zoomBy(factor, e.clientX, e.clientY);
+}
+
+function onPointerDown(e) {
+  if (!state.planImage) return;
+
+  // Tapped on existing pin?
+  const pinEl = e.target.closest('.pin');
+  if (pinEl && ptr.pointers.size === 0) {
+    e.preventDefault();
+    ptr.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, pinHit: pinEl.dataset.pinId });
+    ptr.mode = 'tap-pin';
+    ptr.startX = e.clientX; ptr.startY = e.clientY;
+    return;
+  }
+
+  ptr.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId);
+
+  if (ptr.pointers.size === 1) {
+    ptr.startTime = Date.now();
+    ptr.startX = e.clientX;
+    ptr.startY = e.clientY;
+    ptr.mode = 'down';
+    ptr.drawPath = null;
+  } else if (ptr.pointers.size === 2) {
+    // start pinch
+    const pts = Array.from(ptr.pointers.values());
+    ptr.lastDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    ptr.lastMid = { x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2 };
+    ptr.mode = 'pinch';
+    // cancel any drawing in progress
+    if (ptr.drawPath) {
+      $('planSvg').removeChild(ptr.drawPath);
+      ptr.drawPath = null;
+    }
+  }
+}
+
+function onPointerMove(e) {
+  if (!ptr.pointers.has(e.pointerId)) return;
+  ptr.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, pinHit: ptr.pointers.get(e.pointerId).pinHit });
+
+  if (ptr.mode === 'pinch' && ptr.pointers.size === 2) {
+    const pts = Array.from(ptr.pointers.values());
+    const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    const mid = { x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2 };
+    if (ptr.lastDist > 0) {
+      const factor = dist / ptr.lastDist;
+      zoomBy(factor, mid.x, mid.y);
+    }
+    // pan from midpoint delta
+    if (ptr.lastMid) {
+      state.view.tx += (mid.x - ptr.lastMid.x);
+      state.view.ty += (mid.y - ptr.lastMid.y);
+      applyTransform();
+    }
+    ptr.lastDist = dist;
+    ptr.lastMid = mid;
+    return;
+  }
+
+  if (ptr.mode === 'down' || ptr.mode === 'pan' || ptr.mode === 'draw') {
+    const dx = e.clientX - ptr.startX;
+    const dy = e.clientY - ptr.startY;
+    const moved = Math.hypot(dx, dy);
+
+    if (ptr.mode === 'down' && moved > ptr.movedThreshold) {
+      // Decide: only Concrete supports line sketching. Everything else pans on drag.
+      if (state.selectedSurface === 'concrete') {
+        ptr.mode = 'draw';
+        startDrawLine(ptr.startX, ptr.startY);
+        extendDrawLine(e.clientX, e.clientY);
+      } else {
+        ptr.mode = 'pan';
+      }
+    } else if (ptr.mode === 'pan') {
+      state.view.tx += (e.clientX - (ptr._lastX ?? ptr.startX));
+      state.view.ty += (e.clientY - (ptr._lastY ?? ptr.startY));
+      applyTransform();
+    } else if (ptr.mode === 'draw') {
+      extendDrawLine(e.clientX, e.clientY);
+    }
+    ptr._lastX = e.clientX;
+    ptr._lastY = e.clientY;
+  }
+
+  if (ptr.mode === 'tap-pin') {
+    const moved = Math.hypot(e.clientX - ptr.startX, e.clientY - ptr.startY);
+    if (moved > ptr.movedThreshold) {
+      ptr.mode = 'drag-pin';
+      // Snapshot position before drag begins
+      const data = ptr.pointers.get(e.pointerId);
+      const pin = data && state.pins.find(p => p.id === data.pinHit);
+      if (pin) snapshot('Move pin #' + pin.num);
+    }
+    return;
+  }
+  if (ptr.mode === 'drag-pin') {
+    const data = ptr.pointers.get(e.pointerId);
+    if (data && data.pinHit) {
+      const pin = state.pins.find(p => p.id === data.pinHit);
+      if (pin) {
+        const c = pointerToImageCoords(e.clientX, e.clientY);
+        pin.x = c.x;
+        pin.y = c.y;
+        renderPins();
+      }
+    }
+  }
+}
+
+function onPointerUp(e) {
+  const data = ptr.pointers.get(e.pointerId);
+  ptr.pointers.delete(e.pointerId);
+
+  if (ptr.mode === 'pinch') {
+    if (ptr.pointers.size < 2) ptr.mode = 'idle';
+    return;
+  }
+
+  if (ptr.mode === 'tap-pin' && data && data.pinHit) {
+    selectPin(data.pinHit);
+    ptr.mode = null;
+    return;
+  }
+  if (ptr.mode === 'drag-pin') {
+    save();
+    ptr.mode = null;
+    return;
+  }
+
+  if (ptr.mode === 'down') {
+    // This was a tap (no significant move). Drop a pin.
+    handleTap(ptr.startX, ptr.startY);
+  } else if (ptr.mode === 'draw') {
+    finishDrawLine();
+  }
+
+  ptr.mode = null;
+  ptr._lastX = ptr._lastY = null;
+}
+
+// ============ TAP HANDLER ============
+function handleTap(clientX, clientY) {
+  if (!state.selectedSurface) {
+    toast('Pick a surface first');
+    return;
+  }
+  const c = pointerToImageCoords(clientX, clientY);
+  // bound to image
+  if (c.x < 0 || c.y < 0 || c.x > state.imgNatural.w || c.y > state.imgNatural.h) return;
+
+  // If there's a pending line, this tap becomes the pin for that line
+  if (state.pendingLine) {
+    snapshot('Add pin #' + state.nextNum + ' with line');
+    const pin = createPin(c.x, c.y, state.pendingLine);
+    state.pendingLine = null;
+    state.pins.push(pin);
+    state.selectedPinId = pin.id;
+    state.activePinId = pin.id;
+    state.nextNum++;
+    save();
+    renderPins();
+    renderLines();
+    renderFindings();
+    updateActiveIndicator();
+    toast('Pin #' + pin.num);
+    return;
+  }
+
+  // Otherwise create a fresh pin (no line)
+  snapshot('Add pin #' + state.nextNum);
+  const pin = createPin(c.x, c.y, null);
+  state.pins.push(pin);
+  state.selectedPinId = pin.id;
+  state.activePinId = pin.id;
+  state.nextNum++;
+  save();
+  renderPins();
+  renderFindings();
+  updateActiveIndicator();
+  toast('Pin #' + pin.num);
+}
+
+function createPin(x, y, line) {
+  return {
+    id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    num: state.nextNum,
+    surface: state.selectedSurface,
+    x, y,
+    descriptors: { ...state.selectedDescriptors },
+    photos: [],
+    notes: '',
+    line: line,
+    created: Date.now()
+  };
+}
+
+// ============ LINE DRAWING ============
+function startDrawLine(clientX, clientY) {
+  const c = pointerToImageCoords(clientX, clientY);
+  const svg = $('planSvg');
+  const surface = getSurface(state.selectedSurface);
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', surface.hex);
+  path.setAttribute('stroke-width', '4');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('stroke-linejoin', 'round');
+  path.setAttribute('points', `${c.x},${c.y}`);
+  svg.appendChild(path);
+  ptr.drawPath = path;
+  ptr.drawPoints = [{x: c.x, y: c.y}];
+}
+function extendDrawLine(clientX, clientY) {
+  if (!ptr.drawPath) return;
+  const c = pointerToImageCoords(clientX, clientY);
+  const last = ptr.drawPoints[ptr.drawPoints.length-1];
+  const minDist = 3 / state.view.scale;
+  if (Math.hypot(c.x-last.x, c.y-last.y) < minDist) return;
+  ptr.drawPoints.push({x: c.x, y: c.y});
+  ptr.drawPath.setAttribute('points', ptr.drawPoints.map(p=>`${p.x},${p.y}`).join(' '));
+}
+function finishDrawLine() {
+  if (!ptr.drawPath || !ptr.drawPoints || ptr.drawPoints.length < 2) {
+    if (ptr.drawPath) ptr.drawPath.remove();
+    ptr.drawPath = null;
+    ptr.drawPoints = null;
+    return;
+  }
+  // store as pending; next tap will pair it with a pin
+  state.pendingLine = ptr.drawPoints;
+  // remove provisional path; will redraw via renderLines once pin pairs
+  ptr.drawPath.setAttribute('stroke-dasharray', '6 4');
+  ptr.drawPath.setAttribute('opacity', '0.8');
+  ptr.drawPath = null;
+  toast('Line drawn — tap to drop pin');
+}
+
+// ============ RENDER PINS & LINES ============
+function renderPins() {
+  const layer = $('pinsLayer');
+  layer.innerHTML = '';
+  state.pins.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'pin' + (p.id === state.selectedPinId ? ' active' : '');
+    el.dataset.pinId = p.id;
+    el.style.left = p.x + 'px';
+    el.style.top = p.y + 'px';
+    el.innerHTML = `<div class="pin-circle" style="background:${pinHex(p)}">${p.num}</div>`;
+    layer.appendChild(el);
+  });
+}
+
+function renderLines() {
+  const svg = $('planSvg');
+  // remove all polylines (preserve nothing else for now)
+  svg.querySelectorAll('polyline').forEach(p => p.remove());
+  state.pins.forEach(p => {
+    if (!p.line || p.line.length < 2) return;
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', pinHex(p));
+    path.setAttribute('stroke-width', '4');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    path.setAttribute('points', p.line.map(pt=>`${pt.x},${pt.y}`).join(' '));
+    svg.appendChild(path);
+  });
+}
+
+// ============ FINDINGS PANEL ============
+function renderFindings() {
+  $('pinCount').textContent = state.pins.length;
+  const list = $('findingsList');
+  const hasPins = state.pins.length > 0;
+  const hasUnattached = state.unattachedPhotos && state.unattachedPhotos.length > 0;
+
+  if (!hasPins && !hasUnattached) {
+    list.innerHTML = '<div class="findings-empty">No pins yet. Pick a surface and tap the plan.</div>';
+    return;
+  }
+
+  let html = '';
+
+  if (hasPins) {
+    html += state.pins.slice().sort((a,b)=>a.num-b.num).map(p => {
+      const photos = p.photos || [];
+      const firstPhoto = photos[0];
+      const photoCount = photos.length;
+      const photoNumStr = photos.length
+        ? (photos.length === 1 ? '#' + photos[0].num : '#' + photos[0].num + '–' + photos[photos.length-1].num)
+        : '';
+      return `
+        <div class="finding-row ${p.id === state.selectedPinId ? 'active' : ''}" data-id="${p.id}">
+          <div class="finding-num" style="background:${pinHex(p)}">${p.num}</div>
+          <div class="finding-text">
+            <strong>${escapeHtml(buildShortLabel(p))}</strong>
+            <small>${p.descriptors.location || (p.line ? 'line' : 'point')}${photoCount ? ' · '+photoCount+' photo'+(photoCount>1?'s':'')+' '+photoNumStr : ''}</small>
+          </div>
+          ${firstPhoto
+            ? `<img class="finding-thumb" src="${firstPhoto.data}">${photoCount>1?`<div class="thumb-badge">+${photoCount-1}</div>`:''}`
+            : `<div class="finding-thumb placeholder">📷</div>`}
+        </div>
+      `;
+    }).join('');
+  }
+
+  if (hasUnattached) {
+    html += `
+      <div class="findings-section-head">
+        <span>Unattached Photos</span>
+        <span class="findings-section-count">${state.unattachedPhotos.length}</span>
+      </div>
+      ${state.unattachedPhotos.map((ph, i) => `
+        <div class="finding-row unattached-row" data-photo-idx="${i}">
+          <div class="finding-num" style="background:var(--ink-soft)">U</div>
+          <div class="finding-text">
+            <strong>Photo #${ph.num}</strong>
+            <small>${escapeHtml(ph.caption || 'No caption')}</small>
+          </div>
+          <img class="finding-thumb" src="${ph.data}">
+        </div>
+      `).join('')}
+    `;
+  }
+
+  list.innerHTML = html;
+  list.querySelectorAll('.finding-row[data-id]').forEach(r => {
+    r.addEventListener('click', () => {
+      selectPin(r.dataset.id);
+      openDetail();
+    });
+  });
+  list.querySelectorAll('.finding-row[data-photo-idx]').forEach(r => {
+    r.addEventListener('click', () => {
+      const idx = parseInt(r.dataset.photoIdx);
+      openUnattachedPhoto(idx);
+    });
+  });
+}
+
+// ============ DETAIL PANEL ============
+function selectPin(id) {
+  state.selectedPinId = id;
+  state.activePinId = id;
+  save();
+  renderPins();
+  renderFindings();
+  renderDetail();
+  updateActiveIndicator();
+}
+
+function renderDetail() {
+  const panel = $('detailPanel');
+  const pin = state.pins.find(p => p.id === state.selectedPinId);
+  if (!pin) {
+    panel.innerHTML = '';
+    panel.classList.remove('open');
+    return;
+  }
+  const s = getSurface(pin.surface);
+  panel.innerHTML = `
+    <div class="detail-head" style="background:${pinHex(pin)}">
+      <div class="detail-num">${pin.num}</div>
+      <div class="detail-title">${escapeHtml(s.name)}</div>
+      <button class="detail-close" id="detailClose">×</button>
+    </div>
+    <div class="detail-body">
+      <div class="detail-photos">
+        ${(pin.photos && pin.photos.length) ? pin.photos.map((ph, i) => `
+          <div class="photo-tile" data-photo-idx="${i}">
+            <img src="${ph.data}" data-action="view">
+            <div class="photo-num">#${ph.num}</div>
+            <button class="photo-remove" data-action="remove">×</button>
+          </div>
+        `).join('') : `<div class="detail-photo-placeholder">No photos · tap camera to add</div>`}
+      </div>
+
+      <div class="detail-field">
+        <div class="detail-field-label">Description</div>
+        <div class="detail-value">${escapeHtml(buildLabel(pin))}</div>
+      </div>
+
+      ${pin.descriptors.size ? `
+      <div class="detail-field">
+        <div class="detail-field-label">Size</div>
+        <div class="detail-value">${escapeHtml(pin.descriptors.size)}</div>
+      </div>` : ''}
+      ${pin.descriptors.pattern ? `
+      <div class="detail-field">
+        <div class="detail-field-label">Pattern</div>
+        <div class="detail-value">${escapeHtml(pin.descriptors.pattern)}</div>
+      </div>` : ''}
+      ${pin.descriptors.location ? `
+      <div class="detail-field">
+        <div class="detail-field-label">Location</div>
+        <div class="detail-value">${escapeHtml(pin.descriptors.location)}</div>
+      </div>` : ''}
+      ${(pin.descriptors.offset && pin.descriptors.offset !== 'None') ? `
+      <div class="detail-field">
+        <div class="detail-field-label">Offset / Displacement</div>
+        <div class="detail-value">${escapeHtml(pin.descriptors.offset)}</div>
+      </div>` : ''}
+
+      <div class="detail-field">
+        <div class="detail-field-label">Notes</div>
+        <textarea class="detail-notes" id="detailNotes" placeholder="Observations…">${escapeHtml(pin.notes || '')}</textarea>
+      </div>
+
+      <div class="detail-actions">
+        <button id="detailMakeActive">${state.activePinId === pin.id ? '✓ Active' : 'Make Active'}</button>
+        <button id="detailRelabel">Re-label</button>
+        <button id="detailDelete" class="danger">Delete</button>
+      </div>
+    </div>
+  `;
+  panel.classList.add('open');
+  $('detailClose').addEventListener('click', () => {
+    panel.classList.remove('open');
+    state.selectedPinId = null;
+    renderPins();
+    renderFindings();
+  });
+  $('detailNotes').addEventListener('input', (e) => {
+    pin.notes = e.target.value;
+    save();
+  });
+  $('detailMakeActive').addEventListener('click', () => {
+    state.activePinId = pin.id;
+    save();
+    updateActiveIndicator();
+    renderDetail();
+    toast('Photos now → Pin #' + pin.num);
+  });
+  $('detailRelabel').addEventListener('click', () => {
+    if (!state.selectedSurface) {
+      toast('Pick a surface first');
+      return;
+    }
+    snapshot('Re-label pin #' + pin.num);
+    pin.surface = state.selectedSurface;
+    pin.descriptors = { ...state.selectedDescriptors };
+    save();
+    renderPins();
+    renderLines();
+    renderFindings();
+    renderDetail();
+    toast('Re-labeled');
+  });
+  // Photo tile interactions
+  panel.querySelectorAll('.photo-tile').forEach(tile => {
+    const idx = parseInt(tile.dataset.photoIdx);
+    tile.querySelector('img').addEventListener('click', () => {
+      openLightbox(pin.photos[idx].data, pin.photos[idx].num);
+    });
+    tile.querySelector('.photo-remove').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!confirm('Remove photo #' + pin.photos[idx].num + '?')) return;
+      snapshot('Remove photo #' + pin.photos[idx].num);
+      pin.photos.splice(idx, 1);
+      save();
+      renderDetail();
+      renderFindings();
+    });
+  });
+  $('detailDelete').addEventListener('click', () => {
+    if (!confirm('Delete pin #' + pin.num + '? Photos attached to this pin will move to Unattached.')) return;
+    snapshot('Delete pin #' + pin.num);
+    // Move pin's photos to unattached so they're not lost
+    if (pin.photos && pin.photos.length) {
+      pin.photos.forEach(ph => state.unattachedPhotos.push({...ph, caption: ph.caption || ''}));
+    }
+    state.pins = state.pins.filter(p => p.id !== pin.id);
+    if (state.activePinId === pin.id) state.activePinId = null;
+    state.selectedPinId = null;
+    save();
+    renderPins();
+    renderLines();
+    renderFindings();
+    updateActiveIndicator();
+    panel.classList.remove('open');
+    toast('Deleted');
+  });
+}
+
+function openDetail() {
+  if (state.selectedPinId) {
+    $('findingsPanel').classList.remove('open');
+    renderDetail();
+  }
+}
+
+// ============ LIGHTBOX ============
+function openLightbox(dataUrl, photoNum) {
+  $('lightboxImg').src = dataUrl;
+  $('lightboxInfo').textContent = 'Photo #' + photoNum;
+  $('lightbox').classList.add('show');
+}
+$('lightboxClose').addEventListener('click', () => {
+  $('lightbox').classList.remove('show');
+});
+$('lightbox').addEventListener('click', (e) => {
+  if (e.target.id === 'lightbox') $('lightbox').classList.remove('show');
+});
+
+// ============ UNATTACHED PHOTO HANDLER ============
+function openUnattachedPhoto(idx) {
+  const ph = state.unattachedPhotos[idx];
+  if (!ph) return;
+  // Simple: show the photo, allow caption edit, allow delete, allow attach to a pin
+  const caption = prompt(
+    'Photo #' + ph.num + '\n\nCaption (or type DELETE to remove, or PIN# followed by a number to attach):',
+    ph.caption || ''
+  );
+  if (caption === null) return;
+  const trimmed = caption.trim();
+  if (trimmed === 'DELETE') {
+    snapshot('Delete photo #' + ph.num);
+    state.unattachedPhotos.splice(idx, 1);
+    save();
+    renderFindings();
+    toast('Photo deleted');
+    return;
+  }
+  const pinMatch = trimmed.match(/^PIN#?\s*(\d+)$/i);
+  if (pinMatch) {
+    const targetNum = parseInt(pinMatch[1]);
+    const pin = state.pins.find(p => p.num === targetNum);
+    if (!pin) {
+      toast('Pin #' + targetNum + ' not found');
+      return;
+    }
+    snapshot('Attach photo #' + ph.num + ' to pin #' + pin.num);
+    if (!pin.photos) pin.photos = [];
+    pin.photos.push(ph);
+    state.unattachedPhotos.splice(idx, 1);
+    save();
+    renderFindings();
+    toast('Photo #' + ph.num + ' → Pin #' + pin.num);
+    return;
+  }
+  // caption-only edit — also undoable
+  if ((ph.caption || '') !== trimmed) snapshot('Edit caption #' + ph.num);
+  ph.caption = trimmed;
+  save();
+  renderFindings();
+}
+
+// ============ CAMERA ============
+$('camInput').addEventListener('change', (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    resizeImage(ev.target.result, 1600, (resized) => {
+      const photoNum = state.nextPhotoNum;
+      snapshot('Add photo #' + photoNum);
+      state.nextPhotoNum++;
+      const photo = { num: photoNum, data: resized };
+      const activePin = state.pins.find(p => p.id === state.activePinId);
+      if (activePin) {
+        if (!activePin.photos) activePin.photos = [];
+        activePin.photos.push(photo);
+        toast('Photo #' + photoNum + ' → Pin #' + activePin.num);
+      } else {
+        photo.caption = '';
+        state.unattachedPhotos.push(photo);
+        toast('Photo #' + photoNum + ' (unattached)');
+      }
+      save();
+      renderFindings();
+      if (state.selectedPinId === state.activePinId) renderDetail();
+    });
+  };
+  reader.readAsDataURL(f);
+  e.target.value = '';
+});
+
+// Clear active pin button
+$('camClearBtn').addEventListener('click', () => {
+  if (!state.activePinId) return;
+  state.activePinId = null;
+  save();
+  updateActiveIndicator();
+  if (state.selectedPinId) renderDetail();
+  toast('Cleared — photos now unattached');
+});
+
+// ============ EXPORT ============
+$('exportBtn').addEventListener('click', () => {
+  if (!state.pins.length && !state.unattachedPhotos.length) { toast('Nothing to export'); return; }
+
+  const lines = [];
+  // Header block
+  lines.push('Distress Survey Export');
+  lines.push('Job Address,' + csvEsc(state.jobAddress || '(no address)'));
+  lines.push('Date Exported,' + csvEsc(new Date().toLocaleString()));
+  lines.push('Total Pins,' + state.pins.length);
+  lines.push('Total Photos,' + (state.pins.reduce((n,p) => n + (p.photos?.length || 0), 0) + state.unattachedPhotos.length));
+  lines.push('');
+
+  // Pins
+  lines.push('PINS');
+  const pinHeaders = ['Pin #','Surface','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y'];
+  lines.push(pinHeaders.join(','));
+  state.pins.slice().sort((a,b)=>a.num-b.num).forEach(p => {
+    const photoNums = (p.photos || []).map(ph => ph.num).join(';');
+    const offsetVal = (p.descriptors.offset && p.descriptors.offset !== 'None') ? p.descriptors.offset : '';
+    lines.push([
+      p.num,
+      getSurface(p.surface)?.name || '',
+      p.descriptors.size || '',
+      p.descriptors.pattern || '',
+      p.descriptors.location || (p.descriptors.custom || ''),
+      offsetVal,
+      buildLabel(p),
+      p.notes || '',
+      (p.photos || []).length,
+      photoNums,
+      (p.line && p.line.length >= 2) ? 'Y' : 'N',
+      p.x.toFixed(0), p.y.toFixed(0)
+    ].map(csvEsc).join(','));
+  });
+
+  // Unattached photos
+  if (state.unattachedPhotos.length) {
+    lines.push('');
+    lines.push('UNATTACHED PHOTOS');
+    lines.push('Photo #,Caption');
+    state.unattachedPhotos.forEach(ph => {
+      lines.push([ph.num, ph.caption || ''].map(csvEsc).join(','));
+    });
+  }
+
+  const csv = lines.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  // Filename includes address if available
+  const addrSlug = (state.jobAddress || 'survey')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 50)
+    .toLowerCase();
+  a.download = 'distress-' + addrSlug + '-' + dateStamp() + '.csv';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 200);
+  toast('Exported CSV');
+});
+
+// ============ ZOOM CONTROLS ============
+$('zoomIn').addEventListener('click', () => zoomBy(1.25));
+$('zoomOut').addEventListener('click', () => zoomBy(0.8));
+$('zoomFit').addEventListener('click', () => fitView());
+
+// ============ FINDINGS / TOPBAR ============
+$('findingsBtn').addEventListener('click', () => {
+  $('detailPanel').classList.remove('open');
+  $('findingsPanel').classList.toggle('open');
+});
+$('findingsClose').addEventListener('click', () => {
+  $('findingsPanel').classList.remove('open');
+});
+$('undoBtn').addEventListener('click', () => undo());
+
+// Keyboard shortcut: Ctrl/Cmd-Z (handy on tablet with bluetooth keyboard or desktop)
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+    // Don't fire if user is typing in a text field
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+    e.preventDefault();
+    undo();
+  }
+});
+
+$('clearBtn').addEventListener('click', () => {
+  if (!confirm('Clear everything? This deletes the job address, floor plan, all pins, and all photos.')) return;
+  snapshot('Clear all');
+  state.jobAddress = '';
+  state.planImage = null;
+  state.pins = [];
+  state.unattachedPhotos = [];
+  state.selectedPinId = null;
+  state.activePinId = null;
+  state.nextNum = 1;
+  state.nextPhotoNum = 1;
+  state.pendingLine = null;
+  save();
+  $('jobAddress').value = '';
+  mountPlan();
+  renderFindings();
+  $('detailPanel').classList.remove('open');
+  toast('Cleared — Undo to restore');
+});
+
+$('planFile').addEventListener('change', (e) => loadPlanFromFile(e.target.files[0]));
+$('planFile2').addEventListener('change', (e) => loadPlanFromFile(e.target.files[0]));
+
+// Job address persistence
+let addrSaveTimer;
+$('jobAddress').addEventListener('input', (e) => {
+  state.jobAddress = e.target.value;
+  clearTimeout(addrSaveTimer);
+  addrSaveTimer = setTimeout(save, 300);
+});
+
+// ============ UTILS ============
+function escapeHtml(s) { return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function csvEsc(v) { const s = String(v||''); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }
+function dateStamp() {
+  const d = new Date();
+  return d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+}
+
+// ============ INIT ============
+load();
+$('jobAddress').value = state.jobAddress || '';
+renderRail();
+renderDescriptors();
+mountPlan();
+renderFindings();
+updateActiveIndicator();
+setupPointerEvents();
+window.addEventListener('resize', () => {
+  if (state.planImage) fitView();
+});
+</script>
+</body>
+</html>
