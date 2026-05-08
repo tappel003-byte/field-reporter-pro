@@ -28,8 +28,62 @@
     --c-gap: #d97a2c;
     --c-offset: #1a1a1a;
     --c-other: #7a8470;
+
+    /* Category colors (location-based) */
+    --cat-wall:       #4a8a4a;  /* green */
+    --cat-ceiling:    #2a6fb8;  /* blue */
+    --cat-floor:      #d4a72c;  /* yellow */
+    --cat-separation: #d97a2c;  /* orange */
+    --cat-slab:       #c0392b;  /* red */
+    --cat-other:      #6e6e6e;  /* gray */
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+
+  /* Hazard triangle overlay (severity >= 4) */
+  .pin .hazard {
+    position: absolute;
+    top: -10px; right: -10px;
+    width: 18px; height: 18px;
+    background: #ffcc00;
+    color: #1a1a1a;
+    border: 1.5px solid #1a1a1a;
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+    display: flex; align-items: flex-end; justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; font-weight: 700;
+    line-height: 1;
+    padding-bottom: 1px;
+    pointer-events: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  }
+
+  /* Severity slider in detail panel */
+  .sev-row { display: flex; align-items: center; gap: 10px; }
+  .sev-row input[type=range] { flex: 1; }
+  .sev-val {
+    min-width: 22px; text-align: center;
+    font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 600;
+    padding: 3px 6px; border: 1px solid var(--rule); border-radius: 2px;
+    background: var(--paper);
+  }
+  .sev-val.high { background: #ffe066; border-color: #b88400; color: #1a1a1a; }
+
+  /* Category picker chips: tinted left swatch + label */
+  .cat-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .cat-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 9px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    color: var(--ink-soft);
+    font-family: 'DM Mono', monospace;
+    font-size: 10.5px;
+    cursor: pointer;
+    border-radius: 2px;
+    font-weight: 500;
+  }
+  .cat-chip .swatch { width: 10px; height: 10px; border-radius: 50%; }
+  .cat-chip.selected { background: var(--ink); color: var(--paper); border-color: var(--ink); }
   html, body {
     margin: 0; padding: 0; height: 100%; overflow: hidden;
     font-family: 'DM Mono', monospace;
@@ -1200,6 +1254,47 @@ const SURFACES = [
     locations: [] }
 ];
 
+// Categories — color = location, not material. Hazard triangle handles structural movement.
+const CATEGORIES = [
+  { key: 'wall',       name: 'Wall',         hex: '#4a8a4a' },
+  { key: 'ceiling',    name: 'Ceiling',      hex: '#2a6fb8' },
+  { key: 'floor',      name: 'Floor',        hex: '#d4a72c' },
+  { key: 'separation', name: 'Separation',   hex: '#d97a2c' },
+  { key: 'slab',       name: 'Slab Crack',   hex: '#c0392b' },
+  { key: 'other',      name: 'Other / Ext.', hex: '#6e6e6e' }
+];
+
+// Best-guess default category from the surface (material) for migration & fast pin entry.
+const DEFAULT_CATEGORY_BY_SURFACE = {
+  drywall:  'wall',
+  cmu:      'wall',
+  stucco:   'wall',
+  tile:     'floor',     // override to wall/ceiling on the pin if needed
+  concrete: 'slab',
+  window:   'wall',
+  door:     'wall',
+  gap:      'separation',
+  offset:   'separation',
+  other:    'other'
+};
+
+// Tag catalog for the "Tags" multi-select. `materials` / `categories` filter visibility.
+// Empty array = always available.
+const TAGS = [
+  { key: 'hairline',     name: 'Hairline',      materials: [], categories: [] },
+  { key: 'wide',         name: 'Wide',          materials: [], categories: [] },
+  { key: 'through',      name: 'Through-crack', materials: [], categories: [] },
+  { key: 'shear',        name: 'Shear',         materials: ['drywall','cmu','stucco'], categories: [] },
+  { key: 'corner',       name: 'Corner crack',  materials: [], categories: ['wall','ceiling'] },
+  { key: 'stairstep',    name: 'Stair-step',    materials: ['cmu','stucco','concrete'], categories: [] },
+  { key: 'spalling',     name: 'Spalling',      materials: ['concrete','cmu','stucco'], categories: [] },
+  { key: 'efflorescence',name: 'Efflorescence', materials: ['concrete','cmu','stucco'], categories: [] },
+  { key: 'bowing',       name: 'Bowing',        materials: [], categories: [] },
+  { key: 'settlement',   name: 'Settlement',    materials: [], categories: [] },
+  { key: 'moisture',     name: 'Moisture',      materials: [], categories: [] }
+];
+
+
 const state = {
   jobAddress: '',
   planImage: null,
@@ -1328,6 +1423,10 @@ function load() {
         delete p.photo;
       }
       if (!p.photos) p.photos = [];
+      // Wave 2A migration: ensure category, severity, tags exist on every pin
+      if (!p.category) p.category = DEFAULT_CATEGORY_BY_SURFACE[p.surface] || 'other';
+      if (typeof p.severity !== 'number') p.severity = 0;
+      if (!Array.isArray(p.tags)) p.tags = [];
     });
     state.nextNum = d.nextNum || (state.pins.length ? Math.max(...state.pins.map(p=>p.num))+1 : 1);
     // Compute next photo num from existing data if not stored
@@ -1353,7 +1452,23 @@ function load() {
 // ============ HELPERS ============
 function $(id) { return document.getElementById(id); }
 function getSurface(key) { return SURFACES.find(s => s.key === key); }
-function pinHex(pin) { return getSurface(pin.surface)?.hex || '#1e2a4a'; }
+function getCategory(key) { return CATEGORIES.find(c => c.key === key); }
+function pinCategoryHex(pin) {
+  const c = getCategory(pin.category);
+  if (c) return c.hex;
+  // Fallback for any pin missing a category (shouldn't happen post-migration)
+  return getSurface(pin.surface)?.hex || '#6e6e6e';
+}
+// Kept for backwards compat with anything still calling pinHex
+function pinHex(pin) { return pinCategoryHex(pin); }
+function pinIsHazard(pin) { return (pin.severity || 0) >= 4; }
+function tagsForPin(pin) {
+  return TAGS.filter(t => {
+    const matMatch = !t.materials.length || t.materials.includes(pin.surface);
+    const catMatch = !t.categories.length || t.categories.includes(pin.category);
+    return matMatch && catMatch;
+  });
+}
 function buildLabel(pin) {
   const s = getSurface(pin.surface);
   if (!s) return '#' + pin.num;
@@ -1918,6 +2033,9 @@ function createPin(x, y, line) {
     id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
     num: state.nextNum,
     surface: state.selectedSurface,
+    category: DEFAULT_CATEGORY_BY_SURFACE[state.selectedSurface] || 'other',
+    severity: 0,
+    tags: [],
     x, y,
     descriptors: { ...state.selectedDescriptors },
     photos: [],
@@ -1979,7 +2097,8 @@ function renderPins() {
     el.dataset.pinId = p.id;
     el.style.left = p.x + 'px';
     el.style.top = p.y + 'px';
-    el.innerHTML = `<div class="pin-circle" style="background:${pinHex(p)}">${p.num}</div>`;
+    const hazard = pinIsHazard(p) ? `<div class="hazard" title="High severity">!</div>` : '';
+    el.innerHTML = `<div class="pin-circle" style="background:${pinCategoryHex(p)}">${p.num}</div>${hazard}`;
     layer.appendChild(el);
   });
 }
@@ -2092,10 +2211,13 @@ function renderDetail() {
     return;
   }
   const s = getSurface(pin.surface);
+  const cat = getCategory(pin.category) || getCategory('other');
+  const sev = pin.severity || 0;
+  const availTags = tagsForPin(pin);
   panel.innerHTML = `
-    <div class="detail-head" style="background:${pinHex(pin)}">
-      <div class="detail-num">${pin.num}</div>
-      <div class="detail-title">${escapeHtml(s.name)}</div>
+    <div class="detail-head" style="background:${pinCategoryHex(pin)}">
+      <div class="detail-num">${pin.num}${pinIsHazard(pin) ? ' ⚠' : ''}</div>
+      <div class="detail-title">${escapeHtml(cat.name)} · ${escapeHtml(s.name)}</div>
       <button class="detail-close" id="detailClose">×</button>
     </div>
     <div class="detail-body">
@@ -2107,6 +2229,35 @@ function renderDetail() {
             <button class="photo-remove" data-action="remove">×</button>
           </div>
         `).join('') : `<div class="detail-photo-placeholder">No photos · tap camera to add</div>`}
+      </div>
+
+      <div class="detail-field">
+        <div class="detail-field-label">Category</div>
+        <div class="cat-chips" id="catChips">
+          ${CATEGORIES.map(c => `
+            <button class="cat-chip ${pin.category === c.key ? 'selected' : ''}" data-cat="${c.key}">
+              <span class="swatch" style="background:${c.hex}"></span>${escapeHtml(c.name)}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="detail-field">
+        <div class="detail-field-label">Severity ${sev >= 4 ? '· ⚠ HAZARD' : ''}</div>
+        <div class="sev-row">
+          <input type="range" id="sevSlider" min="0" max="5" step="1" value="${sev}">
+          <div class="sev-val ${sev >= 4 ? 'high' : ''}" id="sevVal">${sev}</div>
+        </div>
+        <div style="font-size:9px;color:var(--ink-soft);margin-top:4px;letter-spacing:0.05em;">0 = none · 5 = severe (≥4 flags hazard triangle, photo required)</div>
+      </div>
+
+      <div class="detail-field">
+        <div class="detail-field-label">Tags</div>
+        <div class="desc-chips" id="tagChips">
+          ${availTags.map(t => `
+            <button class="desc-chip ${(pin.tags||[]).includes(t.key) ? 'selected' : ''}" data-tag="${t.key}">${escapeHtml(t.name)}</button>
+          `).join('')}
+        </div>
       </div>
 
       <div class="detail-field">
@@ -2164,6 +2315,57 @@ function renderDetail() {
     renderPins();
     renderFindings();
   });
+
+  // ---- Category chips ----
+  panel.querySelectorAll('#catChips .cat-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      snapshot('Re-categorize pin #' + pin.num);
+      pin.category = btn.dataset.cat;
+      save();
+      renderPins();
+      renderLines();
+      renderFindings();
+      renderDetail();
+    });
+  });
+
+  // ---- Severity slider ----
+  const sevSlider = $('sevSlider');
+  const sevVal = $('sevVal');
+  if (sevSlider) {
+    sevSlider.addEventListener('input', (e) => {
+      const v = parseInt(e.target.value, 10) || 0;
+      pin.severity = v;
+      sevVal.textContent = v;
+      sevVal.classList.toggle('high', v >= 4);
+      // Live update only the hazard badge & header — full re-render on commit
+    });
+    sevSlider.addEventListener('change', () => {
+      // Photo-required gate at severity ≥ 4
+      if (pin.severity >= 4 && (!pin.photos || pin.photos.length === 0)) {
+        toast('⚠ High severity needs a photo');
+      }
+      snapshot('Severity → ' + pin.severity);
+      save();
+      renderPins();
+      renderFindings();
+      renderDetail();
+    });
+  }
+
+  // ---- Tag chips (multi-select) ----
+  panel.querySelectorAll('#tagChips .desc-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.tag;
+      pin.tags = pin.tags || [];
+      const i = pin.tags.indexOf(key);
+      if (i >= 0) pin.tags.splice(i, 1);
+      else pin.tags.push(key);
+      btn.classList.toggle('selected');
+      save();
+    });
+  });
+
   $('detailNotes').addEventListener('input', (e) => {
     pin.notes = e.target.value;
     save();
@@ -2214,6 +2416,9 @@ function renderDetail() {
       id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
       num: state.nextNum,
       surface: pin.surface,
+      category: pin.category || 'other',
+      severity: pin.severity || 0,
+      tags: [...(pin.tags || [])],
       x: pin.x + 24, y: pin.y + 24,
       descriptors: { ...pin.descriptors },
       photos: [],
@@ -2413,14 +2618,21 @@ $('exportBtn').addEventListener('click', () => {
 
   // Pins
   lines.push('PINS');
-  const pinHeaders = ['Pin #','Surface','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
+  const pinHeaders = ['Pin #','Category','Severity','Hazard','Surface','Tags','Shear','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
   lines.push(pinHeaders.join(','));
   state.pins.slice().sort((a,b)=>a.num-b.num).forEach(p => {
     const photoNums = (p.photos || []).map(ph => ph.num).join(';');
     const offsetVal = (p.descriptors.offset && p.descriptors.offset !== 'None') ? p.descriptors.offset : '';
+    const tagNames = (p.tags || []).map(k => TAGS.find(t => t.key === k)?.name || k).join('; ');
+    const sev = p.severity || 0;
     lines.push([
       p.num,
+      getCategory(p.category)?.name || '',
+      sev,
+      sev >= 4 ? 'Y' : '',
       getSurface(p.surface)?.name || '',
+      tagNames,
+      (p.tags || []).includes('shear') ? 'Y' : '',
       p.descriptors.size || '',
       p.descriptors.pattern || '',
       p.descriptors.location || (p.descriptors.custom || ''),
