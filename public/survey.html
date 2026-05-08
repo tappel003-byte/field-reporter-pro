@@ -1451,7 +1451,23 @@ function load() {
 // ============ HELPERS ============
 function $(id) { return document.getElementById(id); }
 function getSurface(key) { return SURFACES.find(s => s.key === key); }
-function pinHex(pin) { return getSurface(pin.surface)?.hex || '#1e2a4a'; }
+function getCategory(key) { return CATEGORIES.find(c => c.key === key); }
+function pinCategoryHex(pin) {
+  const c = getCategory(pin.category);
+  if (c) return c.hex;
+  // Fallback for any pin missing a category (shouldn't happen post-migration)
+  return getSurface(pin.surface)?.hex || '#6e6e6e';
+}
+// Kept for backwards compat with anything still calling pinHex
+function pinHex(pin) { return pinCategoryHex(pin); }
+function pinIsHazard(pin) { return (pin.severity || 0) >= 4; }
+function tagsForPin(pin) {
+  return TAGS.filter(t => {
+    const matMatch = !t.materials.length || t.materials.includes(pin.surface);
+    const catMatch = !t.categories.length || t.categories.includes(pin.category);
+    return matMatch && catMatch;
+  });
+}
 function buildLabel(pin) {
   const s = getSurface(pin.surface);
   if (!s) return '#' + pin.num;
