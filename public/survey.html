@@ -2162,28 +2162,39 @@ $('camInput').addEventListener('change', (e) => {
   const reader = new FileReader();
   reader.onload = (ev) => {
     resizeImage(ev.target.result, 1600, (resized) => {
-      const photoNum = state.nextPhotoNum;
-      snapshot('Add photo #' + photoNum);
-      state.nextPhotoNum++;
-      const photo = { num: photoNum, data: resized };
-      const activePin = state.pins.find(p => p.id === state.activePinId);
-      if (activePin) {
-        if (!activePin.photos) activePin.photos = [];
-        activePin.photos.push(photo);
-        toast('Photo #' + photoNum + ' → Pin #' + activePin.num);
-      } else {
-        photo.caption = '';
-        state.unattachedPhotos.push(photo);
-        toast('Photo #' + photoNum + ' (unattached)');
-      }
-      save();
-      renderFindings();
-      if (state.selectedPinId === state.activePinId) renderDetail();
+      toast('Uploading photo…');
+      uploadToCloud(resized, 'photo').then(url => {
+        addPhotoToState(url);
+      }).catch(err => {
+        console.error(err);
+        toast('Upload failed — saved locally');
+        addPhotoToState(resized);
+      });
     });
   };
   reader.readAsDataURL(f);
   e.target.value = '';
 });
+
+function addPhotoToState(dataOrUrl) {
+  const photoNum = state.nextPhotoNum;
+  snapshot('Add photo #' + photoNum);
+  state.nextPhotoNum++;
+  const photo = { num: photoNum, data: dataOrUrl };
+  const activePin = state.pins.find(p => p.id === state.activePinId);
+  if (activePin) {
+    if (!activePin.photos) activePin.photos = [];
+    activePin.photos.push(photo);
+    toast('Photo #' + photoNum + ' → Pin #' + activePin.num);
+  } else {
+    photo.caption = '';
+    state.unattachedPhotos.push(photo);
+    toast('Photo #' + photoNum + ' (unattached)');
+  }
+  save();
+  renderFindings();
+  if (state.selectedPinId === state.activePinId) renderDetail();
+}
 
 // Clear active pin button
 $('camClearBtn').addEventListener('click', () => {
