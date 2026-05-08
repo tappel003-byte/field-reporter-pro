@@ -1254,7 +1254,47 @@ const SURFACES = [
     locations: [] }
 ];
 
-const state = {
+// Categories — color = location, not material. Hazard triangle handles structural movement.
+const CATEGORIES = [
+  { key: 'wall',       name: 'Wall',         hex: '#4a8a4a' },
+  { key: 'ceiling',    name: 'Ceiling',      hex: '#2a6fb8' },
+  { key: 'floor',      name: 'Floor',        hex: '#d4a72c' },
+  { key: 'separation', name: 'Separation',   hex: '#d97a2c' },
+  { key: 'slab',       name: 'Slab Crack',   hex: '#c0392b' },
+  { key: 'other',      name: 'Other / Ext.', hex: '#6e6e6e' }
+];
+
+// Best-guess default category from the surface (material) for migration & fast pin entry.
+const DEFAULT_CATEGORY_BY_SURFACE = {
+  drywall:  'wall',
+  cmu:      'wall',
+  stucco:   'wall',
+  tile:     'floor',     // override to wall/ceiling on the pin if needed
+  concrete: 'slab',
+  window:   'wall',
+  door:     'wall',
+  gap:      'separation',
+  offset:   'separation',
+  other:    'other'
+};
+
+// Tag catalog for the "Tags" multi-select. `materials` / `categories` filter visibility.
+// Empty array = always available.
+const TAGS = [
+  { key: 'hairline',     name: 'Hairline',      materials: [], categories: [] },
+  { key: 'wide',         name: 'Wide',          materials: [], categories: [] },
+  { key: 'through',      name: 'Through-crack', materials: [], categories: [] },
+  { key: 'shear',        name: 'Shear',         materials: ['drywall','cmu','stucco'], categories: [] },
+  { key: 'corner',       name: 'Corner crack',  materials: [], categories: ['wall','ceiling'] },
+  { key: 'stairstep',    name: 'Stair-step',    materials: ['cmu','stucco','concrete'], categories: [] },
+  { key: 'spalling',     name: 'Spalling',      materials: ['concrete','cmu','stucco'], categories: [] },
+  { key: 'efflorescence',name: 'Efflorescence', materials: ['concrete','cmu','stucco'], categories: [] },
+  { key: 'bowing',       name: 'Bowing',        materials: [], categories: [] },
+  { key: 'settlement',   name: 'Settlement',    materials: [], categories: [] },
+  { key: 'moisture',     name: 'Moisture',      materials: [], categories: [] }
+];
+
+
   jobAddress: '',
   planImage: null,
   pins: [],     // { id, num, surface, x, y, descriptors, photos:[{num,data}], notes, line }
