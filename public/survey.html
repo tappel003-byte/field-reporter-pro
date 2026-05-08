@@ -2772,11 +2772,11 @@ function addPhotoToState(dataOrUrl, extra) {
   if (activePin) {
     if (!activePin.photos) activePin.photos = [];
     activePin.photos.push(photo);
-    toast('Photo #' + photoNum + ' → Pin #' + activePin.num);
+    if (!extra.silent) toast('Photo #' + photoNum + ' → Pin #' + activePin.num);
   } else {
     photo.caption = '';
     state.unattachedPhotos.push(photo);
-    toast('Photo #' + photoNum + ' (unattached)');
+    if (!extra.silent) toast('Photo #' + photoNum + ' (unattached)');
   }
   save();
   renderFindings();
