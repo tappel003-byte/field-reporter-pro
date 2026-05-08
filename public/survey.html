@@ -2096,7 +2096,8 @@ function renderPins() {
     el.dataset.pinId = p.id;
     el.style.left = p.x + 'px';
     el.style.top = p.y + 'px';
-    el.innerHTML = `<div class="pin-circle" style="background:${pinHex(p)}">${p.num}</div>`;
+    const hazard = pinIsHazard(p) ? `<div class="hazard" title="High severity">!</div>` : '';
+    el.innerHTML = `<div class="pin-circle" style="background:${pinCategoryHex(p)}">${p.num}</div>${hazard}`;
     layer.appendChild(el);
   });
 }
