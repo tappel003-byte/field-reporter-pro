@@ -2175,6 +2175,64 @@ function renderDetail() {
     renderDetail();
     toast('Photos now → Pin #' + pin.num);
   });
+
+  // ---- Voice-to-text mic ----
+  const micBtn = $('detailMic');
+  if (micBtn) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      micBtn.style.display = 'none';
+    } else {
+      let rec = null;
+      micBtn.addEventListener('click', () => {
+        if (rec) { rec.stop(); return; }
+        rec = new SR();
+        rec.lang = 'en-US';
+        rec.interimResults = true;
+        rec.continuous = true;
+        const ta = $('detailNotes');
+        const base = ta.value;
+        rec.onresult = (e) => {
+          let txt = '';
+          for (let i = e.resultIndex; i < e.results.length; i++) txt += e.results[i][0].transcript;
+          ta.value = (base ? base + ' ' : '') + txt;
+          pin.notes = ta.value;
+        };
+        rec.onend = () => { rec = null; micBtn.classList.remove('recording'); micBtn.textContent = '🎤'; save(); };
+        rec.onerror = () => { rec = null; micBtn.classList.remove('recording'); micBtn.textContent = '🎤'; toast('Mic error'); };
+        try { rec.start(); micBtn.classList.add('recording'); micBtn.textContent = '⏹'; toast('Listening… tap mic to stop'); }
+        catch(err){ toast('Mic unavailable'); rec = null; }
+      });
+    }
+  }
+
+  // ---- Duplicate pin ----
+  $('detailDuplicate').addEventListener('click', () => {
+    snapshot('Duplicate pin #' + pin.num);
+    const meta = (window.capturePinMeta && window.capturePinMeta()) || { timestamp: Date.now() };
+    const dup = {
+      id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      num: state.nextNum,
+      surface: pin.surface,
+      x: pin.x + 24, y: pin.y + 24,
+      descriptors: { ...pin.descriptors },
+      photos: [],
+      notes: pin.notes || '',
+      line: null,
+      created: meta.timestamp,
+      gps: meta.gps || null
+    };
+    state.pins.push(dup);
+    state.nextNum++;
+    state.selectedPinId = dup.id;
+    state.activePinId = dup.id;
+    save();
+    renderPins();
+    renderFindings();
+    renderDetail();
+    updateActiveIndicator();
+    toast('Duplicated → Pin #' + dup.num);
+  });
   $('detailRelabel').addEventListener('click', () => {
     if (!state.selectedSurface) {
       toast('Pick a surface first');
