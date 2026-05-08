@@ -2137,12 +2137,22 @@ function renderDetail() {
 
       <div class="detail-field">
         <div class="detail-field-label">Notes</div>
-        <textarea class="detail-notes" id="detailNotes" placeholder="Observations…">${escapeHtml(pin.notes || '')}</textarea>
+        <div class="notes-wrap">
+          <textarea class="detail-notes" id="detailNotes" placeholder="Observations…">${escapeHtml(pin.notes || '')}</textarea>
+          <button type="button" class="mic-btn" id="detailMic" title="Voice-to-text">🎤</button>
+        </div>
       </div>
+
+      ${(pin.gps || pin.created) ? `
+      <div class="detail-field" style="font-size:10px;color:var(--ink-soft);letter-spacing:0.04em;">
+        ${pin.created ? `<div>📅 ${new Date(pin.created).toLocaleString()}</div>` : ''}
+        ${pin.gps ? `<div>📍 ${pin.gps.lat.toFixed(5)}, ${pin.gps.lng.toFixed(5)} <span style="opacity:0.6">(±${Math.round(pin.gps.acc)}m)</span></div>` : ''}
+      </div>` : ''}
 
       <div class="detail-actions">
         <button id="detailMakeActive">${state.activePinId === pin.id ? '✓ Active' : 'Make Active'}</button>
         <button id="detailRelabel">Re-label</button>
+        <button id="detailDuplicate">Duplicate</button>
         <button id="detailDelete" class="danger">Delete</button>
       </div>
     </div>
