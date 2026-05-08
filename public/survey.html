@@ -1913,6 +1913,7 @@ function handleTap(clientX, clientY) {
 }
 
 function createPin(x, y, line) {
+  const meta = (window.capturePinMeta && window.capturePinMeta()) || { timestamp: Date.now() };
   return {
     id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
     num: state.nextNum,
@@ -1922,7 +1923,8 @@ function createPin(x, y, line) {
     photos: [],
     notes: '',
     line: line,
-    created: Date.now()
+    created: meta.timestamp,
+    gps: meta.gps || null
   };
 }
 
