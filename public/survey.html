@@ -1899,6 +1899,7 @@ function mountPlan() {
   $('planEmpty').style.display = 'none';
   $('canvasWrap').style.display = '';
   $('zoomCtrl').style.display = '';
+  if (typeof renderNorthArrow === 'function') renderNorthArrow();
   const img = $('planImg');
   img.onload = () => {
     state.imgNatural.w = img.naturalWidth;
