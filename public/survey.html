@@ -2255,7 +2255,7 @@ function finishDrawLine() {
 function renderPins() {
   const layer = $('pinsLayer');
   layer.innerHTML = '';
-  state.pins.forEach(p => {
+  visiblePins().forEach(p => {
     const el = document.createElement('div');
     el.className = 'pin' + (p.id === state.selectedPinId ? ' active' : '');
     el.dataset.pinId = p.id;
@@ -2269,9 +2269,8 @@ function renderPins() {
 
 function renderLines() {
   const svg = $('planSvg');
-  // remove all polylines (preserve nothing else for now)
   svg.querySelectorAll('polyline').forEach(p => p.remove());
-  state.pins.forEach(p => {
+  visiblePins().forEach(p => {
     if (!p.line || p.line.length < 2) return;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
     path.setAttribute('fill', 'none');
@@ -2286,28 +2285,36 @@ function renderLines() {
 
 // ============ FINDINGS PANEL ============
 function renderFindings() {
-  $('pinCount').textContent = state.pins.length;
+  const vp = visiblePins();
+  const vu = visibleUnattached();
+  $('pinCount').textContent = vp.length;
   const list = $('findingsList');
-  const hasPins = state.pins.length > 0;
-  const hasUnattached = state.unattachedPhotos && state.unattachedPhotos.length > 0;
 
-  if (!hasPins && !hasUnattached) {
+  if (!vp.length && !vu.length) {
     list.innerHTML = '<div class="findings-empty">No pins yet. Pick a surface and tap the plan.</div>';
+    refreshTrashCount();
     return;
   }
 
-  let html = '';
+  // Sort by user-defined order (orderIdx) when present, else by num
+  const sortedPins = vp.slice().sort((a,b) => {
+    const ai = (typeof a.orderIdx === 'number') ? a.orderIdx : a.num;
+    const bi = (typeof b.orderIdx === 'number') ? b.orderIdx : b.num;
+    return ai - bi;
+  });
 
-  if (hasPins) {
-    html += state.pins.slice().sort((a,b)=>a.num-b.num).map(p => {
-      const photos = p.photos || [];
+  let html = '';
+  if (sortedPins.length) {
+    html += sortedPins.map(p => {
+      const photos = visiblePhotosOf(p);
       const firstPhoto = photos[0];
       const photoCount = photos.length;
       const photoNumStr = photos.length
         ? (photos.length === 1 ? '#' + photos[0].num : '#' + photos[0].num + '–' + photos[photos.length-1].num)
         : '';
       return `
-        <div class="finding-row ${p.id === state.selectedPinId ? 'active' : ''}" data-id="${p.id}">
+        <div class="finding-row ${p.id === state.selectedPinId ? 'active' : ''}" draggable="true" data-id="${p.id}">
+          <div class="finding-drag" title="Drag to reorder">⋮⋮</div>
           <div class="finding-num" style="background:${pinHex(p)}">${p.num}</div>
           <div class="finding-text">
             <strong>${escapeHtml(buildShortLabel(p))}</strong>
@@ -2316,23 +2323,24 @@ function renderFindings() {
           ${firstPhoto
             ? `<img class="finding-thumb" src="${firstPhoto.data}">${photoCount>1?`<div class="thumb-badge">+${photoCount-1}</div>`:''}`
             : `<div class="finding-thumb placeholder">📷</div>`}
+          <button class="finding-trash" data-trash="${p.id}" title="Move to trash" style="background:none;border:0;color:var(--ink-soft);cursor:pointer;font-size:14px;padding:0 6px;">🗑</button>
         </div>
       `;
     }).join('');
   }
 
-  if (hasUnattached) {
+  if (vu.length) {
     html += `
       <div class="findings-section-head">
-        <span>Unattached Photos</span>
-        <span class="findings-section-count">${state.unattachedPhotos.length}</span>
+        <span>Site Photos · unattached</span>
+        <span class="findings-section-count">${vu.length}</span>
       </div>
-      ${state.unattachedPhotos.map((ph, i) => `
+      ${vu.map((ph, i) => `
         <div class="finding-row unattached-row" data-photo-idx="${i}">
           <div class="finding-num" style="background:var(--ink-soft)">U</div>
           <div class="finding-text">
             <strong>Photo #${ph.num}</strong>
-            <small>${escapeHtml(ph.caption || 'No caption')}</small>
+            <small>${escapeHtml(ph.caption || (ph.takenAt ? new Date(ph.takenAt).toLocaleString() : 'No caption'))}${ph.gps ? ' · GPS' : ''}</small>
           </div>
           <img class="finding-thumb" src="${ph.data}">
         </div>
@@ -2341,6 +2349,7 @@ function renderFindings() {
   }
 
   list.innerHTML = html;
+  refreshTrashCount();
   list.querySelectorAll('.finding-row[data-id]').forEach(r => {
     r.addEventListener('click', () => {
       selectPin(r.dataset.id);
