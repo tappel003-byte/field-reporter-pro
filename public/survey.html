@@ -951,20 +951,68 @@
     return new Blob([arr], { type: mime });
   }
 
+  // ---- Sync indicator ----
+  let _syncInflight = 0;
+  window.setSyncStatus = function(state, msg){
+    const el = document.getElementById('syncPill');
+    if (!el) return;
+    el.dataset.state = state;
+    el.querySelector('.sync-text').textContent = msg || ({idle:'Synced', uploading:'Uploading…', error:'Sync error'}[state] || state);
+  };
+
   // Upload a resized data URL to cloud storage; returns a public URL
   window.uploadToCloud = async function(dataUrl, kind) {
-    const blob = dataUrlToBlob(dataUrl);
-    const id = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
-    const path = `${kind}/${id}.jpg`;
-    const { error } = await sb.storage.from(BUCKET).upload(path, blob, {
-      contentType: 'image/jpeg',
-      cacheControl: '31536000',
-      upsert: false,
-    });
-    if (error) throw error;
-    const { data } = sb.storage.from(BUCKET).getPublicUrl(path);
-    return data.publicUrl;
+    _syncInflight++;
+    window.setSyncStatus && window.setSyncStatus('uploading');
+    try {
+      const blob = dataUrlToBlob(dataUrl);
+      const id = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
+      const path = `${kind}/${id}.jpg`;
+      const { error } = await sb.storage.from(BUCKET).upload(path, blob, {
+        contentType: 'image/jpeg',
+        cacheControl: '31536000',
+        upsert: false,
+      });
+      if (error) throw error;
+      const { data } = sb.storage.from(BUCKET).getPublicUrl(path);
+      return data.publicUrl;
+    } catch (e) {
+      window.setSyncStatus && window.setSyncStatus('error', 'Upload failed');
+      throw e;
+    } finally {
+      _syncInflight--;
+      if (_syncInflight === 0) {
+        setTimeout(() => { if (_syncInflight === 0) window.setSyncStatus && window.setSyncStatus('idle'); }, 400);
+      }
+    }
   };
+
+  // ---- GPS capture (best-effort, cached briefly) ----
+  let _lastGps = null, _lastGpsAt = 0;
+  window.capturePinMeta = function(){
+    const meta = { timestamp: Date.now() };
+    // Reuse a recent fix to avoid a delay on every pin
+    if (_lastGps && (Date.now() - _lastGpsAt) < 60000) {
+      meta.gps = _lastGps;
+    } else if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          _lastGps = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
+          _lastGpsAt = Date.now();
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
+      );
+    }
+    return meta;
+  };
+  // Warm up GPS on load so the first pin has a fix ready
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { _lastGps = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy }; _lastGpsAt = Date.now(); },
+      () => {}, { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
+  }
 </script>
 </head>
 <body>
