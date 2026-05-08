@@ -2931,18 +2931,654 @@ function dateStamp() {
   return d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
 }
 
+// =====================================================================
+// =================== WAVE 2B FEATURES ================================
+// =====================================================================
+
+// ---- Soft delete + Trash ----
+function softDeletePin(id) {
+  const p = state.pins.find(x => x.id === id);
+  if (!p) return;
+  snapshot('Delete pin #' + p.num);
+  p.deleted = true; p.deletedAt = Date.now();
+  if (state.activePinId === id) state.activePinId = null;
+  if (state.selectedPinId === id) {
+    state.selectedPinId = null;
+    document.getElementById('detailPanel').classList.remove('open');
+  }
+  save();
+  renderPins(); renderLines(); renderFindings(); updateActiveIndicator();
+  toast('Pin #' + p.num + ' moved to trash');
+}
+function refreshTrashCount() {
+  const n = state.pins.filter(p => p.deleted).length
+          + state.unattachedPhotos.filter(ph => ph.deleted).length
+          + state.pins.reduce((s,p)=>s+(p.photos||[]).filter(ph=>ph.deleted).length,0);
+  const el = document.getElementById('trashCount'); if (el) el.textContent = n;
+}
+function openTrash() {
+  const overlay = document.getElementById('trashOverlay');
+  const list = document.getElementById('trashList');
+  const trashedPins = state.pins.filter(p => p.deleted);
+  const trashedPhotos = state.unattachedPhotos.filter(ph => ph.deleted);
+  if (!trashedPins.length && !trashedPhotos.length) {
+    list.innerHTML = '<div style="color:var(--ink-soft);padding:14px 0;">Nothing in the trash. Items here auto-purge after 30 days.</div>';
+  } else {
+    const fmt = (t) => t ? new Date(t).toLocaleString() : '—';
+    let html = '';
+    trashedPins.forEach(p => {
+      html += `<div class="trash-row">
+        <div class="finding-num" style="background:${pinHex(p)}">${p.num}</div>
+        <div class="meta"><strong>Pin #${p.num}</strong><small>${escapeHtml(buildShortLabel(p))} · deleted ${fmt(p.deletedAt)}</small></div>
+        <button data-restore-pin="${p.id}">Restore</button>
+        <button class="danger" data-purge-pin="${p.id}">Delete forever</button>
+      </div>`;
+    });
+    trashedPhotos.forEach((ph) => {
+      html += `<div class="trash-row">
+        <div class="thumb" style="background-image:url('${ph.data}')"></div>
+        <div class="meta"><strong>Photo #${ph.num}</strong><small>${escapeHtml(ph.caption||'')} · deleted ${fmt(ph.deletedAt)}</small></div>
+        <button data-restore-photo="${ph.num}">Restore</button>
+        <button class="danger" data-purge-photo="${ph.num}">Delete forever</button>
+      </div>`;
+    });
+    list.innerHTML = html;
+    list.querySelectorAll('[data-restore-pin]').forEach(b => b.addEventListener('click', () => { restorePin(b.dataset.restorePin); openTrash(); }));
+    list.querySelectorAll('[data-purge-pin]').forEach(b => b.addEventListener('click', () => { purgePin(b.dataset.purgePin); openTrash(); }));
+    list.querySelectorAll('[data-restore-photo]').forEach(b => b.addEventListener('click', () => { restoreUnattached(parseInt(b.dataset.restorePhoto)); openTrash(); }));
+    list.querySelectorAll('[data-purge-photo]').forEach(b => b.addEventListener('click', () => { purgeUnattached(parseInt(b.dataset.purgePhoto)); openTrash(); }));
+  }
+  overlay.classList.add('show');
+}
+function restorePin(id) {
+  const p = state.pins.find(x => x.id === id); if (!p) return;
+  snapshot('Restore pin #' + p.num);
+  p.deleted = false; p.deletedAt = null;
+  save(); renderPins(); renderLines(); renderFindings();
+}
+function purgePin(id) {
+  const p = state.pins.find(x => x.id === id); if (!p) return;
+  snapshot('Purge pin #' + p.num);
+  state.pins = state.pins.filter(x => x.id !== id);
+  save(); renderPins(); renderLines(); renderFindings();
+}
+function restoreUnattached(num) {
+  const ph = state.unattachedPhotos.find(x => x.num === num); if (!ph) return;
+  snapshot('Restore photo #' + ph.num);
+  ph.deleted = false; ph.deletedAt = null;
+  save(); renderFindings();
+}
+function purgeUnattached(num) {
+  snapshot('Purge photo #' + num);
+  state.unattachedPhotos = state.unattachedPhotos.filter(x => x.num !== num);
+  save(); renderFindings();
+}
+document.getElementById('trashClose').addEventListener('click', () => {
+  document.getElementById('trashOverlay').classList.remove('show');
+});
+document.getElementById('trashOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'trashOverlay') e.currentTarget.classList.remove('show');
+});
+
+// ---- Drag-to-reorder findings ----
+let _dragId = null;
+function wireFindingsDrag(list) {
+  list.querySelectorAll('.finding-row[data-id]').forEach(row => {
+    row.addEventListener('dragstart', (e) => {
+      _dragId = row.dataset.id;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      list.querySelectorAll('.drag-over').forEach(x => x.classList.remove('drag-over'));
+    });
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      list.querySelectorAll('.drag-over').forEach(x => x.classList.remove('drag-over'));
+      row.classList.add('drag-over');
+    });
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const targetId = row.dataset.id;
+      if (!_dragId || _dragId === targetId) return;
+      reorderPins(_dragId, targetId);
+      _dragId = null;
+    });
+  });
+}
+function reorderPins(fromId, toId) {
+  const vp = visiblePins().slice().sort((a,b) => {
+    const ai = (typeof a.orderIdx === 'number') ? a.orderIdx : a.num;
+    const bi = (typeof b.orderIdx === 'number') ? b.orderIdx : b.num;
+    return ai - bi;
+  });
+  const fromIdx = vp.findIndex(p => p.id === fromId);
+  const toIdx = vp.findIndex(p => p.id === toId);
+  if (fromIdx < 0 || toIdx < 0) return;
+  snapshot('Reorder pins');
+  const [moved] = vp.splice(fromIdx, 1);
+  vp.splice(toIdx, 0, moved);
+  vp.forEach((p, i) => { p.orderIdx = i; });
+  save(); renderFindings();
+}
+
+// ---- Top-bar menus ----
+function toggleMenu(id) {
+  ['exportMenu','toolsMenu'].forEach(m => {
+    const el = document.getElementById(m);
+    if (m === id) el.style.display = (el.style.display === 'block' ? 'none' : 'block');
+    else el.style.display = 'none';
+  });
+}
+document.getElementById('toolsBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleMenu('toolsMenu'); });
+document.addEventListener('click', () => {
+  document.getElementById('exportMenu').style.display = 'none';
+  document.getElementById('toolsMenu').style.display = 'none';
+});
+
+// ---- Tools menu actions ----
+document.getElementById('toolsMenu').addEventListener('click', (e) => {
+  const tool = e.target.dataset.tool;
+  if (!tool) return;
+  if (tool === 'dark') { state.darkMode = !state.darkMode; applyDarkMode(); save(); }
+  else if (tool === 'duplicate') duplicateProject();
+  else if (tool === 'restore') document.getElementById('restoreInput').click();
+  else if (tool === 'trash') openTrash();
+  else if (tool === 'weather') fetchWeather(true);
+  else if (tool === 'northToggle') {
+    state.northArrow.visible = !state.northArrow.visible;
+    save(); renderNorthArrow();
+  }
+});
+function applyDarkMode() {
+  document.body.classList.toggle('dark', !!state.darkMode);
+}
+
+// ---- Export menu actions ----
+document.getElementById('exportMenu').addEventListener('click', (e) => {
+  const kind = e.target.dataset.export;
+  if (!kind) return;
+  toggleMenu('exportMenu');
+  if (kind === 'csv') runCsvExport();
+  else if (kind === 'png-plan') exportPlanPng('plan');
+  else if (kind === 'png-pins') exportPlanPng('pins');
+  else if (kind === 'png-legend') exportPlanPng('legend');
+  else if (kind === 'cards-pdf') exportPhotoCards('pdf');
+  else if (kind === 'cards-zip') exportPhotoCards('zip');
+  else if (kind === 'backup') backupJson();
+});
+
+// Replace legacy Export click (which fired CSV directly) with the menu opener.
+(function rewireExportButton() {
+  const btn = document.getElementById('exportBtn');
+  const clone = btn.cloneNode(true);
+  btn.parentNode.replaceChild(clone, btn);
+  clone.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu('exportMenu'); });
+})();
+
+// ---- + Photos burst-import button ----
+document.getElementById('addPhotosBtn').addEventListener('click', () => {
+  document.getElementById('burstInput').click();
+});
+document.getElementById('burstInput').addEventListener('change', (e) => {
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
+  burstImportPhotos(files);
+  e.target.value = '';
+});
+
+// ---- CSV (visible-only, includes order + weather) ----
+function runCsvExport() {
+  if (!visiblePins().length && !visibleUnattached().length) { toast('Nothing to export'); return; }
+  const lines = [];
+  lines.push('Distress Survey Export');
+  lines.push('Job Address,' + csvEsc(state.jobAddress || '(no address)'));
+  lines.push('Date Exported,' + csvEsc(new Date().toLocaleString()));
+  if (state.weather) lines.push('Weather,' + csvEsc(state.weather.summary + ' @ ' + new Date(state.weather.fetchedAt).toLocaleString()));
+  lines.push('Total Pins,' + visiblePins().length);
+  lines.push('Total Photos,' + (visiblePins().reduce((n,p) => n + visiblePhotosOf(p).length, 0) + visibleUnattached().length));
+  lines.push('');
+  lines.push('PINS');
+  const pinHeaders = ['Pin #','Order','Category','Severity','Hazard','Surface','Tags','Shear','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
+  lines.push(pinHeaders.join(','));
+  visiblePins().slice().sort((a,b) => {
+    const ai = (typeof a.orderIdx === 'number') ? a.orderIdx : a.num;
+    const bi = (typeof b.orderIdx === 'number') ? b.orderIdx : b.num;
+    return ai - bi;
+  }).forEach((p, i) => {
+    const photos = visiblePhotosOf(p);
+    const photoNums = photos.map(ph => ph.num).join(';');
+    const offsetVal = (p.descriptors.offset && p.descriptors.offset !== 'None') ? p.descriptors.offset : '';
+    const tagNames = (p.tags || []).map(k => TAGS.find(t => t.key === k)?.name || k).join('; ');
+    const sev = p.severity || 0;
+    lines.push([
+      p.num, i+1,
+      getCategory(p.category)?.name || '',
+      sev, sev >= 4 ? 'Y' : '',
+      getSurface(p.surface)?.name || '',
+      tagNames,
+      (p.tags || []).includes('shear') ? 'Y' : '',
+      p.descriptors.size || '',
+      p.descriptors.pattern || '',
+      p.descriptors.location || (p.descriptors.custom || ''),
+      offsetVal,
+      buildLabel(p),
+      p.notes || '',
+      photos.length, photoNums,
+      (p.line && p.line.length >= 2) ? 'Y' : 'N',
+      p.x.toFixed(0), p.y.toFixed(0),
+      p.created ? new Date(p.created).toISOString() : '',
+      p.gps ? p.gps.lat.toFixed(6) : '',
+      p.gps ? p.gps.lng.toFixed(6) : '',
+      p.gps ? Math.round(p.gps.acc) : ''
+    ].map(csvEsc).join(','));
+  });
+  if (visibleUnattached().length) {
+    lines.push(''); lines.push('SITE PHOTOS (UNATTACHED)');
+    lines.push('Photo #,Caption,Taken,GPS Lat,GPS Lng');
+    visibleUnattached().forEach(ph => {
+      lines.push([
+        ph.num, ph.caption || '',
+        ph.takenAt ? new Date(ph.takenAt).toISOString() : '',
+        ph.gps ? ph.gps.lat.toFixed(6) : '',
+        ph.gps ? ph.gps.lng.toFixed(6) : ''
+      ].map(csvEsc).join(','));
+    });
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  downloadBlob(blob, fileSlug() + '.csv');
+  toast('Exported CSV');
+}
+function fileSlug() {
+  const addrSlug = (state.jobAddress || 'survey').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 50).toLowerCase();
+  return 'distress-' + addrSlug + '-' + dateStamp();
+}
+function downloadBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 500);
+}
+
+// ---- Floor plan PNG export (3 presets) ----
+function exportPlanPng(mode) {
+  if (!state.planImage) { toast('No floor plan loaded'); return; }
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const W = img.naturalWidth, H = img.naturalHeight;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    if (mode === 'pins' || mode === 'legend') drawPinsOn(ctx, W, H);
+    if (mode === 'legend') drawLegendOn(ctx, W, H);
+    c.toBlob((blob) => {
+      downloadBlob(blob, fileSlug() + '-plan-' + mode + '.png');
+      toast('Exported plan PNG');
+    }, 'image/png');
+  };
+  img.onerror = () => toast('Could not load plan image');
+  img.src = state.planImage;
+}
+function drawPinsOn(ctx, W, H) {
+  visiblePins().forEach(p => {
+    if (!p.line || p.line.length < 2) return;
+    ctx.beginPath();
+    ctx.strokeStyle = pinHex(p);
+    ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    p.line.forEach((pt, i) => i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y));
+    ctx.stroke();
+  });
+  const r = Math.max(14, Math.round(Math.min(W, H) * 0.018));
+  visiblePins().forEach(p => {
+    ctx.beginPath();
+    ctx.fillStyle = pinHex(p);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    ctx.arc(p.x, p.y, r, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold ' + Math.round(r*1.05) + 'px DM Mono, monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(p.num), p.x, p.y);
+    if (pinIsHazard(p)) {
+      ctx.beginPath();
+      ctx.fillStyle = '#ffcc00'; ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1.5;
+      const tx = p.x + r*0.85, ty = p.y - r*0.85, ts = r*0.85;
+      ctx.moveTo(tx, ty - ts);
+      ctx.lineTo(tx + ts, ty + ts);
+      ctx.lineTo(tx - ts, ty + ts);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#1a1a1a';
+      ctx.font = 'bold ' + Math.round(ts*1.1) + 'px DM Mono';
+      ctx.fillText('!', tx, ty + ts*0.35);
+    }
+  });
+  if (state.northArrow && state.northArrow.visible) {
+    const na = state.northArrow;
+    const cx = na.x + 28, cy = na.y + 28;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate((na.rot || 0) * Math.PI / 180);
+    ctx.beginPath(); ctx.arc(0, 0, 28, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fill();
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -22); ctx.lineTo(10, 14); ctx.lineTo(0, 7); ctx.lineTo(-10, 14); ctx.closePath();
+    ctx.fillStyle = '#c0392b'; ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 10px DM Mono';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('N', 0, -10);
+    ctx.restore();
+  }
+}
+function drawLegendOn(ctx, W, H) {
+  const padding = 16, lineH = 20;
+  const cats = CATEGORIES;
+  const boxW = 220, boxH = padding*2 + lineH * (cats.length + 1);
+  const x = W - boxW - padding, y = H - boxH - padding;
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1;
+  ctx.fillRect(x, y, boxW, boxH); ctx.strokeRect(x, y, boxW, boxH);
+  ctx.fillStyle = '#1a1a1a';
+  ctx.font = 'bold 14px DM Mono'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('Legend', x + padding, y + padding + lineH/2);
+  ctx.font = '12px DM Mono';
+  cats.forEach((c, i) => {
+    const cy = y + padding + lineH * (i + 1) + lineH/2;
+    ctx.beginPath(); ctx.fillStyle = c.hex;
+    ctx.arc(x + padding + 7, cy, 7, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillText(c.name, x + padding + 22, cy);
+  });
+}
+
+// ---- Photo cards (4x6 landscape) ----
+function buildPhotoCards() {
+  const cards = [];
+  visiblePins().slice().sort((a,b)=>a.num-b.num).forEach(p => {
+    visiblePhotosOf(p).forEach(ph => cards.push({ src: ph.data, num: ph.num, pin: p, caption: '' }));
+  });
+  visibleUnattached().forEach(ph => cards.push({ src: ph.data, num: ph.num, pin: null, caption: ph.caption || '' }));
+  return cards;
+}
+function renderCardCanvas(card, cb) {
+  const W = 1800, H = 1200;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  const img = new Image(); img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const photoArea = { x: 30, y: 30, w: W-60, h: H - 260 };
+    const r = Math.min(photoArea.w / img.naturalWidth, photoArea.h / img.naturalHeight);
+    const dw = img.naturalWidth * r, dh = img.naturalHeight * r;
+    const dx = photoArea.x + (photoArea.w - dw)/2, dy = photoArea.y + (photoArea.h - dh)/2;
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fillRect(photoArea.x, photoArea.y, photoArea.w, photoArea.h);
+    ctx.drawImage(img, dx, dy, dw, dh);
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, H-220, W, 220);
+    if (card.pin) {
+      ctx.beginPath(); ctx.fillStyle = pinHex(card.pin);
+      ctx.arc(80, H-110, 50, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 56px DM Mono'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(String(card.pin.num), 80, H-110);
+    } else {
+      ctx.beginPath(); ctx.fillStyle = '#777';
+      ctx.arc(80, H-110, 50, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 36px DM Mono'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('U', 80, H-110);
+    }
+    ctx.fillStyle = '#fff'; ctx.textAlign='left'; ctx.textBaseline='top';
+    ctx.font = 'bold 36px DM Mono';
+    const title = card.pin
+      ? `Pin #${card.pin.num} · ${getCategory(card.pin.category)?.name || ''}`
+      : `Site Photo #${card.num}`;
+    ctx.fillText(title, 160, H-200);
+    ctx.font = '24px DM Mono';
+    const desc = card.pin ? buildLabel(card.pin) : (card.caption || '');
+    wrapText(ctx, desc || '—', 160, H-150, W - 200, 32);
+    ctx.font = '20px DM Mono';
+    ctx.fillStyle = '#bbb';
+    ctx.fillText('Photo #' + card.num + ' · ' + (state.jobAddress || ''), 160, H-50);
+    cb(c);
+  };
+  img.onerror = () => cb(c);
+  img.src = card.src;
+}
+function wrapText(ctx, text, x, y, maxW, lineH) {
+  const words = String(text).split(/\s+/);
+  let line = '', yy = y;
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxW && line) {
+      ctx.fillText(line, x, yy);
+      yy += lineH;
+      line = w;
+      if (yy > y + lineH * 4) { ctx.fillText(line + '…', x, yy); return; }
+    } else line = test;
+  }
+  if (line) ctx.fillText(line, x, yy);
+}
+async function exportPhotoCards(format) {
+  const cards = buildPhotoCards();
+  if (!cards.length) { toast('No photos to export'); return; }
+  toast('Building ' + cards.length + ' card' + (cards.length>1?'s':'') + '…');
+  if (format === 'pdf') {
+    if (!window.jspdf) { toast('PDF library not loaded'); return; }
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'in', format: [6, 4] });
+    for (let i = 0; i < cards.length; i++) {
+      await new Promise((res) => renderCardCanvas(cards[i], (canvas) => {
+        const data = canvas.toDataURL('image/jpeg', 0.85);
+        if (i > 0) pdf.addPage([6, 4], 'landscape');
+        pdf.addImage(data, 'JPEG', 0, 0, 6, 4);
+        res();
+      }));
+    }
+    pdf.save(fileSlug() + '-photo-cards.pdf');
+    toast('PDF exported');
+  } else {
+    if (!window.JSZip) { toast('ZIP library not loaded'); return; }
+    const zip = new JSZip();
+    for (let i = 0; i < cards.length; i++) {
+      await new Promise((res) => renderCardCanvas(cards[i], (canvas) => {
+        canvas.toBlob((blob) => {
+          const name = String(i+1).padStart(3,'0') + '-photo-' + cards[i].num + '.png';
+          zip.file(name, blob);
+          res();
+        }, 'image/png');
+      }));
+    }
+    const blob = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(blob, fileSlug() + '-photo-cards.zip');
+    toast('ZIP exported');
+  }
+}
+
+// ---- Backup / Restore / Duplicate ----
+function backupJson() {
+  const data = JSON.stringify({
+    version: '2b',
+    exported: new Date().toISOString(),
+    state: {
+      jobAddress: state.jobAddress, planImage: state.planImage,
+      pins: state.pins, unattachedPhotos: state.unattachedPhotos,
+      nextNum: state.nextNum, nextPhotoNum: state.nextPhotoNum,
+      northArrow: state.northArrow, weather: state.weather
+    }
+  });
+  downloadBlob(new Blob([data], { type: 'application/json' }), fileSlug() + '.json');
+  toast('Project backup saved');
+}
+function duplicateProject() {
+  const data = JSON.stringify({
+    version: '2b-template',
+    exported: new Date().toISOString(),
+    state: {
+      jobAddress: '', planImage: state.planImage,
+      pins: [], unattachedPhotos: [],
+      nextNum: 1, nextPhotoNum: 1,
+      northArrow: state.northArrow, weather: null
+    }
+  });
+  downloadBlob(new Blob([data], { type: 'application/json' }), fileSlug() + '-template.json');
+  toast('Template saved — restore it to start a fresh job');
+}
+document.getElementById('restoreInput').addEventListener('change', (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const obj = JSON.parse(reader.result);
+      if (!obj.state) throw new Error('Invalid backup');
+      if (!confirm('Restore this backup? Your current project will be replaced (Undo will not recover it).')) return;
+      const s = obj.state;
+      state.jobAddress = s.jobAddress || '';
+      state.planImage = s.planImage || null;
+      state.pins = s.pins || [];
+      state.unattachedPhotos = s.unattachedPhotos || [];
+      state.nextNum = s.nextNum || 1;
+      state.nextPhotoNum = s.nextPhotoNum || 1;
+      state.northArrow = s.northArrow || { x: 24, y: 24, rot: 0, visible: true };
+      state.weather = s.weather || null;
+      state.selectedPinId = null; state.activePinId = null;
+      save();
+      document.getElementById('jobAddress').value = state.jobAddress;
+      mountPlan(); renderPins(); renderLines(); renderFindings(); renderNorthArrow(); renderWeather();
+      toast('Restored');
+    } catch (err) { console.error(err); toast('Bad backup file'); }
+  };
+  reader.readAsText(f);
+  e.target.value = '';
+});
+
+// ---- North arrow render + drag/rotate ----
+function renderNorthArrow() {
+  const el = document.getElementById('northArrow'); if (!el) return;
+  if (!state.planImage || !state.northArrow.visible) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.style.left = state.northArrow.x + 'px';
+  el.style.top = state.northArrow.y + 'px';
+  el.style.transform = 'rotate(' + (state.northArrow.rot || 0) + 'deg)';
+}
+(function wireNorthArrow() {
+  const el = document.getElementById('northArrow');
+  const rot = document.getElementById('northRot');
+  let drag = null;
+  el.addEventListener('pointerdown', (e) => {
+    if (e.target === rot) return;
+    e.stopPropagation();
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('dragging');
+    drag = { type: 'move', startX: e.clientX, startY: e.clientY, originX: state.northArrow.x, originY: state.northArrow.y };
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!drag || drag.type !== 'move') return;
+    const scale = state.view.scale || 1;
+    state.northArrow.x = drag.originX + (e.clientX - drag.startX) / scale;
+    state.northArrow.y = drag.originY + (e.clientY - drag.startY) / scale;
+    renderNorthArrow();
+  });
+  el.addEventListener('pointerup', () => {
+    if (!drag) return;
+    drag = null; el.classList.remove('dragging'); save();
+  });
+  rot.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    rot.setPointerCapture(e.pointerId);
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+    drag = { type: 'rot', cx, cy, startAngle: Math.atan2(e.clientY-cy, e.clientX-cx), startRot: state.northArrow.rot || 0 };
+  });
+  rot.addEventListener('pointermove', (e) => {
+    if (!drag || drag.type !== 'rot') return;
+    const a = Math.atan2(e.clientY-drag.cy, e.clientX-drag.cx);
+    state.northArrow.rot = drag.startRot + (a - drag.startAngle) * 180/Math.PI;
+    renderNorthArrow();
+  });
+  rot.addEventListener('pointerup', () => { drag = null; save(); });
+})();
+
+// ---- Address auto-fill from GPS (Nominatim) ----
+async function maybeReverseGeocode() {
+  if (state.jobAddress) return;
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const { latitude, longitude } = pos.coords;
+    try {
+      const r = await fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + latitude + '&lon=' + longitude + '&zoom=18&addressdetails=1', { headers: { 'Accept-Language': 'en' } });
+      const j = await r.json();
+      const a = j.address || {};
+      const parts = [
+        [a.house_number, a.road].filter(Boolean).join(' '),
+        a.city || a.town || a.village || a.hamlet,
+        a.state, a.postcode
+      ].filter(Boolean);
+      const guess = parts.join(', ');
+      if (!state.jobAddress && guess) {
+        state.jobAddress = guess;
+        document.getElementById('jobAddress').value = guess;
+        save();
+        toast('Address auto-filled');
+      }
+    } catch (e) { /* silent */ }
+    fetchWeather(false, latitude, longitude);
+  }, () => {}, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+}
+
+// ---- Weather (Open-Meteo, no key) ----
+async function fetchWeather(force, lat, lng) {
+  const fresh = state.weather && (Date.now() - state.weather.fetchedAt < 60*60*1000);
+  if (fresh && !force) { renderWeather(); return; }
+  if (lat == null || lng == null) {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(p => fetchWeather(force, p.coords.latitude, p.coords.longitude), () => {}, { maximumAge: 600000 });
+    return;
+  }
+  try {
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lng + '&current=temperature_2m,weather_code,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph');
+    const j = await r.json();
+    const cur = j.current || {};
+    const codeMap = { 0:'Clear', 1:'Mostly clear', 2:'Partly cloudy', 3:'Overcast', 45:'Fog', 48:'Fog', 51:'Drizzle', 53:'Drizzle', 55:'Drizzle', 61:'Rain', 63:'Rain', 65:'Heavy rain', 71:'Snow', 73:'Snow', 75:'Heavy snow', 80:'Showers', 81:'Showers', 82:'Heavy showers', 95:'Thunder', 96:'Thunder', 99:'Thunder' };
+    state.weather = {
+      tempF: Math.round(cur.temperature_2m),
+      windMph: Math.round(cur.wind_speed_10m),
+      code: cur.weather_code,
+      summary: (codeMap[cur.weather_code] || 'Weather') + ' · ' + Math.round(cur.temperature_2m) + '°F · ' + Math.round(cur.wind_speed_10m) + ' mph',
+      fetchedAt: Date.now()
+    };
+    save(); renderWeather();
+  } catch (e) { /* silent */ }
+}
+function renderWeather() {
+  const el = document.getElementById('weatherStamp');
+  if (!state.weather) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.textContent = state.weather.summary + ' · ' + new Date(state.weather.fetchedAt).toLocaleString();
+}
+
+// =====================================================================
 // ============ INIT ============
+// =====================================================================
 load();
+applyDarkMode();
 $('jobAddress').value = state.jobAddress || '';
 renderRail();
 renderDescriptors();
 mountPlan();
 renderFindings();
+renderNorthArrow();
+renderWeather();
 updateActiveIndicator();
 setupPointerEvents();
+setSync('idle');
 window.addEventListener('resize', () => {
   if (state.planImage) fitView();
 });
+setTimeout(() => { maybeReverseGeocode(); fetchWeather(false); }, 1200);
 </script>
 </body>
 </html>
