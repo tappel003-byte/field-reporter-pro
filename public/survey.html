@@ -2736,24 +2736,31 @@ function openUnattachedPhoto(idx) {
 
 // ============ CAMERA ============
 $('camInput').addEventListener('change', (e) => {
-  const f = e.target.files[0];
-  if (!f) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    resizeImage(ev.target.result, 1600, (resized) => {
-      toast('Uploading photo…');
-      uploadToCloud(resized, 'photo').then(url => {
-        addPhotoToState(url);
-      }).catch(err => {
-        console.error(err);
-        toast('Upload failed — saved locally');
-        addPhotoToState(resized);
-      });
-    });
-  };
-  reader.readAsDataURL(f);
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
+  burstImportPhotos(files);
   e.target.value = '';
 });
+
+// Burst import — handles 1 or many files; metadata captured per file.
+function burstImportPhotos(files) {
+  if (!files.length) return;
+  toast('Importing ' + files.length + ' photo' + (files.length>1?'s':'') + '…');
+  let done = 0;
+  files.forEach((f) => {
+    const reader = new FileReader();
+    const takenAt = f.lastModified || Date.now();
+    reader.onload = (ev) => {
+      resizeImage(ev.target.result, 1600, (resized) => {
+        const meta = (window.capturePinMeta && window.capturePinMeta()) || { timestamp: Date.now() };
+        addPhotoToState(resized, { takenAt, gps: meta.gps || null });
+        done++;
+        if (done === files.length) toast('Imported ' + files.length + ' photo' + (files.length>1?'s':''));
+      });
+    };
+    reader.readAsDataURL(f);
+  });
+}
 
 function addPhotoToState(dataOrUrl) {
   const photoNum = state.nextPhotoNum;
