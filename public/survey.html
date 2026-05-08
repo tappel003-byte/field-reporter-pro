@@ -1720,7 +1720,7 @@ function renderDescriptors() {
     // Custom-label surface (Other): show a text input instead of chip groups
     $('descriptorsInner').innerHTML = `
       <div class="descriptors-head">
-        <div class="dot" style="background:${s.color}"></div>
+        <div class="dot" style="background:var(--ink-soft);opacity:.4"></div>
         ${s.name}
       </div>
       <div class="descriptors-sub">Type a label · sticky</div>
@@ -1773,7 +1773,7 @@ function renderDescriptors() {
 
   $('descriptorsInner').innerHTML = `
     <div class="descriptors-head">
-      <div class="dot" style="background:${s.color}"></div>
+      <div class="dot" style="background:var(--ink-soft);opacity:.4"></div>
       ${s.name}
     </div>
     <div class="descriptors-sub">Tap to load · sticky</div>
