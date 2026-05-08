@@ -2364,6 +2364,8 @@ function renderDetail() {
       save();
     });
   });
+
+  $('detailNotes').addEventListener('input', (e) => {
     pin.notes = e.target.value;
     save();
   });
