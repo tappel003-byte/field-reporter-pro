@@ -2314,7 +2314,56 @@ function renderDetail() {
     renderPins();
     renderFindings();
   });
-  $('detailNotes').addEventListener('input', (e) => {
+
+  // ---- Category chips ----
+  panel.querySelectorAll('#catChips .cat-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      snapshot('Re-categorize pin #' + pin.num);
+      pin.category = btn.dataset.cat;
+      save();
+      renderPins();
+      renderLines();
+      renderFindings();
+      renderDetail();
+    });
+  });
+
+  // ---- Severity slider ----
+  const sevSlider = $('sevSlider');
+  const sevVal = $('sevVal');
+  if (sevSlider) {
+    sevSlider.addEventListener('input', (e) => {
+      const v = parseInt(e.target.value, 10) || 0;
+      pin.severity = v;
+      sevVal.textContent = v;
+      sevVal.classList.toggle('high', v >= 4);
+      // Live update only the hazard badge & header — full re-render on commit
+    });
+    sevSlider.addEventListener('change', () => {
+      // Photo-required gate at severity ≥ 4
+      if (pin.severity >= 4 && (!pin.photos || pin.photos.length === 0)) {
+        toast('⚠ High severity needs a photo');
+      }
+      snapshot('Severity → ' + pin.severity);
+      save();
+      renderPins();
+      renderFindings();
+      renderDetail();
+    });
+  }
+
+  // ---- Tag chips (multi-select) ----
+  panel.querySelectorAll('#tagChips .desc-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.tag;
+      pin.tags = pin.tags || [];
+      const i = pin.tags.indexOf(key);
+      if (i >= 0) pin.tags.splice(i, 1);
+      else pin.tags.push(key);
+      btn.classList.toggle('selected');
+      save();
+    });
+  });
     pin.notes = e.target.value;
     save();
   });
