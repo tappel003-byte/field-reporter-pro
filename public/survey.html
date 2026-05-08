@@ -2413,7 +2413,7 @@ $('exportBtn').addEventListener('click', () => {
 
   // Pins
   lines.push('PINS');
-  const pinHeaders = ['Pin #','Surface','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y'];
+  const pinHeaders = ['Pin #','Surface','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
   lines.push(pinHeaders.join(','));
   state.pins.slice().sort((a,b)=>a.num-b.num).forEach(p => {
     const photoNums = (p.photos || []).map(ph => ph.num).join(';');
@@ -2430,7 +2430,11 @@ $('exportBtn').addEventListener('click', () => {
       (p.photos || []).length,
       photoNums,
       (p.line && p.line.length >= 2) ? 'Y' : 'N',
-      p.x.toFixed(0), p.y.toFixed(0)
+      p.x.toFixed(0), p.y.toFixed(0),
+      p.created ? new Date(p.created).toISOString() : '',
+      p.gps ? p.gps.lat.toFixed(6) : '',
+      p.gps ? p.gps.lng.toFixed(6) : '',
+      p.gps ? Math.round(p.gps.acc) : ''
     ].map(csvEsc).join(','));
   });
 
