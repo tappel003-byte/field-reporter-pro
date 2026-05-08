@@ -933,6 +933,39 @@
     .topbar-spacer { display: none; }
   }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+  // ============ CLOUD STORAGE ============
+  const SUPABASE_URL = 'https://mzfurscmoqjolnnhcfhv.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16ZnVyc2Ntb3Fqb2xubmhjZmh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyNTUyMzEsImV4cCI6MjA5MzgzMTIzMX0.mZbpPIMravNKIMQhKAaGVrMWB3V3FrJPkXq-GMedbpM';
+  const BUCKET = 'survey-photos';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // dataURL → Blob
+  function dataUrlToBlob(dataUrl) {
+    const [meta, b64] = dataUrl.split(',');
+    const mime = (meta.match(/data:(.*?);/) || [, 'image/jpeg'])[1];
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
+
+  // Upload a resized data URL to cloud storage; returns a public URL
+  window.uploadToCloud = async function(dataUrl, kind) {
+    const blob = dataUrlToBlob(dataUrl);
+    const id = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
+    const path = `${kind}/${id}.jpg`;
+    const { error } = await sb.storage.from(BUCKET).upload(path, blob, {
+      contentType: 'image/jpeg',
+      cacheControl: '31536000',
+      upsert: false,
+    });
+    if (error) throw error;
+    const { data } = sb.storage.from(BUCKET).getPublicUrl(path);
+    return data.publicUrl;
+  };
+</script>
 </head>
 <body>
 
