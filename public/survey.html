@@ -118,6 +118,44 @@
   .top-btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
   .top-btn.danger { color: var(--c-concrete); border-color: var(--c-concrete); }
   .top-btn.danger:active { background: var(--c-concrete); color: var(--paper); }
+
+  /* Sync indicator pill */
+  .sync-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 26px; padding: 0 10px;
+    border: 1px solid var(--rule); border-radius: 13px;
+    background: var(--paper);
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-left: 8px;
+  }
+  .sync-pill .sync-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #5fa55a;
+    box-shadow: 0 0 0 2px rgba(95,165,90,0.18);
+  }
+  .sync-pill[data-state="uploading"] .sync-dot {
+    background: var(--gold);
+    animation: syncPulse 1s ease-in-out infinite;
+  }
+  .sync-pill[data-state="error"] .sync-dot { background: var(--c-concrete); }
+  .sync-pill[data-state="error"] { color: var(--c-concrete); border-color: var(--c-concrete); }
+  @keyframes syncPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* Voice / mic button */
+  .mic-btn {
+    position: absolute; right: 6px; bottom: 6px;
+    width: 34px; height: 34px;
+    border: 1px solid var(--rule); background: var(--paper);
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 14px; color: var(--ink-soft);
+    transition: background 120ms;
+  }
+  .mic-btn.recording { background: var(--c-concrete); color: var(--paper); border-color: var(--c-concrete); animation: syncPulse 1.1s ease-in-out infinite; }
+  .notes-wrap { position: relative; }
+  .detail-notes { padding-right: 48px !important; }
   .top-btn input { display: none; }
 
   /* STAGE */
