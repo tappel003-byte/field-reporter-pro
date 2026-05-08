@@ -1782,8 +1782,8 @@ function renderDescriptors() {
 
   $('descriptorsInner').innerHTML = `
     <div class="descriptors-head">
-      <div class="dot" style="background:var(--ink-soft);opacity:.4"></div>
-      ${s.name}
+      <span>${s.name}</span>
+      <button class="descriptors-close" id="descClose" aria-label="Close">×</button>
     </div>
     <div class="descriptors-sub">Tap to load · sticky</div>
     ${s.sizes.length ? `
