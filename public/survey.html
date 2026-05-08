@@ -1777,6 +1777,8 @@ function renderDescriptors() {
         });
       });
     }
+    const cb2 = document.getElementById('descClose');
+    if (cb2) cb2.addEventListener('click', () => selectSurface(state.selectedSurface));
     return;
   }
 
