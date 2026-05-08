@@ -1122,13 +1122,40 @@
     <input type="file" id="planFile" accept="image/*">
   </label>
   <button class="top-btn" id="findingsBtn">Findings <span id="pinCount">0</span></button>
+  <button class="top-btn" id="addPhotosBtn" title="Burst-import photos">+ Photos</button>
   <button class="top-btn" id="undoBtn" disabled>↶ Undo</button>
-  <button class="top-btn" id="exportBtn">Export</button>
+  <button class="top-btn" id="exportBtn">Export ▾</button>
+  <button class="top-btn" id="toolsBtn">More ▾</button>
   <button class="top-btn danger" id="clearBtn">Clear</button>
-  <div class="sync-pill" id="syncPill" data-state="idle" title="Cloud sync status">
-    <span class="sync-dot"></span><span class="sync-text">Synced</span>
+  <div class="sync-pill" id="syncPill" data-state="idle" title="Auto-save status">
+    <span class="sync-dot"></span><span class="sync-text">Saved</span>
   </div>
 </div>
+
+<!-- Hidden burst-import input -->
+<input type="file" id="burstInput" accept="image/*" multiple style="display:none">
+
+<!-- Export menu -->
+<div class="popup-menu" id="exportMenu" style="display:none">
+  <button data-export="csv">CSV (with notes &amp; metadata)</button>
+  <button data-export="png-plan">Plan PNG — plan only</button>
+  <button data-export="png-pins">Plan PNG — plan + pins</button>
+  <button data-export="png-legend">Plan PNG — plan + pins + legend</button>
+  <button data-export="cards-pdf">Photo cards — PDF (4×6)</button>
+  <button data-export="cards-zip">Photo cards — ZIP of PNGs</button>
+  <button data-export="backup">Backup project (JSON)</button>
+</div>
+
+<!-- Tools menu -->
+<div class="popup-menu" id="toolsMenu" style="display:none">
+  <button data-tool="dark">Toggle dark mode</button>
+  <button data-tool="duplicate">Duplicate project as template</button>
+  <button data-tool="restore">Restore from backup (JSON)…</button>
+  <button data-tool="trash">Recently deleted (<span id="trashCount">0</span>)</button>
+  <button data-tool="weather">Refresh weather stamp</button>
+  <button data-tool="northToggle">Show/hide north arrow</button>
+</div>
+<input type="file" id="restoreInput" accept="application/json,.json" style="display:none">
 
 <div class="stage">
   <!-- LEFT RAIL -->
