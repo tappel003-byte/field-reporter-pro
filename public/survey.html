@@ -37,6 +37,93 @@
     --cat-slab:       #c0392b;  /* red */
     --cat-other:      #6e6e6e;  /* gray */
   }
+  /* Dark mode override */
+  body.dark {
+    --bg: #0e1116;
+    --paper: #181c24;
+    --ink: #e6e8ee;
+    --ink-soft: #aab0bd;
+    --rule: #2a2f3a;
+    --rule-soft: #232733;
+    --gold: #d4a04a;
+    --shadow: 0 1px 3px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.4);
+  }
+  /* Popup menus (Export / Tools) */
+  .popup-menu {
+    position: fixed; top: 50px; right: 8px; z-index: 200;
+    background: var(--paper); border: 1px solid var(--rule);
+    box-shadow: var(--shadow); border-radius: 4px;
+    min-width: 240px; padding: 4px;
+  }
+  .popup-menu button {
+    display: block; width: 100%; text-align: left;
+    background: transparent; border: 0; color: var(--ink);
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    padding: 9px 12px; cursor: pointer; border-radius: 2px;
+  }
+  .popup-menu button:hover { background: var(--rule-soft); }
+  /* Auto-save indicator state styles for the existing #syncPill */
+  .sync-pill[data-state="saving"] .sync-dot { background: var(--gold); }
+  .sync-pill[data-state="saved"] .sync-dot { background: #4a8a4a; }
+  /* North arrow on the plan transform */
+  .north-arrow {
+    position: absolute; width: 56px; height: 56px;
+    background: rgba(255,255,255,0.92);
+    border: 1.5px solid #1a1a1a; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: grab; touch-action: none; z-index: 30;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  }
+  .north-arrow.dragging { cursor: grabbing; }
+  .north-arrow svg { width: 38px; height: 38px; pointer-events: none; }
+  .north-rot {
+    position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%);
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--gold); color: #fff; border: 1.5px solid #1a1a1a;
+    cursor: grab; touch-action: none; font-size: 11px; line-height: 14px;
+    text-align: center;
+  }
+  /* Trash drawer */
+  .trash-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 250;
+    display: none; align-items: center; justify-content: center;
+  }
+  .trash-overlay.show { display: flex; }
+  .trash-modal {
+    background: var(--paper); color: var(--ink);
+    width: min(560px, 92vw); max-height: 80vh; overflow: auto;
+    border: 1px solid var(--rule); border-radius: 6px; padding: 16px;
+  }
+  .trash-modal h3 { margin: 0 0 8px; font-family: 'Playfair Display', serif; }
+  .trash-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--rule-soft);
+    font-size: 12px;
+  }
+  .trash-row:last-child { border-bottom: 0; }
+  .trash-row .meta { flex: 1; min-width: 0; }
+  .trash-row .meta small { color: var(--ink-soft); display: block; }
+  .trash-row button { padding: 5px 9px; font-size: 11px; cursor: pointer;
+    background: var(--paper); border: 1px solid var(--rule); border-radius: 3px;
+    color: var(--ink); font-family: 'DM Mono', monospace; }
+  .trash-row button.danger { border-color: #c0392b; color: #c0392b; }
+  .trash-row .thumb { width: 36px; height: 36px; border-radius: 3px;
+    background: var(--rule-soft) center/cover no-repeat; }
+  /* Drag handle on findings rows */
+  .finding-row { position: relative; }
+  .finding-drag { cursor: grab; padding: 0 8px; color: var(--ink-soft); user-select: none; }
+  .finding-row.drag-over { background: var(--rule-soft); }
+  .finding-row.dragging { opacity: 0.4; }
+  /* Weather stamp */
+  .weather-stamp {
+    position: fixed; bottom: 8px; left: 8px; z-index: 40;
+    background: var(--paper); border: 1px solid var(--rule);
+    padding: 5px 9px; border-radius: 3px;
+    font-size: 11px; color: var(--ink-soft);
+    font-family: 'DM Mono', monospace;
+    pointer-events: none;
+    max-width: 60vw;
+  }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
 
   /* Hazard triangle overlay (severity >= 4) */
