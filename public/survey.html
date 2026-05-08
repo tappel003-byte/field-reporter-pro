@@ -37,6 +37,93 @@
     --cat-slab:       #c0392b;  /* red */
     --cat-other:      #6e6e6e;  /* gray */
   }
+  /* Dark mode override */
+  body.dark {
+    --bg: #0e1116;
+    --paper: #181c24;
+    --ink: #e6e8ee;
+    --ink-soft: #aab0bd;
+    --rule: #2a2f3a;
+    --rule-soft: #232733;
+    --gold: #d4a04a;
+    --shadow: 0 1px 3px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.4);
+  }
+  /* Popup menus (Export / Tools) */
+  .popup-menu {
+    position: fixed; top: 50px; right: 8px; z-index: 200;
+    background: var(--paper); border: 1px solid var(--rule);
+    box-shadow: var(--shadow); border-radius: 4px;
+    min-width: 240px; padding: 4px;
+  }
+  .popup-menu button {
+    display: block; width: 100%; text-align: left;
+    background: transparent; border: 0; color: var(--ink);
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    padding: 9px 12px; cursor: pointer; border-radius: 2px;
+  }
+  .popup-menu button:hover { background: var(--rule-soft); }
+  /* Auto-save indicator state styles for the existing #syncPill */
+  .sync-pill[data-state="saving"] .sync-dot { background: var(--gold); }
+  .sync-pill[data-state="saved"] .sync-dot { background: #4a8a4a; }
+  /* North arrow on the plan transform */
+  .north-arrow {
+    position: absolute; width: 56px; height: 56px;
+    background: rgba(255,255,255,0.92);
+    border: 1.5px solid #1a1a1a; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: grab; touch-action: none; z-index: 30;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  }
+  .north-arrow.dragging { cursor: grabbing; }
+  .north-arrow svg { width: 38px; height: 38px; pointer-events: none; }
+  .north-rot {
+    position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%);
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--gold); color: #fff; border: 1.5px solid #1a1a1a;
+    cursor: grab; touch-action: none; font-size: 11px; line-height: 14px;
+    text-align: center;
+  }
+  /* Trash drawer */
+  .trash-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 250;
+    display: none; align-items: center; justify-content: center;
+  }
+  .trash-overlay.show { display: flex; }
+  .trash-modal {
+    background: var(--paper); color: var(--ink);
+    width: min(560px, 92vw); max-height: 80vh; overflow: auto;
+    border: 1px solid var(--rule); border-radius: 6px; padding: 16px;
+  }
+  .trash-modal h3 { margin: 0 0 8px; font-family: 'Playfair Display', serif; }
+  .trash-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--rule-soft);
+    font-size: 12px;
+  }
+  .trash-row:last-child { border-bottom: 0; }
+  .trash-row .meta { flex: 1; min-width: 0; }
+  .trash-row .meta small { color: var(--ink-soft); display: block; }
+  .trash-row button { padding: 5px 9px; font-size: 11px; cursor: pointer;
+    background: var(--paper); border: 1px solid var(--rule); border-radius: 3px;
+    color: var(--ink); font-family: 'DM Mono', monospace; }
+  .trash-row button.danger { border-color: #c0392b; color: #c0392b; }
+  .trash-row .thumb { width: 36px; height: 36px; border-radius: 3px;
+    background: var(--rule-soft) center/cover no-repeat; }
+  /* Drag handle on findings rows */
+  .finding-row { position: relative; }
+  .finding-drag { cursor: grab; padding: 0 8px; color: var(--ink-soft); user-select: none; }
+  .finding-row.drag-over { background: var(--rule-soft); }
+  .finding-row.dragging { opacity: 0.4; }
+  /* Weather stamp */
+  .weather-stamp {
+    position: fixed; bottom: 8px; left: 8px; z-index: 40;
+    background: var(--paper); border: 1px solid var(--rule);
+    padding: 5px 9px; border-radius: 3px;
+    font-size: 11px; color: var(--ink-soft);
+    font-family: 'DM Mono', monospace;
+    pointer-events: none;
+    max-width: 60vw;
+  }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
 
   /* Hazard triangle overlay (severity >= 4) */
@@ -1106,6 +1193,8 @@
     );
   }
 </script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
 
@@ -1120,13 +1209,40 @@
     <input type="file" id="planFile" accept="image/*">
   </label>
   <button class="top-btn" id="findingsBtn">Findings <span id="pinCount">0</span></button>
+  <button class="top-btn" id="addPhotosBtn" title="Burst-import photos">+ Photos</button>
   <button class="top-btn" id="undoBtn" disabled>↶ Undo</button>
-  <button class="top-btn" id="exportBtn">Export</button>
+  <button class="top-btn" id="exportBtn">Export ▾</button>
+  <button class="top-btn" id="toolsBtn">More ▾</button>
   <button class="top-btn danger" id="clearBtn">Clear</button>
-  <div class="sync-pill" id="syncPill" data-state="idle" title="Cloud sync status">
-    <span class="sync-dot"></span><span class="sync-text">Synced</span>
+  <div class="sync-pill" id="syncPill" data-state="idle" title="Auto-save status">
+    <span class="sync-dot"></span><span class="sync-text">Saved</span>
   </div>
 </div>
+
+<!-- Hidden burst-import input -->
+<input type="file" id="burstInput" accept="image/*" multiple style="display:none">
+
+<!-- Export menu -->
+<div class="popup-menu" id="exportMenu" style="display:none">
+  <button data-export="csv">CSV (with notes &amp; metadata)</button>
+  <button data-export="png-plan">Plan PNG — plan only</button>
+  <button data-export="png-pins">Plan PNG — plan + pins</button>
+  <button data-export="png-legend">Plan PNG — plan + pins + legend</button>
+  <button data-export="cards-pdf">Photo cards — PDF (4×6)</button>
+  <button data-export="cards-zip">Photo cards — ZIP of PNGs</button>
+  <button data-export="backup">Backup project (JSON)</button>
+</div>
+
+<!-- Tools menu -->
+<div class="popup-menu" id="toolsMenu" style="display:none">
+  <button data-tool="dark">Toggle dark mode</button>
+  <button data-tool="duplicate">Duplicate project as template</button>
+  <button data-tool="restore">Restore from backup (JSON)…</button>
+  <button data-tool="trash">Recently deleted (<span id="trashCount">0</span>)</button>
+  <button data-tool="weather">Refresh weather stamp</button>
+  <button data-tool="northToggle">Show/hide north arrow</button>
+</div>
+<input type="file" id="restoreInput" accept="application/json,.json" style="display:none">
 
 <div class="stage">
   <!-- LEFT RAIL -->
@@ -1152,6 +1268,13 @@
         <img class="plan-img" id="planImg" alt="">
         <svg class="plan-svg" id="planSvg" xmlns="http://www.w3.org/2000/svg"></svg>
         <div id="pinsLayer"></div>
+        <div class="north-arrow" id="northArrow" style="display:none">
+          <svg viewBox="0 0 40 40">
+            <polygon points="20,3 30,34 20,27 10,34" fill="#c0392b" stroke="#1a1a1a" stroke-width="1.2"/>
+            <text x="20" y="14" text-anchor="middle" fill="#fff" font-family="DM Mono" font-size="9" font-weight="700">N</text>
+          </svg>
+          <div class="north-rot" id="northRot" title="Drag to rotate">↻</div>
+        </div>
       </div>
     </div>
     <div class="hint" id="hint" style="display:none"></div>
@@ -1175,7 +1298,7 @@
     </button>
     <label class="cam-btn" id="camBtn" title="Camera">
       <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm9-9.5h-3.17l-1.84-2H8.01L6.17 6H3a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2zM12 18a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z"/></svg>
-      <input type="file" id="camInput" accept="image/*" capture="environment">
+      <input type="file" id="camInput" accept="image/*" capture="environment" multiple>
     </label>
   </div>
 
@@ -1193,6 +1316,16 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="weather-stamp" id="weatherStamp" style="display:none"></div>
+<div class="trash-overlay" id="trashOverlay">
+  <div class="trash-modal">
+    <h3>Recently deleted (30 days)</h3>
+    <div id="trashList"></div>
+    <div style="margin-top:12px; text-align:right;">
+      <button class="top-btn" id="trashClose">Close</button>
+    </div>
+  </div>
+</div>
 
 <div class="lightbox" id="lightbox">
   <button class="lightbox-close" id="lightboxClose">×</button>
@@ -1298,8 +1431,8 @@ const TAGS = [
 const state = {
   jobAddress: '',
   planImage: null,
-  pins: [],     // { id, num, surface, x, y, descriptors, photos:[{num,data}], notes, line }
-  unattachedPhotos: [],  // [{num, data, caption}]
+  pins: [],     // { id, num, surface, x, y, descriptors, photos:[{num,data}], notes, line, deleted, deletedAt }
+  unattachedPhotos: [],  // [{num, data, caption, deleted, deletedAt, gps, takenAt}]
   selectedSurface: null,
   selectedDescriptors: { size: '', pattern: '', location: '', offset: '', custom: '' },
   selectedPinId: null,
@@ -1308,7 +1441,10 @@ const state = {
   nextPhotoNum: 1,      // next photo number (unified across pins + unattached)
   view: { scale: 1, tx: 0, ty: 0 },
   imgNatural: { w: 0, h: 0 },
-  pendingLine: null
+  pendingLine: null,
+  northArrow: { x: 24, y: 24, rot: 0, visible: true },
+  weather: null,        // { tempF, code, summary, fetchedAt }
+  darkMode: false
 };
 
 // ============ UNDO ============
@@ -1392,6 +1528,7 @@ function updateUndoButton() {
 // ============ STORAGE ============
 function save() {
   try {
+    setSync('saving');
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       jobAddress: state.jobAddress,
       planImage: state.planImage,
@@ -1401,10 +1538,26 @@ function save() {
       nextPhotoNum: state.nextPhotoNum,
       activePinId: state.activePinId,
       selectedSurface: state.selectedSurface,
-      selectedDescriptors: state.selectedDescriptors
+      selectedDescriptors: state.selectedDescriptors,
+      northArrow: state.northArrow,
+      weather: state.weather,
+      darkMode: state.darkMode
     }));
+    setSync('saved');
   } catch (e) {
+    setSync('idle');
     toast('Storage full — export & clear soon');
+  }
+}
+let _syncTimer;
+function setSync(s) {
+  const pill = document.getElementById('syncPill'); if (!pill) return;
+  pill.dataset.state = s;
+  const txt = pill.querySelector('.sync-text');
+  if (txt) txt.textContent = s === 'saving' ? 'Saving…' : (s === 'saved' ? 'Saved' : 'Idle');
+  if (s === 'saved') {
+    clearTimeout(_syncTimer);
+    _syncTimer = setTimeout(() => { pill.dataset.state = 'idle'; }, 1200);
   }
 }
 function load() {
@@ -1416,20 +1569,23 @@ function load() {
     state.planImage = d.planImage || null;
     state.pins = d.pins || [];
     state.unattachedPhotos = d.unattachedPhotos || [];
-    // Migrate old pins with single 'photo' field to 'photos' array
+    // Migrate old pins
     state.pins.forEach(p => {
-      if (p.photo && !p.photos) {
-        p.photos = [{ num: 0, data: p.photo }]; // 0 = pre-migration, will be re-numbered if needed
-        delete p.photo;
-      }
+      if (p.photo && !p.photos) { p.photos = [{ num: 0, data: p.photo }]; delete p.photo; }
       if (!p.photos) p.photos = [];
-      // Wave 2A migration: ensure category, severity, tags exist on every pin
       if (!p.category) p.category = DEFAULT_CATEGORY_BY_SURFACE[p.surface] || 'other';
       if (typeof p.severity !== 'number') p.severity = 0;
       if (!Array.isArray(p.tags)) p.tags = [];
     });
+    // 30-day trash sweep — purge anything deleted > 30 days ago
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    state.pins = state.pins.filter(p => !(p.deleted && p.deletedAt && p.deletedAt < cutoff));
+    state.unattachedPhotos = state.unattachedPhotos.filter(ph => !(ph.deleted && ph.deletedAt && ph.deletedAt < cutoff));
+    state.pins.forEach(p => {
+      if (p.photos) p.photos = p.photos.filter(ph => !(ph.deleted && ph.deletedAt && ph.deletedAt < cutoff));
+    });
+
     state.nextNum = d.nextNum || (state.pins.length ? Math.max(...state.pins.map(p=>p.num))+1 : 1);
-    // Compute next photo num from existing data if not stored
     if (d.nextPhotoNum) {
       state.nextPhotoNum = d.nextPhotoNum;
     } else {
@@ -1440,14 +1596,22 @@ function load() {
       state.nextPhotoNum = allNums.length ? Math.max(...allNums) + 1 : 1;
     }
     state.activePinId = d.activePinId || null;
-    // Validate activePinId references an existing pin
-    if (state.activePinId && !state.pins.find(p => p.id === state.activePinId)) {
+    if (state.activePinId && !state.pins.find(p => p.id === state.activePinId && !p.deleted)) {
       state.activePinId = null;
     }
     state.selectedSurface = d.selectedSurface || null;
     state.selectedDescriptors = d.selectedDescriptors || { size:'', pattern:'', location:'', custom:'' };
+    state.northArrow = d.northArrow || { x: 24, y: 24, rot: 0, visible: true };
+    state.weather = d.weather || null;
+    state.darkMode = !!d.darkMode;
   } catch(e) { console.warn(e); }
 }
+
+// ============ Visible/active filters ============
+// Anything user-facing must skip soft-deleted records.
+function visiblePins() { return state.pins.filter(p => !p.deleted); }
+function visibleUnattached() { return state.unattachedPhotos.filter(ph => !ph.deleted); }
+function visiblePhotosOf(pin) { return (pin.photos || []).filter(ph => !ph.deleted); }
 
 // ============ HELPERS ============
 function $(id) { return document.getElementById(id); }
@@ -1735,6 +1899,7 @@ function mountPlan() {
   $('planEmpty').style.display = 'none';
   $('canvasWrap').style.display = '';
   $('zoomCtrl').style.display = '';
+  if (typeof renderNorthArrow === 'function') renderNorthArrow();
   const img = $('planImg');
   img.onload = () => {
     state.imgNatural.w = img.naturalWidth;
@@ -2091,7 +2256,7 @@ function finishDrawLine() {
 function renderPins() {
   const layer = $('pinsLayer');
   layer.innerHTML = '';
-  state.pins.forEach(p => {
+  visiblePins().forEach(p => {
     const el = document.createElement('div');
     el.className = 'pin' + (p.id === state.selectedPinId ? ' active' : '');
     el.dataset.pinId = p.id;
@@ -2105,9 +2270,8 @@ function renderPins() {
 
 function renderLines() {
   const svg = $('planSvg');
-  // remove all polylines (preserve nothing else for now)
   svg.querySelectorAll('polyline').forEach(p => p.remove());
-  state.pins.forEach(p => {
+  visiblePins().forEach(p => {
     if (!p.line || p.line.length < 2) return;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
     path.setAttribute('fill', 'none');
@@ -2122,28 +2286,36 @@ function renderLines() {
 
 // ============ FINDINGS PANEL ============
 function renderFindings() {
-  $('pinCount').textContent = state.pins.length;
+  const vp = visiblePins();
+  const vu = visibleUnattached();
+  $('pinCount').textContent = vp.length;
   const list = $('findingsList');
-  const hasPins = state.pins.length > 0;
-  const hasUnattached = state.unattachedPhotos && state.unattachedPhotos.length > 0;
 
-  if (!hasPins && !hasUnattached) {
+  if (!vp.length && !vu.length) {
     list.innerHTML = '<div class="findings-empty">No pins yet. Pick a surface and tap the plan.</div>';
+    refreshTrashCount();
     return;
   }
 
-  let html = '';
+  // Sort by user-defined order (orderIdx) when present, else by num
+  const sortedPins = vp.slice().sort((a,b) => {
+    const ai = (typeof a.orderIdx === 'number') ? a.orderIdx : a.num;
+    const bi = (typeof b.orderIdx === 'number') ? b.orderIdx : b.num;
+    return ai - bi;
+  });
 
-  if (hasPins) {
-    html += state.pins.slice().sort((a,b)=>a.num-b.num).map(p => {
-      const photos = p.photos || [];
+  let html = '';
+  if (sortedPins.length) {
+    html += sortedPins.map(p => {
+      const photos = visiblePhotosOf(p);
       const firstPhoto = photos[0];
       const photoCount = photos.length;
       const photoNumStr = photos.length
         ? (photos.length === 1 ? '#' + photos[0].num : '#' + photos[0].num + '–' + photos[photos.length-1].num)
         : '';
       return `
-        <div class="finding-row ${p.id === state.selectedPinId ? 'active' : ''}" data-id="${p.id}">
+        <div class="finding-row ${p.id === state.selectedPinId ? 'active' : ''}" draggable="true" data-id="${p.id}">
+          <div class="finding-drag" title="Drag to reorder">⋮⋮</div>
           <div class="finding-num" style="background:${pinHex(p)}">${p.num}</div>
           <div class="finding-text">
             <strong>${escapeHtml(buildShortLabel(p))}</strong>
@@ -2152,23 +2324,24 @@ function renderFindings() {
           ${firstPhoto
             ? `<img class="finding-thumb" src="${firstPhoto.data}">${photoCount>1?`<div class="thumb-badge">+${photoCount-1}</div>`:''}`
             : `<div class="finding-thumb placeholder">📷</div>`}
+          <button class="finding-trash" data-trash="${p.id}" title="Move to trash" style="background:none;border:0;color:var(--ink-soft);cursor:pointer;font-size:14px;padding:0 6px;">🗑</button>
         </div>
       `;
     }).join('');
   }
 
-  if (hasUnattached) {
+  if (vu.length) {
     html += `
       <div class="findings-section-head">
-        <span>Unattached Photos</span>
-        <span class="findings-section-count">${state.unattachedPhotos.length}</span>
+        <span>Site Photos · unattached</span>
+        <span class="findings-section-count">${vu.length}</span>
       </div>
-      ${state.unattachedPhotos.map((ph, i) => `
+      ${vu.map((ph, i) => `
         <div class="finding-row unattached-row" data-photo-idx="${i}">
           <div class="finding-num" style="background:var(--ink-soft)">U</div>
           <div class="finding-text">
             <strong>Photo #${ph.num}</strong>
-            <small>${escapeHtml(ph.caption || 'No caption')}</small>
+            <small>${escapeHtml(ph.caption || (ph.takenAt ? new Date(ph.takenAt).toLocaleString() : 'No caption'))}${ph.gps ? ' · GPS' : ''}</small>
           </div>
           <img class="finding-thumb" src="${ph.data}">
         </div>
@@ -2177,10 +2350,18 @@ function renderFindings() {
   }
 
   list.innerHTML = html;
+  refreshTrashCount();
   list.querySelectorAll('.finding-row[data-id]').forEach(r => {
-    r.addEventListener('click', () => {
+    r.addEventListener('click', (ev) => {
+      if (ev.target.dataset && ev.target.dataset.trash) return;
       selectPin(r.dataset.id);
       openDetail();
+    });
+  });
+  list.querySelectorAll('[data-trash]').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      softDeletePin(btn.dataset.trash);
     });
   });
   list.querySelectorAll('.finding-row[data-photo-idx]').forEach(r => {
@@ -2189,6 +2370,8 @@ function renderFindings() {
       openUnattachedPhoto(idx);
     });
   });
+  // Drag-to-reorder for pin rows
+  wireFindingsDrag(list);
 }
 
 // ============ DETAIL PANEL ============
@@ -2554,39 +2737,47 @@ function openUnattachedPhoto(idx) {
 
 // ============ CAMERA ============
 $('camInput').addEventListener('change', (e) => {
-  const f = e.target.files[0];
-  if (!f) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    resizeImage(ev.target.result, 1600, (resized) => {
-      toast('Uploading photo…');
-      uploadToCloud(resized, 'photo').then(url => {
-        addPhotoToState(url);
-      }).catch(err => {
-        console.error(err);
-        toast('Upload failed — saved locally');
-        addPhotoToState(resized);
-      });
-    });
-  };
-  reader.readAsDataURL(f);
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
+  burstImportPhotos(files);
   e.target.value = '';
 });
 
-function addPhotoToState(dataOrUrl) {
+// Burst import — handles 1 or many files; metadata captured per file.
+function burstImportPhotos(files) {
+  if (!files.length) return;
+  toast('Importing ' + files.length + ' photo' + (files.length>1?'s':'') + '…');
+  let done = 0;
+  files.forEach((f) => {
+    const reader = new FileReader();
+    const takenAt = f.lastModified || Date.now();
+    reader.onload = (ev) => {
+      resizeImage(ev.target.result, 1600, (resized) => {
+        const meta = (window.capturePinMeta && window.capturePinMeta()) || { timestamp: Date.now() };
+        addPhotoToState(resized, { takenAt, gps: meta.gps || null, silent: true });
+        done++;
+        if (done === files.length) toast('Imported ' + files.length + ' photo' + (files.length>1?'s':''));
+      });
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
+function addPhotoToState(dataOrUrl, extra) {
+  extra = extra || {};
   const photoNum = state.nextPhotoNum;
   snapshot('Add photo #' + photoNum);
   state.nextPhotoNum++;
-  const photo = { num: photoNum, data: dataOrUrl };
+  const photo = { num: photoNum, data: dataOrUrl, takenAt: extra.takenAt || Date.now(), gps: extra.gps || null };
   const activePin = state.pins.find(p => p.id === state.activePinId);
   if (activePin) {
     if (!activePin.photos) activePin.photos = [];
     activePin.photos.push(photo);
-    toast('Photo #' + photoNum + ' → Pin #' + activePin.num);
+    if (!extra.silent) toast('Photo #' + photoNum + ' → Pin #' + activePin.num);
   } else {
     photo.caption = '';
     state.unattachedPhotos.push(photo);
-    toast('Photo #' + photoNum + ' (unattached)');
+    if (!extra.silent) toast('Photo #' + photoNum + ' (unattached)');
   }
   save();
   renderFindings();
@@ -2741,18 +2932,654 @@ function dateStamp() {
   return d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
 }
 
+// =====================================================================
+// =================== WAVE 2B FEATURES ================================
+// =====================================================================
+
+// ---- Soft delete + Trash ----
+function softDeletePin(id) {
+  const p = state.pins.find(x => x.id === id);
+  if (!p) return;
+  snapshot('Delete pin #' + p.num);
+  p.deleted = true; p.deletedAt = Date.now();
+  if (state.activePinId === id) state.activePinId = null;
+  if (state.selectedPinId === id) {
+    state.selectedPinId = null;
+    document.getElementById('detailPanel').classList.remove('open');
+  }
+  save();
+  renderPins(); renderLines(); renderFindings(); updateActiveIndicator();
+  toast('Pin #' + p.num + ' moved to trash');
+}
+function refreshTrashCount() {
+  const n = state.pins.filter(p => p.deleted).length
+          + state.unattachedPhotos.filter(ph => ph.deleted).length
+          + state.pins.reduce((s,p)=>s+(p.photos||[]).filter(ph=>ph.deleted).length,0);
+  const el = document.getElementById('trashCount'); if (el) el.textContent = n;
+}
+function openTrash() {
+  const overlay = document.getElementById('trashOverlay');
+  const list = document.getElementById('trashList');
+  const trashedPins = state.pins.filter(p => p.deleted);
+  const trashedPhotos = state.unattachedPhotos.filter(ph => ph.deleted);
+  if (!trashedPins.length && !trashedPhotos.length) {
+    list.innerHTML = '<div style="color:var(--ink-soft);padding:14px 0;">Nothing in the trash. Items here auto-purge after 30 days.</div>';
+  } else {
+    const fmt = (t) => t ? new Date(t).toLocaleString() : '—';
+    let html = '';
+    trashedPins.forEach(p => {
+      html += `<div class="trash-row">
+        <div class="finding-num" style="background:${pinHex(p)}">${p.num}</div>
+        <div class="meta"><strong>Pin #${p.num}</strong><small>${escapeHtml(buildShortLabel(p))} · deleted ${fmt(p.deletedAt)}</small></div>
+        <button data-restore-pin="${p.id}">Restore</button>
+        <button class="danger" data-purge-pin="${p.id}">Delete forever</button>
+      </div>`;
+    });
+    trashedPhotos.forEach((ph) => {
+      html += `<div class="trash-row">
+        <div class="thumb" style="background-image:url('${ph.data}')"></div>
+        <div class="meta"><strong>Photo #${ph.num}</strong><small>${escapeHtml(ph.caption||'')} · deleted ${fmt(ph.deletedAt)}</small></div>
+        <button data-restore-photo="${ph.num}">Restore</button>
+        <button class="danger" data-purge-photo="${ph.num}">Delete forever</button>
+      </div>`;
+    });
+    list.innerHTML = html;
+    list.querySelectorAll('[data-restore-pin]').forEach(b => b.addEventListener('click', () => { restorePin(b.dataset.restorePin); openTrash(); }));
+    list.querySelectorAll('[data-purge-pin]').forEach(b => b.addEventListener('click', () => { purgePin(b.dataset.purgePin); openTrash(); }));
+    list.querySelectorAll('[data-restore-photo]').forEach(b => b.addEventListener('click', () => { restoreUnattached(parseInt(b.dataset.restorePhoto)); openTrash(); }));
+    list.querySelectorAll('[data-purge-photo]').forEach(b => b.addEventListener('click', () => { purgeUnattached(parseInt(b.dataset.purgePhoto)); openTrash(); }));
+  }
+  overlay.classList.add('show');
+}
+function restorePin(id) {
+  const p = state.pins.find(x => x.id === id); if (!p) return;
+  snapshot('Restore pin #' + p.num);
+  p.deleted = false; p.deletedAt = null;
+  save(); renderPins(); renderLines(); renderFindings();
+}
+function purgePin(id) {
+  const p = state.pins.find(x => x.id === id); if (!p) return;
+  snapshot('Purge pin #' + p.num);
+  state.pins = state.pins.filter(x => x.id !== id);
+  save(); renderPins(); renderLines(); renderFindings();
+}
+function restoreUnattached(num) {
+  const ph = state.unattachedPhotos.find(x => x.num === num); if (!ph) return;
+  snapshot('Restore photo #' + ph.num);
+  ph.deleted = false; ph.deletedAt = null;
+  save(); renderFindings();
+}
+function purgeUnattached(num) {
+  snapshot('Purge photo #' + num);
+  state.unattachedPhotos = state.unattachedPhotos.filter(x => x.num !== num);
+  save(); renderFindings();
+}
+document.getElementById('trashClose').addEventListener('click', () => {
+  document.getElementById('trashOverlay').classList.remove('show');
+});
+document.getElementById('trashOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'trashOverlay') e.currentTarget.classList.remove('show');
+});
+
+// ---- Drag-to-reorder findings ----
+let _dragId = null;
+function wireFindingsDrag(list) {
+  list.querySelectorAll('.finding-row[data-id]').forEach(row => {
+    row.addEventListener('dragstart', (e) => {
+      _dragId = row.dataset.id;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      list.querySelectorAll('.drag-over').forEach(x => x.classList.remove('drag-over'));
+    });
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      list.querySelectorAll('.drag-over').forEach(x => x.classList.remove('drag-over'));
+      row.classList.add('drag-over');
+    });
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const targetId = row.dataset.id;
+      if (!_dragId || _dragId === targetId) return;
+      reorderPins(_dragId, targetId);
+      _dragId = null;
+    });
+  });
+}
+function reorderPins(fromId, toId) {
+  const vp = visiblePins().slice().sort((a,b) => {
+    const ai = (typeof a.orderIdx === 'number') ? a.orderIdx : a.num;
+    const bi = (typeof b.orderIdx === 'number') ? b.orderIdx : b.num;
+    return ai - bi;
+  });
+  const fromIdx = vp.findIndex(p => p.id === fromId);
+  const toIdx = vp.findIndex(p => p.id === toId);
+  if (fromIdx < 0 || toIdx < 0) return;
+  snapshot('Reorder pins');
+  const [moved] = vp.splice(fromIdx, 1);
+  vp.splice(toIdx, 0, moved);
+  vp.forEach((p, i) => { p.orderIdx = i; });
+  save(); renderFindings();
+}
+
+// ---- Top-bar menus ----
+function toggleMenu(id) {
+  ['exportMenu','toolsMenu'].forEach(m => {
+    const el = document.getElementById(m);
+    if (m === id) el.style.display = (el.style.display === 'block' ? 'none' : 'block');
+    else el.style.display = 'none';
+  });
+}
+document.getElementById('toolsBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleMenu('toolsMenu'); });
+document.addEventListener('click', () => {
+  document.getElementById('exportMenu').style.display = 'none';
+  document.getElementById('toolsMenu').style.display = 'none';
+});
+
+// ---- Tools menu actions ----
+document.getElementById('toolsMenu').addEventListener('click', (e) => {
+  const tool = e.target.dataset.tool;
+  if (!tool) return;
+  if (tool === 'dark') { state.darkMode = !state.darkMode; applyDarkMode(); save(); }
+  else if (tool === 'duplicate') duplicateProject();
+  else if (tool === 'restore') document.getElementById('restoreInput').click();
+  else if (tool === 'trash') openTrash();
+  else if (tool === 'weather') fetchWeather(true);
+  else if (tool === 'northToggle') {
+    state.northArrow.visible = !state.northArrow.visible;
+    save(); renderNorthArrow();
+  }
+});
+function applyDarkMode() {
+  document.body.classList.toggle('dark', !!state.darkMode);
+}
+
+// ---- Export menu actions ----
+document.getElementById('exportMenu').addEventListener('click', (e) => {
+  const kind = e.target.dataset.export;
+  if (!kind) return;
+  toggleMenu('exportMenu');
+  if (kind === 'csv') runCsvExport();
+  else if (kind === 'png-plan') exportPlanPng('plan');
+  else if (kind === 'png-pins') exportPlanPng('pins');
+  else if (kind === 'png-legend') exportPlanPng('legend');
+  else if (kind === 'cards-pdf') exportPhotoCards('pdf');
+  else if (kind === 'cards-zip') exportPhotoCards('zip');
+  else if (kind === 'backup') backupJson();
+});
+
+// Replace legacy Export click (which fired CSV directly) with the menu opener.
+(function rewireExportButton() {
+  const btn = document.getElementById('exportBtn');
+  const clone = btn.cloneNode(true);
+  btn.parentNode.replaceChild(clone, btn);
+  clone.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu('exportMenu'); });
+})();
+
+// ---- + Photos burst-import button ----
+document.getElementById('addPhotosBtn').addEventListener('click', () => {
+  document.getElementById('burstInput').click();
+});
+document.getElementById('burstInput').addEventListener('change', (e) => {
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
+  burstImportPhotos(files);
+  e.target.value = '';
+});
+
+// ---- CSV (visible-only, includes order + weather) ----
+function runCsvExport() {
+  if (!visiblePins().length && !visibleUnattached().length) { toast('Nothing to export'); return; }
+  const lines = [];
+  lines.push('Distress Survey Export');
+  lines.push('Job Address,' + csvEsc(state.jobAddress || '(no address)'));
+  lines.push('Date Exported,' + csvEsc(new Date().toLocaleString()));
+  if (state.weather) lines.push('Weather,' + csvEsc(state.weather.summary + ' @ ' + new Date(state.weather.fetchedAt).toLocaleString()));
+  lines.push('Total Pins,' + visiblePins().length);
+  lines.push('Total Photos,' + (visiblePins().reduce((n,p) => n + visiblePhotosOf(p).length, 0) + visibleUnattached().length));
+  lines.push('');
+  lines.push('PINS');
+  const pinHeaders = ['Pin #','Order','Category','Severity','Hazard','Surface','Tags','Shear','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
+  lines.push(pinHeaders.join(','));
+  visiblePins().slice().sort((a,b) => {
+    const ai = (typeof a.orderIdx === 'number') ? a.orderIdx : a.num;
+    const bi = (typeof b.orderIdx === 'number') ? b.orderIdx : b.num;
+    return ai - bi;
+  }).forEach((p, i) => {
+    const photos = visiblePhotosOf(p);
+    const photoNums = photos.map(ph => ph.num).join(';');
+    const offsetVal = (p.descriptors.offset && p.descriptors.offset !== 'None') ? p.descriptors.offset : '';
+    const tagNames = (p.tags || []).map(k => TAGS.find(t => t.key === k)?.name || k).join('; ');
+    const sev = p.severity || 0;
+    lines.push([
+      p.num, i+1,
+      getCategory(p.category)?.name || '',
+      sev, sev >= 4 ? 'Y' : '',
+      getSurface(p.surface)?.name || '',
+      tagNames,
+      (p.tags || []).includes('shear') ? 'Y' : '',
+      p.descriptors.size || '',
+      p.descriptors.pattern || '',
+      p.descriptors.location || (p.descriptors.custom || ''),
+      offsetVal,
+      buildLabel(p),
+      p.notes || '',
+      photos.length, photoNums,
+      (p.line && p.line.length >= 2) ? 'Y' : 'N',
+      p.x.toFixed(0), p.y.toFixed(0),
+      p.created ? new Date(p.created).toISOString() : '',
+      p.gps ? p.gps.lat.toFixed(6) : '',
+      p.gps ? p.gps.lng.toFixed(6) : '',
+      p.gps ? Math.round(p.gps.acc) : ''
+    ].map(csvEsc).join(','));
+  });
+  if (visibleUnattached().length) {
+    lines.push(''); lines.push('SITE PHOTOS (UNATTACHED)');
+    lines.push('Photo #,Caption,Taken,GPS Lat,GPS Lng');
+    visibleUnattached().forEach(ph => {
+      lines.push([
+        ph.num, ph.caption || '',
+        ph.takenAt ? new Date(ph.takenAt).toISOString() : '',
+        ph.gps ? ph.gps.lat.toFixed(6) : '',
+        ph.gps ? ph.gps.lng.toFixed(6) : ''
+      ].map(csvEsc).join(','));
+    });
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  downloadBlob(blob, fileSlug() + '.csv');
+  toast('Exported CSV');
+}
+function fileSlug() {
+  const addrSlug = (state.jobAddress || 'survey').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 50).toLowerCase();
+  return 'distress-' + addrSlug + '-' + dateStamp();
+}
+function downloadBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 500);
+}
+
+// ---- Floor plan PNG export (3 presets) ----
+function exportPlanPng(mode) {
+  if (!state.planImage) { toast('No floor plan loaded'); return; }
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const W = img.naturalWidth, H = img.naturalHeight;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    if (mode === 'pins' || mode === 'legend') drawPinsOn(ctx, W, H);
+    if (mode === 'legend') drawLegendOn(ctx, W, H);
+    c.toBlob((blob) => {
+      downloadBlob(blob, fileSlug() + '-plan-' + mode + '.png');
+      toast('Exported plan PNG');
+    }, 'image/png');
+  };
+  img.onerror = () => toast('Could not load plan image');
+  img.src = state.planImage;
+}
+function drawPinsOn(ctx, W, H) {
+  visiblePins().forEach(p => {
+    if (!p.line || p.line.length < 2) return;
+    ctx.beginPath();
+    ctx.strokeStyle = pinHex(p);
+    ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    p.line.forEach((pt, i) => i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y));
+    ctx.stroke();
+  });
+  const r = Math.max(14, Math.round(Math.min(W, H) * 0.018));
+  visiblePins().forEach(p => {
+    ctx.beginPath();
+    ctx.fillStyle = pinHex(p);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    ctx.arc(p.x, p.y, r, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold ' + Math.round(r*1.05) + 'px DM Mono, monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(p.num), p.x, p.y);
+    if (pinIsHazard(p)) {
+      ctx.beginPath();
+      ctx.fillStyle = '#ffcc00'; ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1.5;
+      const tx = p.x + r*0.85, ty = p.y - r*0.85, ts = r*0.85;
+      ctx.moveTo(tx, ty - ts);
+      ctx.lineTo(tx + ts, ty + ts);
+      ctx.lineTo(tx - ts, ty + ts);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#1a1a1a';
+      ctx.font = 'bold ' + Math.round(ts*1.1) + 'px DM Mono';
+      ctx.fillText('!', tx, ty + ts*0.35);
+    }
+  });
+  if (state.northArrow && state.northArrow.visible) {
+    const na = state.northArrow;
+    const cx = na.x + 28, cy = na.y + 28;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate((na.rot || 0) * Math.PI / 180);
+    ctx.beginPath(); ctx.arc(0, 0, 28, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fill();
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -22); ctx.lineTo(10, 14); ctx.lineTo(0, 7); ctx.lineTo(-10, 14); ctx.closePath();
+    ctx.fillStyle = '#c0392b'; ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 10px DM Mono';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('N', 0, -10);
+    ctx.restore();
+  }
+}
+function drawLegendOn(ctx, W, H) {
+  const padding = 16, lineH = 20;
+  const cats = CATEGORIES;
+  const boxW = 220, boxH = padding*2 + lineH * (cats.length + 1);
+  const x = W - boxW - padding, y = H - boxH - padding;
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1;
+  ctx.fillRect(x, y, boxW, boxH); ctx.strokeRect(x, y, boxW, boxH);
+  ctx.fillStyle = '#1a1a1a';
+  ctx.font = 'bold 14px DM Mono'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('Legend', x + padding, y + padding + lineH/2);
+  ctx.font = '12px DM Mono';
+  cats.forEach((c, i) => {
+    const cy = y + padding + lineH * (i + 1) + lineH/2;
+    ctx.beginPath(); ctx.fillStyle = c.hex;
+    ctx.arc(x + padding + 7, cy, 7, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillText(c.name, x + padding + 22, cy);
+  });
+}
+
+// ---- Photo cards (4x6 landscape) ----
+function buildPhotoCards() {
+  const cards = [];
+  visiblePins().slice().sort((a,b)=>a.num-b.num).forEach(p => {
+    visiblePhotosOf(p).forEach(ph => cards.push({ src: ph.data, num: ph.num, pin: p, caption: '' }));
+  });
+  visibleUnattached().forEach(ph => cards.push({ src: ph.data, num: ph.num, pin: null, caption: ph.caption || '' }));
+  return cards;
+}
+function renderCardCanvas(card, cb) {
+  const W = 1800, H = 1200;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  const img = new Image(); img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const photoArea = { x: 30, y: 30, w: W-60, h: H - 260 };
+    const r = Math.min(photoArea.w / img.naturalWidth, photoArea.h / img.naturalHeight);
+    const dw = img.naturalWidth * r, dh = img.naturalHeight * r;
+    const dx = photoArea.x + (photoArea.w - dw)/2, dy = photoArea.y + (photoArea.h - dh)/2;
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fillRect(photoArea.x, photoArea.y, photoArea.w, photoArea.h);
+    ctx.drawImage(img, dx, dy, dw, dh);
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, H-220, W, 220);
+    if (card.pin) {
+      ctx.beginPath(); ctx.fillStyle = pinHex(card.pin);
+      ctx.arc(80, H-110, 50, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 56px DM Mono'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(String(card.pin.num), 80, H-110);
+    } else {
+      ctx.beginPath(); ctx.fillStyle = '#777';
+      ctx.arc(80, H-110, 50, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 36px DM Mono'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('U', 80, H-110);
+    }
+    ctx.fillStyle = '#fff'; ctx.textAlign='left'; ctx.textBaseline='top';
+    ctx.font = 'bold 36px DM Mono';
+    const title = card.pin
+      ? `Pin #${card.pin.num} · ${getCategory(card.pin.category)?.name || ''}`
+      : `Site Photo #${card.num}`;
+    ctx.fillText(title, 160, H-200);
+    ctx.font = '24px DM Mono';
+    const desc = card.pin ? buildLabel(card.pin) : (card.caption || '');
+    wrapText(ctx, desc || '—', 160, H-150, W - 200, 32);
+    ctx.font = '20px DM Mono';
+    ctx.fillStyle = '#bbb';
+    ctx.fillText('Photo #' + card.num + ' · ' + (state.jobAddress || ''), 160, H-50);
+    cb(c);
+  };
+  img.onerror = () => cb(c);
+  img.src = card.src;
+}
+function wrapText(ctx, text, x, y, maxW, lineH) {
+  const words = String(text).split(/\s+/);
+  let line = '', yy = y;
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxW && line) {
+      ctx.fillText(line, x, yy);
+      yy += lineH;
+      line = w;
+      if (yy > y + lineH * 4) { ctx.fillText(line + '…', x, yy); return; }
+    } else line = test;
+  }
+  if (line) ctx.fillText(line, x, yy);
+}
+async function exportPhotoCards(format) {
+  const cards = buildPhotoCards();
+  if (!cards.length) { toast('No photos to export'); return; }
+  toast('Building ' + cards.length + ' card' + (cards.length>1?'s':'') + '…');
+  if (format === 'pdf') {
+    if (!window.jspdf) { toast('PDF library not loaded'); return; }
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'in', format: [6, 4] });
+    for (let i = 0; i < cards.length; i++) {
+      await new Promise((res) => renderCardCanvas(cards[i], (canvas) => {
+        const data = canvas.toDataURL('image/jpeg', 0.85);
+        if (i > 0) pdf.addPage([6, 4], 'landscape');
+        pdf.addImage(data, 'JPEG', 0, 0, 6, 4);
+        res();
+      }));
+    }
+    pdf.save(fileSlug() + '-photo-cards.pdf');
+    toast('PDF exported');
+  } else {
+    if (!window.JSZip) { toast('ZIP library not loaded'); return; }
+    const zip = new JSZip();
+    for (let i = 0; i < cards.length; i++) {
+      await new Promise((res) => renderCardCanvas(cards[i], (canvas) => {
+        canvas.toBlob((blob) => {
+          const name = String(i+1).padStart(3,'0') + '-photo-' + cards[i].num + '.png';
+          zip.file(name, blob);
+          res();
+        }, 'image/png');
+      }));
+    }
+    const blob = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(blob, fileSlug() + '-photo-cards.zip');
+    toast('ZIP exported');
+  }
+}
+
+// ---- Backup / Restore / Duplicate ----
+function backupJson() {
+  const data = JSON.stringify({
+    version: '2b',
+    exported: new Date().toISOString(),
+    state: {
+      jobAddress: state.jobAddress, planImage: state.planImage,
+      pins: state.pins, unattachedPhotos: state.unattachedPhotos,
+      nextNum: state.nextNum, nextPhotoNum: state.nextPhotoNum,
+      northArrow: state.northArrow, weather: state.weather
+    }
+  });
+  downloadBlob(new Blob([data], { type: 'application/json' }), fileSlug() + '.json');
+  toast('Project backup saved');
+}
+function duplicateProject() {
+  const data = JSON.stringify({
+    version: '2b-template',
+    exported: new Date().toISOString(),
+    state: {
+      jobAddress: '', planImage: state.planImage,
+      pins: [], unattachedPhotos: [],
+      nextNum: 1, nextPhotoNum: 1,
+      northArrow: state.northArrow, weather: null
+    }
+  });
+  downloadBlob(new Blob([data], { type: 'application/json' }), fileSlug() + '-template.json');
+  toast('Template saved — restore it to start a fresh job');
+}
+document.getElementById('restoreInput').addEventListener('change', (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const obj = JSON.parse(reader.result);
+      if (!obj.state) throw new Error('Invalid backup');
+      if (!confirm('Restore this backup? Your current project will be replaced (Undo will not recover it).')) return;
+      const s = obj.state;
+      state.jobAddress = s.jobAddress || '';
+      state.planImage = s.planImage || null;
+      state.pins = s.pins || [];
+      state.unattachedPhotos = s.unattachedPhotos || [];
+      state.nextNum = s.nextNum || 1;
+      state.nextPhotoNum = s.nextPhotoNum || 1;
+      state.northArrow = s.northArrow || { x: 24, y: 24, rot: 0, visible: true };
+      state.weather = s.weather || null;
+      state.selectedPinId = null; state.activePinId = null;
+      save();
+      document.getElementById('jobAddress').value = state.jobAddress;
+      mountPlan(); renderPins(); renderLines(); renderFindings(); renderNorthArrow(); renderWeather();
+      toast('Restored');
+    } catch (err) { console.error(err); toast('Bad backup file'); }
+  };
+  reader.readAsText(f);
+  e.target.value = '';
+});
+
+// ---- North arrow render + drag/rotate ----
+function renderNorthArrow() {
+  const el = document.getElementById('northArrow'); if (!el) return;
+  if (!state.planImage || !state.northArrow.visible) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.style.left = state.northArrow.x + 'px';
+  el.style.top = state.northArrow.y + 'px';
+  el.style.transform = 'rotate(' + (state.northArrow.rot || 0) + 'deg)';
+}
+(function wireNorthArrow() {
+  const el = document.getElementById('northArrow');
+  const rot = document.getElementById('northRot');
+  let drag = null;
+  el.addEventListener('pointerdown', (e) => {
+    if (e.target === rot) return;
+    e.stopPropagation();
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('dragging');
+    drag = { type: 'move', startX: e.clientX, startY: e.clientY, originX: state.northArrow.x, originY: state.northArrow.y };
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!drag || drag.type !== 'move') return;
+    const scale = state.view.scale || 1;
+    state.northArrow.x = drag.originX + (e.clientX - drag.startX) / scale;
+    state.northArrow.y = drag.originY + (e.clientY - drag.startY) / scale;
+    renderNorthArrow();
+  });
+  el.addEventListener('pointerup', () => {
+    if (!drag) return;
+    drag = null; el.classList.remove('dragging'); save();
+  });
+  rot.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    rot.setPointerCapture(e.pointerId);
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+    drag = { type: 'rot', cx, cy, startAngle: Math.atan2(e.clientY-cy, e.clientX-cx), startRot: state.northArrow.rot || 0 };
+  });
+  rot.addEventListener('pointermove', (e) => {
+    if (!drag || drag.type !== 'rot') return;
+    const a = Math.atan2(e.clientY-drag.cy, e.clientX-drag.cx);
+    state.northArrow.rot = drag.startRot + (a - drag.startAngle) * 180/Math.PI;
+    renderNorthArrow();
+  });
+  rot.addEventListener('pointerup', () => { drag = null; save(); });
+})();
+
+// ---- Address auto-fill from GPS (Nominatim) ----
+async function maybeReverseGeocode() {
+  if (state.jobAddress) return;
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const { latitude, longitude } = pos.coords;
+    try {
+      const r = await fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + latitude + '&lon=' + longitude + '&zoom=18&addressdetails=1', { headers: { 'Accept-Language': 'en' } });
+      const j = await r.json();
+      const a = j.address || {};
+      const parts = [
+        [a.house_number, a.road].filter(Boolean).join(' '),
+        a.city || a.town || a.village || a.hamlet,
+        a.state, a.postcode
+      ].filter(Boolean);
+      const guess = parts.join(', ');
+      if (!state.jobAddress && guess) {
+        state.jobAddress = guess;
+        document.getElementById('jobAddress').value = guess;
+        save();
+        toast('Address auto-filled');
+      }
+    } catch (e) { /* silent */ }
+    fetchWeather(false, latitude, longitude);
+  }, () => {}, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+}
+
+// ---- Weather (Open-Meteo, no key) ----
+async function fetchWeather(force, lat, lng) {
+  const fresh = state.weather && (Date.now() - state.weather.fetchedAt < 60*60*1000);
+  if (fresh && !force) { renderWeather(); return; }
+  if (lat == null || lng == null) {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(p => fetchWeather(force, p.coords.latitude, p.coords.longitude), () => {}, { maximumAge: 600000 });
+    return;
+  }
+  try {
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lng + '&current=temperature_2m,weather_code,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph');
+    const j = await r.json();
+    const cur = j.current || {};
+    const codeMap = { 0:'Clear', 1:'Mostly clear', 2:'Partly cloudy', 3:'Overcast', 45:'Fog', 48:'Fog', 51:'Drizzle', 53:'Drizzle', 55:'Drizzle', 61:'Rain', 63:'Rain', 65:'Heavy rain', 71:'Snow', 73:'Snow', 75:'Heavy snow', 80:'Showers', 81:'Showers', 82:'Heavy showers', 95:'Thunder', 96:'Thunder', 99:'Thunder' };
+    state.weather = {
+      tempF: Math.round(cur.temperature_2m),
+      windMph: Math.round(cur.wind_speed_10m),
+      code: cur.weather_code,
+      summary: (codeMap[cur.weather_code] || 'Weather') + ' · ' + Math.round(cur.temperature_2m) + '°F · ' + Math.round(cur.wind_speed_10m) + ' mph',
+      fetchedAt: Date.now()
+    };
+    save(); renderWeather();
+  } catch (e) { /* silent */ }
+}
+function renderWeather() {
+  const el = document.getElementById('weatherStamp');
+  if (!state.weather) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.textContent = state.weather.summary + ' · ' + new Date(state.weather.fetchedAt).toLocaleString();
+}
+
+// =====================================================================
 // ============ INIT ============
+// =====================================================================
 load();
+applyDarkMode();
 $('jobAddress').value = state.jobAddress || '';
 renderRail();
 renderDescriptors();
 mountPlan();
 renderFindings();
+renderNorthArrow();
+renderWeather();
 updateActiveIndicator();
 setupPointerEvents();
+setSync('idle');
 window.addEventListener('resize', () => {
   if (state.planImage) fitView();
 });
+setTimeout(() => { maybeReverseGeocode(); fetchWeather(false); }, 1200);
 </script>
 </body>
 </html>
