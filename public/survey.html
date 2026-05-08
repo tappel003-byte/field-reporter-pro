@@ -2351,9 +2351,16 @@ function renderFindings() {
   list.innerHTML = html;
   refreshTrashCount();
   list.querySelectorAll('.finding-row[data-id]').forEach(r => {
-    r.addEventListener('click', () => {
+    r.addEventListener('click', (ev) => {
+      if (ev.target.dataset && ev.target.dataset.trash) return;
       selectPin(r.dataset.id);
       openDetail();
+    });
+  });
+  list.querySelectorAll('[data-trash]').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      softDeletePin(btn.dataset.trash);
     });
   });
   list.querySelectorAll('.finding-row[data-photo-idx]').forEach(r => {
@@ -2362,6 +2369,8 @@ function renderFindings() {
       openUnattachedPhoto(idx);
     });
   });
+  // Drag-to-reorder for pin rows
+  wireFindingsDrag(list);
 }
 
 // ============ DETAIL PANEL ============
