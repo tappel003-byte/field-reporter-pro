@@ -2614,14 +2614,21 @@ $('exportBtn').addEventListener('click', () => {
 
   // Pins
   lines.push('PINS');
-  const pinHeaders = ['Pin #','Surface','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
+  const pinHeaders = ['Pin #','Category','Severity','Hazard','Surface','Tags','Shear','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
   lines.push(pinHeaders.join(','));
   state.pins.slice().sort((a,b)=>a.num-b.num).forEach(p => {
     const photoNums = (p.photos || []).map(ph => ph.num).join(';');
     const offsetVal = (p.descriptors.offset && p.descriptors.offset !== 'None') ? p.descriptors.offset : '';
+    const tagNames = (p.tags || []).map(k => TAGS.find(t => t.key === k)?.name || k).join('; ');
+    const sev = p.severity || 0;
     lines.push([
       p.num,
+      getCategory(p.category)?.name || '',
+      sev,
+      sev >= 4 ? 'Y' : '',
       getSurface(p.surface)?.name || '',
+      tagNames,
+      (p.tags || []).includes('shear') ? 'Y' : '',
       p.descriptors.size || '',
       p.descriptors.pattern || '',
       p.descriptors.location || (p.descriptors.custom || ''),
