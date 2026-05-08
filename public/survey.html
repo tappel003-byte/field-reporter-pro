@@ -2762,7 +2762,8 @@ function burstImportPhotos(files) {
   });
 }
 
-function addPhotoToState(dataOrUrl) {
+function addPhotoToState(dataOrUrl, extra) {
+  extra = extra || {};
   const photoNum = state.nextPhotoNum;
   snapshot('Add photo #' + photoNum);
   state.nextPhotoNum++;
