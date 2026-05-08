@@ -2753,7 +2753,7 @@ function burstImportPhotos(files) {
     reader.onload = (ev) => {
       resizeImage(ev.target.result, 1600, (resized) => {
         const meta = (window.capturePinMeta && window.capturePinMeta()) || { timestamp: Date.now() };
-        addPhotoToState(resized, { takenAt, gps: meta.gps || null });
+        addPhotoToState(resized, { takenAt, gps: meta.gps || null, silent: true });
         done++;
         if (done === files.length) toast('Imported ' + files.length + ' photo' + (files.length>1?'s':''));
       });
