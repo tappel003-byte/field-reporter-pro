@@ -2767,7 +2767,7 @@ function addPhotoToState(dataOrUrl, extra) {
   const photoNum = state.nextPhotoNum;
   snapshot('Add photo #' + photoNum);
   state.nextPhotoNum++;
-  const photo = { num: photoNum, data: dataOrUrl };
+  const photo = { num: photoNum, data: dataOrUrl, takenAt: extra.takenAt || Date.now(), gps: extra.gps || null };
   const activePin = state.pins.find(p => p.id === state.activePinId);
   if (activePin) {
     if (!activePin.photos) activePin.photos = [];
