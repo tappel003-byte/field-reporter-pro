@@ -28,8 +28,62 @@
     --c-gap: #d97a2c;
     --c-offset: #1a1a1a;
     --c-other: #7a8470;
+
+    /* Category colors (location-based) */
+    --cat-wall:       #4a8a4a;  /* green */
+    --cat-ceiling:    #2a6fb8;  /* blue */
+    --cat-floor:      #d4a72c;  /* yellow */
+    --cat-separation: #d97a2c;  /* orange */
+    --cat-slab:       #c0392b;  /* red */
+    --cat-other:      #6e6e6e;  /* gray */
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+
+  /* Hazard triangle overlay (severity >= 4) */
+  .pin .hazard {
+    position: absolute;
+    top: -10px; right: -10px;
+    width: 18px; height: 18px;
+    background: #ffcc00;
+    color: #1a1a1a;
+    border: 1.5px solid #1a1a1a;
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+    display: flex; align-items: flex-end; justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; font-weight: 700;
+    line-height: 1;
+    padding-bottom: 1px;
+    pointer-events: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  }
+
+  /* Severity slider in detail panel */
+  .sev-row { display: flex; align-items: center; gap: 10px; }
+  .sev-row input[type=range] { flex: 1; }
+  .sev-val {
+    min-width: 22px; text-align: center;
+    font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 600;
+    padding: 3px 6px; border: 1px solid var(--rule); border-radius: 2px;
+    background: var(--paper);
+  }
+  .sev-val.high { background: #ffe066; border-color: #b88400; color: #1a1a1a; }
+
+  /* Category picker chips: tinted left swatch + label */
+  .cat-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .cat-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 9px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    color: var(--ink-soft);
+    font-family: 'DM Mono', monospace;
+    font-size: 10.5px;
+    cursor: pointer;
+    border-radius: 2px;
+    font-weight: 500;
+  }
+  .cat-chip .swatch { width: 10px; height: 10px; border-radius: 50%; }
+  .cat-chip.selected { background: var(--ink); color: var(--paper); border-color: var(--ink); }
   html, body {
     margin: 0; padding: 0; height: 100%; overflow: hidden;
     font-family: 'DM Mono', monospace;
