@@ -1686,9 +1686,9 @@ function toast(msg) {
 // ============ RAIL ============
 function renderRail() {
   const rail = $('rail');
-  rail.innerHTML = SURFACES.map(s => `
+  const sorted = [...SURFACES].sort((a,b) => a.name.localeCompare(b.name));
+  rail.innerHTML = sorted.map(s => `
     <button class="rail-btn ${state.selectedSurface === s.key ? 'selected' : ''}" data-key="${s.key}">
-      <div class="rail-swatch" style="background:var(--ink-soft);opacity:.35"></div>
       <div class="rail-label">${s.name}</div>
     </button>
   `).join('');
