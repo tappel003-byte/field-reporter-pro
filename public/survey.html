@@ -1528,6 +1528,7 @@ function updateUndoButton() {
 // ============ STORAGE ============
 function save() {
   try {
+    setSync('saving');
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       jobAddress: state.jobAddress,
       planImage: state.planImage,
@@ -1537,10 +1538,26 @@ function save() {
       nextPhotoNum: state.nextPhotoNum,
       activePinId: state.activePinId,
       selectedSurface: state.selectedSurface,
-      selectedDescriptors: state.selectedDescriptors
+      selectedDescriptors: state.selectedDescriptors,
+      northArrow: state.northArrow,
+      weather: state.weather,
+      darkMode: state.darkMode
     }));
+    setSync('saved');
   } catch (e) {
+    setSync('idle');
     toast('Storage full — export & clear soon');
+  }
+}
+let _syncTimer;
+function setSync(s) {
+  const pill = document.getElementById('syncPill'); if (!pill) return;
+  pill.dataset.state = s;
+  const txt = pill.querySelector('.sync-text');
+  if (txt) txt.textContent = s === 'saving' ? 'Saving…' : (s === 'saved' ? 'Saved' : 'Idle');
+  if (s === 'saved') {
+    clearTimeout(_syncTimer);
+    _syncTimer = setTimeout(() => { pill.dataset.state = 'idle'; }, 1200);
   }
 }
 function load() {
@@ -1552,20 +1569,23 @@ function load() {
     state.planImage = d.planImage || null;
     state.pins = d.pins || [];
     state.unattachedPhotos = d.unattachedPhotos || [];
-    // Migrate old pins with single 'photo' field to 'photos' array
+    // Migrate old pins
     state.pins.forEach(p => {
-      if (p.photo && !p.photos) {
-        p.photos = [{ num: 0, data: p.photo }]; // 0 = pre-migration, will be re-numbered if needed
-        delete p.photo;
-      }
+      if (p.photo && !p.photos) { p.photos = [{ num: 0, data: p.photo }]; delete p.photo; }
       if (!p.photos) p.photos = [];
-      // Wave 2A migration: ensure category, severity, tags exist on every pin
       if (!p.category) p.category = DEFAULT_CATEGORY_BY_SURFACE[p.surface] || 'other';
       if (typeof p.severity !== 'number') p.severity = 0;
       if (!Array.isArray(p.tags)) p.tags = [];
     });
+    // 30-day trash sweep — purge anything deleted > 30 days ago
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    state.pins = state.pins.filter(p => !(p.deleted && p.deletedAt && p.deletedAt < cutoff));
+    state.unattachedPhotos = state.unattachedPhotos.filter(ph => !(ph.deleted && ph.deletedAt && ph.deletedAt < cutoff));
+    state.pins.forEach(p => {
+      if (p.photos) p.photos = p.photos.filter(ph => !(ph.deleted && ph.deletedAt && ph.deletedAt < cutoff));
+    });
+
     state.nextNum = d.nextNum || (state.pins.length ? Math.max(...state.pins.map(p=>p.num))+1 : 1);
-    // Compute next photo num from existing data if not stored
     if (d.nextPhotoNum) {
       state.nextPhotoNum = d.nextPhotoNum;
     } else {
@@ -1576,14 +1596,22 @@ function load() {
       state.nextPhotoNum = allNums.length ? Math.max(...allNums) + 1 : 1;
     }
     state.activePinId = d.activePinId || null;
-    // Validate activePinId references an existing pin
-    if (state.activePinId && !state.pins.find(p => p.id === state.activePinId)) {
+    if (state.activePinId && !state.pins.find(p => p.id === state.activePinId && !p.deleted)) {
       state.activePinId = null;
     }
     state.selectedSurface = d.selectedSurface || null;
     state.selectedDescriptors = d.selectedDescriptors || { size:'', pattern:'', location:'', custom:'' };
+    state.northArrow = d.northArrow || { x: 24, y: 24, rot: 0, visible: true };
+    state.weather = d.weather || null;
+    state.darkMode = !!d.darkMode;
   } catch(e) { console.warn(e); }
 }
+
+// ============ Visible/active filters ============
+// Anything user-facing must skip soft-deleted records.
+function visiblePins() { return state.pins.filter(p => !p.deleted); }
+function visibleUnattached() { return state.unattachedPhotos.filter(ph => !ph.deleted); }
+function visiblePhotosOf(pin) { return (pin.photos || []).filter(ph => !ph.deleted); }
 
 // ============ HELPERS ============
 function $(id) { return document.getElementById(id); }
