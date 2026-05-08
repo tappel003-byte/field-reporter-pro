@@ -1422,6 +1422,10 @@ function load() {
         delete p.photo;
       }
       if (!p.photos) p.photos = [];
+      // Wave 2A migration: ensure category, severity, tags exist on every pin
+      if (!p.category) p.category = DEFAULT_CATEGORY_BY_SURFACE[p.surface] || 'other';
+      if (typeof p.severity !== 'number') p.severity = 0;
+      if (!Array.isArray(p.tags)) p.tags = [];
     });
     state.nextNum = d.nextNum || (state.pins.length ? Math.max(...state.pins.map(p=>p.num))+1 : 1);
     // Compute next photo num from existing data if not stored
