@@ -2630,18 +2630,7 @@ function renderDetail() {
     });
   }
 
-  // ---- Tag chips (multi-select) ----
-  panel.querySelectorAll('#tagChips .desc-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const key = btn.dataset.tag;
-      pin.tags = pin.tags || [];
-      const i = pin.tags.indexOf(key);
-      if (i >= 0) pin.tags.splice(i, 1);
-      else pin.tags.push(key);
-      btn.classList.toggle('selected');
-      save();
-    });
-  });
+  // (Tag chips removed — surface + descriptors + notes carry the meaning.)
 
   $('detailNotes').addEventListener('input', (e) => {
     pin.notes = e.target.value;
