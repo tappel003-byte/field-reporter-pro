@@ -1748,6 +1748,8 @@ function load() {
     state.northArrow = d.northArrow || { x: 24, y: 24, rot: 0, visible: true };
     state.weather = d.weather || null;
     state.darkMode = !!d.darkMode;
+    state.drawTool = d.drawTool || null;
+    if (state.drawTool && !['free','line','ellipse'].includes(state.drawTool)) state.drawTool = null;
   } catch(e) { console.warn(e); }
 }
 
