@@ -1647,9 +1647,15 @@ function load() {
     state.pins.forEach(p => {
       if (p.photo && !p.photos) { p.photos = [{ num: 0, data: p.photo }]; delete p.photo; }
       if (!p.photos) p.photos = [];
-      if (!p.category) p.category = DEFAULT_CATEGORY_BY_SURFACE[p.surface] || 'other';
+      // Collapse legacy surface (10) + category (6) → unified 6-surface model.
+      // Prefer existing category (closer to user intent); fall back to surface map.
+      const fromCat = p.category && LEGACY_CATEGORY_MAP[p.category];
+      const fromSurf = p.surface && LEGACY_SURFACE_MAP[p.surface];
+      const newKey = fromCat || fromSurf || 'other';
+      p.surface = newKey;
+      p.category = newKey;
       if (typeof p.severity !== 'number') p.severity = 0;
-      if (!Array.isArray(p.tags)) p.tags = [];
+      p.tags = []; // tags row dropped
     });
     // 30-day trash sweep — purge anything deleted > 30 days ago
     const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
