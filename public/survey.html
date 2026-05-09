@@ -2516,11 +2516,12 @@ function renderDetail() {
   const s = getSurface(pin.surface);
   const cat = getCategory(pin.category) || getCategory('other');
   const sev = pin.severity || 0;
-  const availTags = tagsForPin(pin);
   panel.innerHTML = `
     <div class="detail-head" style="background:${pinCategoryHex(pin)}">
       <div class="detail-num">${pin.num}${pinIsHazard(pin) ? ' ⚠' : ''}</div>
-      <div class="detail-title">${escapeHtml(cat.name)} · ${escapeHtml(s.name)}</div>
+      <div class="detail-title">${escapeHtml(s.name)}</div>
+      <button class="detail-close" id="detailClose">×</button>
+    </div>
       <button class="detail-close" id="detailClose">×</button>
     </div>
     <div class="detail-body">
