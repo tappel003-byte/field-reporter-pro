@@ -3254,7 +3254,8 @@ function drawPinsOn(ctx, W, H) {
   visiblePins().forEach(p => {
     ctx.beginPath();
     ctx.fillStyle = pinHex(p);
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    ctx.strokeStyle = getSurface(p.surface)?.hex || '#fff';
+    ctx.lineWidth = Math.max(3, Math.round(r * 0.22));
     ctx.arc(p.x, p.y, r, 0, Math.PI*2);
     ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#fff';
