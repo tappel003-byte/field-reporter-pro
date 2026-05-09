@@ -2726,7 +2726,7 @@ function renderFindings() {
   const list = $('findingsList');
 
   if (!vp.length && !vu.length) {
-    list.innerHTML = '<div class="findings-empty">No pins yet. Pick a surface and tap the plan.</div>';
+    list.innerHTML = '<div class="findings-empty">No pins yet. Tap the plan to drop your first pin.</div>';
     refreshTrashCount();
     return;
   }
