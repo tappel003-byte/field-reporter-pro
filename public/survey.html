@@ -2279,7 +2279,8 @@ function renderPins() {
     el.style.left = p.x + 'px';
     el.style.top = p.y + 'px';
     const hazard = pinIsHazard(p) ? `<div class="hazard" title="High severity">!</div>` : '';
-    el.innerHTML = `<div class="pin-circle" style="background:${pinCategoryHex(p)}">${p.num}</div>${hazard}`;
+    const matHex = getSurface(p.surface)?.hex || '#fff';
+    el.innerHTML = `<div class="pin-circle" style="background:${pinCategoryHex(p)};border-color:${matHex}">${p.num}</div>${hazard}`;
     layer.appendChild(el);
   });
 }
