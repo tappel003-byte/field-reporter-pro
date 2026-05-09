@@ -523,8 +523,8 @@
     font-family: 'DM Mono', monospace;
     font-size: 12px;
     font-weight: 500;
-    border: 2px solid white;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    border: 3px solid white;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.4);
     transition: transform 0.12s;
   }
   .pin.active .pin-circle {
@@ -2279,7 +2279,8 @@ function renderPins() {
     el.style.left = p.x + 'px';
     el.style.top = p.y + 'px';
     const hazard = pinIsHazard(p) ? `<div class="hazard" title="High severity">!</div>` : '';
-    el.innerHTML = `<div class="pin-circle" style="background:${pinCategoryHex(p)}">${p.num}</div>${hazard}`;
+    const matHex = getSurface(p.surface)?.hex || '#fff';
+    el.innerHTML = `<div class="pin-circle" style="background:${pinCategoryHex(p)};border-color:${matHex}">${p.num}</div>${hazard}`;
     layer.appendChild(el);
   });
 }
@@ -3253,7 +3254,8 @@ function drawPinsOn(ctx, W, H) {
   visiblePins().forEach(p => {
     ctx.beginPath();
     ctx.fillStyle = pinHex(p);
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    ctx.strokeStyle = getSurface(p.surface)?.hex || '#fff';
+    ctx.lineWidth = Math.max(3, Math.round(r * 0.22));
     ctx.arc(p.x, p.y, r, 0, Math.PI*2);
     ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#fff';
