@@ -3078,6 +3078,23 @@ $('jobAddress').addEventListener('input', (e) => {
   clearTimeout(addrSaveTimer);
   addrSaveTimer = setTimeout(save, 300);
 });
+// On phones the address bar is collapsed to the 📍 chip; tap to expand.
+(function wireAddressChip() {
+  const wrap = document.getElementById('jobAddrWrap');
+  const input = document.getElementById('jobAddress');
+  if (!wrap) return;
+  document.getElementById('useLocBtn').addEventListener('click', () => {
+    if (window.matchMedia('(max-width: 900px)').matches && !wrap.classList.contains('expanded')) {
+      wrap.classList.add('expanded');
+      setTimeout(() => input.focus(), 150);
+    }
+  }, true);
+  input.addEventListener('blur', () => {
+    if (window.matchMedia('(max-width: 900px)').matches) {
+      setTimeout(() => wrap.classList.remove('expanded'), 100);
+    }
+  });
+})();
 
 // ============ UTILS ============
 function escapeHtml(s) { return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
