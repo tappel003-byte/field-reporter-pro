@@ -1570,7 +1570,8 @@ const state = {
   nextPhotoNum: 1,      // next photo number (unified across pins + unattached)
   view: { scale: 1, tx: 0, ty: 0 },
   imgNatural: { w: 0, h: 0 },
-  pendingLine: null,
+  pendingShape: null,   // { type:'free'|'line'|'ellipse', ... } awaiting a pin tap
+  drawTool: null,       // null | 'free' | 'line' | 'ellipse' — null = pan
   northArrow: { x: 24, y: 24, rot: 0, visible: true },
   weather: null,        // { tempF, code, summary, fetchedAt }
   darkMode: false
