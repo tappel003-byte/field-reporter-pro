@@ -1232,8 +1232,9 @@
 
 <div class="topbar">
   <div class="brand">Distress Survey<small>Field Tool</small></div>
-  <div class="job-addr-wrap">
-    <input type="text" id="jobAddress" placeholder="Job address (e.g. 1247 Carlisle Blvd NE)" autocomplete="off">
+  <div class="job-addr-wrap" style="display:flex;gap:4px;align-items:center;">
+    <input type="text" id="jobAddress" placeholder="Job address (e.g. 1247 Carlisle Blvd NE)" autocomplete="off" style="flex:1;">
+    <button class="top-btn" id="useLocBtn" title="Fill address from current location" style="padding:4px 8px;">📍</button>
   </div>
   <div class="topbar-spacer"></div>
   <label class="top-btn" id="uploadBtn">
