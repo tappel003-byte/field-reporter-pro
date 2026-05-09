@@ -2075,6 +2075,7 @@ function mountPlan() {
     $('planEmpty').style.display = '';
     $('canvasWrap').style.display = 'none';
     $('zoomCtrl').style.display = 'none';
+    $('toolBar').style.display = 'none';
     $('hint').style.display = 'none';
     updateActiveIndicator();
     return;
@@ -2082,6 +2083,8 @@ function mountPlan() {
   $('planEmpty').style.display = 'none';
   $('canvasWrap').style.display = '';
   $('zoomCtrl').style.display = '';
+  $('toolBar').style.display = '';
+  renderToolBar();
   if (typeof renderNorthArrow === 'function') renderNorthArrow();
   const img = $('planImg');
   img.onload = () => {
