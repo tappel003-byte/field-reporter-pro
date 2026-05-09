@@ -3172,7 +3172,7 @@ $('exportBtn').addEventListener('click', () => {
 
   // Pins
   lines.push('PINS');
-  const pinHeaders = ['Pin #','Surface','Severity','Hazard','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
+  const pinHeaders = ['Pin #','Surface','Severity','Hazard','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Shape','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
   lines.push(pinHeaders.join(','));
   state.pins.slice().sort((a,b)=>a.num-b.num).forEach(p => {
     const photoNums = (p.photos || []).map(ph => ph.num).join(';');
@@ -3520,7 +3520,7 @@ function runCsvExport() {
   lines.push('Total Photos,' + (visiblePins().reduce((n,p) => n + visiblePhotosOf(p).length, 0) + visibleUnattached().length));
   lines.push('');
   lines.push('PINS');
-  const pinHeaders = ['Pin #','Order','Surface','Severity','Hazard','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
+  const pinHeaders = ['Pin #','Order','Surface','Severity','Hazard','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Shape','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
   lines.push(pinHeaders.join(','));
   visiblePins().slice().sort((a,b) => {
     const ai = (typeof a.orderIdx === 'number') ? a.orderIdx : a.num;
