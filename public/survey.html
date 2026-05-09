@@ -710,6 +710,48 @@
   .zoom-ctrl button:active { background: var(--rule-soft); }
   .zoom-ctrl button + button { border-top: 1px solid var(--rule); }
 
+  /* DRAW TOOL BAR */
+  .tool-bar {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    display: flex;
+    z-index: 25;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .tool-bar button {
+    width: 40px; height: 40px;
+    background: transparent;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: var(--ink);
+    font-weight: 500;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tool-bar button + button { border-left: 1px solid var(--rule); }
+  .tool-bar button.active {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .tool-bar button svg { width: 20px; height: 20px; display: block; }
+
+  /* SHAPE HANDLES (SVG) */
+  .shape-handle {
+    fill: var(--paper);
+    stroke: var(--ink);
+    stroke-width: 2;
+    cursor: grab;
+    pointer-events: all;
+  }
+  .shape-handle:active { cursor: grabbing; }
+  .shape-handle.center { fill: var(--ink); }
+
+
   /* FINDINGS PANEL */
   .findings {
     position: absolute;
@@ -1383,6 +1425,19 @@
     <div class="hint" id="hint" style="display:none"></div>
   </div>
 
+  <!-- DRAW TOOLS -->
+  <div class="tool-bar" id="toolBar" style="display:none">
+    <button data-tool="free" title="Freehand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c2-3 4-5 7-5s5 2 7 5"/><path d="M14 4l3 3-9 9-4 1 1-4z"/></svg>
+    </button>
+    <button data-tool="line" title="Straight line">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="20" x2="20" y2="4"/><circle cx="4" cy="20" r="2" fill="currentColor"/><circle cx="20" cy="4" r="2" fill="currentColor"/></svg>
+    </button>
+    <button data-tool="ellipse" title="Ellipse">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="9" ry="6"/></svg>
+    </button>
+  </div>
+
   <!-- ZOOM -->
   <div class="zoom-ctrl" id="zoomCtrl" style="display:none">
     <button id="zoomIn">+</button>
@@ -1515,7 +1570,8 @@ const state = {
   nextPhotoNum: 1,      // next photo number (unified across pins + unattached)
   view: { scale: 1, tx: 0, ty: 0 },
   imgNatural: { w: 0, h: 0 },
-  pendingLine: null,
+  pendingShape: null,   // { type:'free'|'line'|'ellipse', ... } awaiting a pin tap
+  drawTool: null,       // null | 'free' | 'line' | 'ellipse' — null = pan
   northArrow: { x: 24, y: 24, rot: 0, visible: true },
   weather: null,        // { tempF, code, summary, fetchedAt }
   darkMode: false
@@ -1568,18 +1624,18 @@ function undo() {
   state.selectedPinId = snap.state.selectedPinId;
   state.nextNum = snap.state.nextNum;
   state.nextPhotoNum = snap.state.nextPhotoNum;
-  state.pendingLine = null;
+  state.pendingShape = null;
   // Clear any in-progress drawing
   if (ptr.drawPath) { try { ptr.drawPath.remove(); } catch(e){} }
   ptr.drawPath = null;
   ptr.drawPoints = null;
-  // Remove any leftover dashed pending-line paths from SVG
+  // Remove any leftover dashed pending shapes from SVG
   const svg = $('planSvg');
-  if (svg) svg.querySelectorAll('polyline[stroke-dasharray]').forEach(p => p.remove());
+  if (svg) svg.querySelectorAll('[data-pending="1"]').forEach(p => p.remove());
   save();
   $('jobAddress').value = state.jobAddress || '';
   renderPins();
-  renderLines();
+  renderShapes();
   renderFindings();
   updateActiveIndicator();
   if (state.selectedPinId) renderDetail();
@@ -1615,7 +1671,8 @@ function save() {
       selectedDescriptors: state.selectedDescriptors,
       northArrow: state.northArrow,
       weather: state.weather,
-      darkMode: state.darkMode
+      darkMode: state.darkMode,
+      drawTool: state.drawTool
     }));
     setSync('saved');
   } catch (e) {
@@ -1656,6 +1713,11 @@ function load() {
       p.category = newKey;
       if (typeof p.severity !== 'number') p.severity = 0;
       p.tags = []; // tags row dropped
+      // Migrate freehand line → unified shape schema
+      if (p.line && p.line.length >= 2 && !p.shape) {
+        p.shape = { type: 'free', points: p.line };
+      }
+      delete p.line;
     });
     // 30-day trash sweep — purge anything deleted > 30 days ago
     const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
@@ -1686,6 +1748,8 @@ function load() {
     state.northArrow = d.northArrow || { x: 24, y: 24, rot: 0, visible: true };
     state.weather = d.weather || null;
     state.darkMode = !!d.darkMode;
+    state.drawTool = d.drawTool || null;
+    if (state.drawTool && !['free','line','ellipse'].includes(state.drawTool)) state.drawTool = null;
   } catch(e) { console.warn(e); }
 }
 
@@ -2011,6 +2075,7 @@ function mountPlan() {
     $('planEmpty').style.display = '';
     $('canvasWrap').style.display = 'none';
     $('zoomCtrl').style.display = 'none';
+    $('toolBar').style.display = 'none';
     $('hint').style.display = 'none';
     updateActiveIndicator();
     return;
@@ -2018,6 +2083,8 @@ function mountPlan() {
   $('planEmpty').style.display = 'none';
   $('canvasWrap').style.display = '';
   $('zoomCtrl').style.display = '';
+  $('toolBar').style.display = '';
+  renderToolBar();
   if (typeof renderNorthArrow === 'function') renderNorthArrow();
   const img = $('planImg');
   img.onload = () => {
@@ -2029,7 +2096,7 @@ function mountPlan() {
     svg.setAttribute('viewBox', `0 0 ${img.naturalWidth} ${img.naturalHeight}`);
     fitView();
     renderPins();
-    renderLines();
+    renderShapes();
     updateHint();
     updateActiveIndicator();
   };
@@ -2122,6 +2189,33 @@ function setupPointerEvents() {
   wrap.addEventListener('wheel', onWheel, { passive: false });
 }
 
+function renderToolBar() {
+  const bar = $('toolBar');
+  if (!bar) return;
+  bar.querySelectorAll('button').forEach(btn => {
+    btn.classList.toggle('active', state.drawTool === btn.dataset.tool);
+  });
+}
+function setupToolBar() {
+  const bar = $('toolBar');
+  if (!bar) return;
+  bar.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const t = btn.dataset.tool;
+      state.drawTool = (state.drawTool === t) ? null : t;
+      // Cancel any pending shape if tool turned off
+      if (!state.drawTool) {
+        state.pendingShape = null;
+        const svg = $('planSvg');
+        if (svg) svg.querySelectorAll('[data-pending="1"]').forEach(p => p.remove());
+      }
+      save();
+      renderToolBar();
+      toast(state.drawTool ? ('Tool: ' + state.drawTool) : 'Tool off — drag pans');
+    });
+  });
+}
+
 function onWheel(e) {
   if (!state.planImage) return;
   e.preventDefault();
@@ -2131,6 +2225,23 @@ function onWheel(e) {
 
 function onPointerDown(e) {
   if (!state.planImage) return;
+
+  // Tapped on a shape handle?
+  const handleEl = e.target.closest && e.target.closest('[data-handle]');
+  if (handleEl && ptr.pointers.size === 0) {
+    e.preventDefault();
+    ptr.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    ptr.mode = 'handle';
+    ptr.handleKind = handleEl.dataset.handle;
+    ptr.handlePinId = handleEl.dataset.handlePin;
+    ptr.startX = e.clientX; ptr.startY = e.clientY;
+    const pin = state.pins.find(p => p.id === ptr.handlePinId);
+    if (pin && pin.shape) {
+      ptr.handleStart = JSON.parse(JSON.stringify(pin.shape));
+      snapshot('Reshape pin #' + pin.num);
+    }
+    return;
+  }
 
   // Tapped on existing pin?
   const pinEl = e.target.closest('.pin');
@@ -2151,15 +2262,29 @@ function onPointerDown(e) {
     ptr.startY = e.clientY;
     ptr.mode = 'down';
     ptr.drawPath = null;
+    // Long-press: if user holds still, hit-test shapes and open detail.
+    clearTimeout(ptr.longPressT);
+    ptr.longPressFired = false;
+    ptr.longPressT = setTimeout(() => {
+      if (ptr.mode !== 'down') return;
+      const c = pointerToImageCoords(ptr.startX, ptr.startY);
+      const threshold = 14 / state.view.scale;
+      const hit = hitPinShape(c.x, c.y, threshold);
+      if (hit) {
+        ptr.longPressFired = true;
+        if (navigator.vibrate) try { navigator.vibrate(15); } catch(e){}
+        selectPin(hit.id);
+        openDetail();
+      }
+    }, 550);
   } else if (ptr.pointers.size === 2) {
-    // start pinch
+    clearTimeout(ptr.longPressT);
     const pts = Array.from(ptr.pointers.values());
     ptr.lastDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
     ptr.lastMid = { x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2 };
     ptr.mode = 'pinch';
-    // cancel any drawing in progress
     if (ptr.drawPath) {
-      $('planSvg').removeChild(ptr.drawPath);
+      try { $('planSvg').removeChild(ptr.drawPath); } catch(e){}
       ptr.drawPath = null;
     }
   }
@@ -2169,6 +2294,33 @@ function onPointerMove(e) {
   if (!ptr.pointers.has(e.pointerId)) return;
   ptr.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, pinHit: ptr.pointers.get(e.pointerId).pinHit });
 
+  if (ptr.mode === 'handle') {
+    const pin = state.pins.find(p => p.id === ptr.handlePinId);
+    if (!pin || !pin.shape) return;
+    const c = pointerToImageCoords(e.clientX, e.clientY);
+    const start = ptr.handleStart;
+    if (pin.shape.type === 'line') {
+      if (ptr.handleKind === 'a') pin.shape.a = { x:c.x, y:c.y };
+      else if (ptr.handleKind === 'b') pin.shape.b = { x:c.x, y:c.y };
+      else if (ptr.handleKind === 'mid') {
+        const sc = pointerToImageCoords(ptr.startX, ptr.startY);
+        const ddx = c.x - sc.x, ddy = c.y - sc.y;
+        pin.shape.a = { x: start.a.x + ddx, y: start.a.y + ddy };
+        pin.shape.b = { x: start.b.x + ddx, y: start.b.y + ddy };
+      }
+    } else if (pin.shape.type === 'ellipse') {
+      if (ptr.handleKind === 'rx') pin.shape.rx = Math.max(2, Math.abs(c.x - pin.shape.cx));
+      else if (ptr.handleKind === 'ry') pin.shape.ry = Math.max(2, Math.abs(pin.shape.cy - c.y));
+      else if (ptr.handleKind === 'mid') {
+        const sc = pointerToImageCoords(ptr.startX, ptr.startY);
+        pin.shape.cx = start.cx + (c.x - sc.x);
+        pin.shape.cy = start.cy + (c.y - sc.y);
+      }
+    }
+    renderShapes();
+    return;
+  }
+
   if (ptr.mode === 'pinch' && ptr.pointers.size === 2) {
     const pts = Array.from(ptr.pointers.values());
     const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
@@ -2177,7 +2329,6 @@ function onPointerMove(e) {
       const factor = dist / ptr.lastDist;
       zoomBy(factor, mid.x, mid.y);
     }
-    // pan from midpoint delta
     if (ptr.lastMid) {
       state.view.tx += (mid.x - ptr.lastMid.x);
       state.view.ty += (mid.y - ptr.lastMid.y);
@@ -2194,11 +2345,12 @@ function onPointerMove(e) {
     const moved = Math.hypot(dx, dy);
 
     if (ptr.mode === 'down' && moved > ptr.movedThreshold) {
-      // Decide: only Slab/concrete supports line sketching. Everything else pans on drag.
-      if (state.selectedSurface === 'slab') {
+      clearTimeout(ptr.longPressT);
+      // Drag-to-draw requires BOTH a surface and a tool selected. Otherwise pan.
+      if (state.selectedSurface && state.drawTool) {
         ptr.mode = 'draw';
-        startDrawLine(ptr.startX, ptr.startY);
-        extendDrawLine(e.clientX, e.clientY);
+        startDrawShape(ptr.startX, ptr.startY);
+        extendDrawShape(e.clientX, e.clientY);
       } else {
         ptr.mode = 'pan';
       }
@@ -2207,7 +2359,7 @@ function onPointerMove(e) {
       state.view.ty += (e.clientY - (ptr._lastY ?? ptr.startY));
       applyTransform();
     } else if (ptr.mode === 'draw') {
-      extendDrawLine(e.clientX, e.clientY);
+      extendDrawShape(e.clientX, e.clientY);
     }
     ptr._lastX = e.clientX;
     ptr._lastY = e.clientY;
@@ -2217,7 +2369,6 @@ function onPointerMove(e) {
     const moved = Math.hypot(e.clientX - ptr.startX, e.clientY - ptr.startY);
     if (moved > ptr.movedThreshold) {
       ptr.mode = 'drag-pin';
-      // Snapshot position before drag begins
       const data = ptr.pointers.get(e.pointerId);
       const pin = data && state.pins.find(p => p.id === data.pinHit);
       if (pin) snapshot('Move pin #' + pin.num);
@@ -2241,6 +2392,15 @@ function onPointerMove(e) {
 function onPointerUp(e) {
   const data = ptr.pointers.get(e.pointerId);
   ptr.pointers.delete(e.pointerId);
+  clearTimeout(ptr.longPressT);
+
+  if (ptr.mode === 'handle') {
+    save();
+    renderShapes();
+    ptr.mode = null;
+    ptr.handleKind = null; ptr.handlePinId = null; ptr.handleStart = null;
+    return;
+  }
 
   if (ptr.mode === 'pinch') {
     if (ptr.pointers.size < 2) ptr.mode = 'idle';
@@ -2258,11 +2418,16 @@ function onPointerUp(e) {
     return;
   }
 
+  if (ptr.longPressFired) {
+    ptr.longPressFired = false;
+    ptr.mode = null;
+    return;
+  }
+
   if (ptr.mode === 'down') {
-    // This was a tap (no significant move). Drop a pin.
     handleTap(ptr.startX, ptr.startY);
   } else if (ptr.mode === 'draw') {
-    finishDrawLine();
+    finishDrawShape();
   }
 
   ptr.mode = null;
@@ -2279,25 +2444,25 @@ function handleTap(clientX, clientY) {
   // bound to image
   if (c.x < 0 || c.y < 0 || c.x > state.imgNatural.w || c.y > state.imgNatural.h) return;
 
-  // If there's a pending line, this tap becomes the pin for that line
-  if (state.pendingLine) {
-    snapshot('Add pin #' + state.nextNum + ' with line');
-    const pin = createPin(c.x, c.y, state.pendingLine);
-    state.pendingLine = null;
+  // If there's a pending shape, this tap becomes the pin for that shape
+  if (state.pendingShape) {
+    snapshot('Add pin #' + state.nextNum + ' with ' + state.pendingShape.type);
+    const pin = createPin(c.x, c.y, state.pendingShape);
+    state.pendingShape = null;
     state.pins.push(pin);
     state.selectedPinId = pin.id;
     state.activePinId = pin.id;
     state.nextNum++;
     save();
     renderPins();
-    renderLines();
+    renderShapes();
     renderFindings();
     updateActiveIndicator();
     toast('Pin #' + pin.num);
     return;
   }
 
-  // Otherwise create a fresh pin (no line)
+  // Otherwise create a fresh pin (no shape)
   snapshot('Add pin #' + state.nextNum);
   const pin = createPin(c.x, c.y, null);
   state.pins.push(pin);
@@ -2311,7 +2476,7 @@ function handleTap(clientX, clientY) {
   toast('Pin #' + pin.num);
 }
 
-function createPin(x, y, line) {
+function createPin(x, y, shape) {
   const meta = (window.capturePinMeta && window.capturePinMeta()) || { timestamp: Date.now() };
   return {
     id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
@@ -2324,54 +2489,113 @@ function createPin(x, y, line) {
     descriptors: { ...state.selectedDescriptors },
     photos: [],
     notes: '',
-    line: line,
+    shape: shape || null,
     created: meta.timestamp,
     gps: meta.gps || null
   };
 }
 
-// ============ LINE DRAWING ============
-function startDrawLine(clientX, clientY) {
+// ============ SHAPE DRAWING ============
+// Three tools: 'free' (polyline), 'line' (straight a→b), 'ellipse' (cx,cy,rx,ry).
+// Drawing requires both a surface (for color) and a tool to be selected. The
+// shape is staged as state.pendingShape; the next canvas tap pairs it with a pin.
+
+function _shapeStroke() {
+  return getSurface(state.selectedSurface)?.hex || '#1a1a1a';
+}
+function _newSvgEl(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+
+function startDrawShape(clientX, clientY) {
   const c = pointerToImageCoords(clientX, clientY);
   const svg = $('planSvg');
-  const surface = getSurface(state.selectedSurface);
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-  path.setAttribute('fill', 'none');
-  path.setAttribute('stroke', surface.hex);
-  path.setAttribute('stroke-width', '4');
-  path.setAttribute('stroke-linecap', 'round');
-  path.setAttribute('stroke-linejoin', 'round');
-  path.setAttribute('points', `${c.x},${c.y}`);
-  svg.appendChild(path);
-  ptr.drawPath = path;
-  ptr.drawPoints = [{x: c.x, y: c.y}];
-}
-function extendDrawLine(clientX, clientY) {
-  if (!ptr.drawPath) return;
-  const c = pointerToImageCoords(clientX, clientY);
-  const last = ptr.drawPoints[ptr.drawPoints.length-1];
-  const minDist = 3 / state.view.scale;
-  if (Math.hypot(c.x-last.x, c.y-last.y) < minDist) return;
-  ptr.drawPoints.push({x: c.x, y: c.y});
-  ptr.drawPath.setAttribute('points', ptr.drawPoints.map(p=>`${p.x},${p.y}`).join(' '));
-}
-function finishDrawLine() {
-  if (!ptr.drawPath || !ptr.drawPoints || ptr.drawPoints.length < 2) {
-    if (ptr.drawPath) ptr.drawPath.remove();
-    ptr.drawPath = null;
-    ptr.drawPoints = null;
+  const stroke = _shapeStroke();
+  const tool = state.drawTool;
+  let el;
+  if (tool === 'free') {
+    el = _newSvgEl('polyline');
+    el.setAttribute('points', `${c.x},${c.y}`);
+    ptr.drawPoints = [{x:c.x, y:c.y}];
+  } else if (tool === 'line') {
+    el = _newSvgEl('line');
+    el.setAttribute('x1', c.x); el.setAttribute('y1', c.y);
+    el.setAttribute('x2', c.x); el.setAttribute('y2', c.y);
+    ptr.drawStart = {x:c.x, y:c.y};
+  } else if (tool === 'ellipse') {
+    el = _newSvgEl('ellipse');
+    el.setAttribute('cx', c.x); el.setAttribute('cy', c.y);
+    el.setAttribute('rx', 0); el.setAttribute('ry', 0);
+    el.setAttribute('fill', 'none');
+    ptr.drawStart = {x:c.x, y:c.y};
+  } else {
     return;
   }
-  // store as pending; next tap will pair it with a pin
-  state.pendingLine = ptr.drawPoints;
-  // remove provisional path; will redraw via renderLines once pin pairs
-  ptr.drawPath.setAttribute('stroke-dasharray', '6 4');
-  ptr.drawPath.setAttribute('opacity', '0.8');
-  ptr.drawPath = null;
-  toast('Line drawn — tap to drop pin');
+  el.setAttribute('stroke', stroke);
+  el.setAttribute('stroke-width', '4');
+  el.setAttribute('stroke-linecap', 'round');
+  el.setAttribute('stroke-linejoin', 'round');
+  if (tool !== 'ellipse') el.setAttribute('fill', 'none');
+  el.dataset.drawing = '1';
+  svg.appendChild(el);
+  ptr.drawPath = el;
+  ptr.drawTool = tool;
 }
 
-// ============ RENDER PINS & LINES ============
+function extendDrawShape(clientX, clientY) {
+  if (!ptr.drawPath) return;
+  const c = pointerToImageCoords(clientX, clientY);
+  const tool = ptr.drawTool;
+  if (tool === 'free') {
+    const last = ptr.drawPoints[ptr.drawPoints.length-1];
+    const minDist = 3 / state.view.scale;
+    if (Math.hypot(c.x-last.x, c.y-last.y) < minDist) return;
+    ptr.drawPoints.push({x:c.x, y:c.y});
+    ptr.drawPath.setAttribute('points', ptr.drawPoints.map(p=>`${p.x},${p.y}`).join(' '));
+  } else if (tool === 'line') {
+    ptr.drawPath.setAttribute('x2', c.x);
+    ptr.drawPath.setAttribute('y2', c.y);
+  } else if (tool === 'ellipse') {
+    const s = ptr.drawStart;
+    const cx = (s.x + c.x)/2, cy = (s.y + c.y)/2;
+    const rx = Math.abs(c.x - s.x)/2, ry = Math.abs(c.y - s.y)/2;
+    ptr.drawPath.setAttribute('cx', cx);
+    ptr.drawPath.setAttribute('cy', cy);
+    ptr.drawPath.setAttribute('rx', rx);
+    ptr.drawPath.setAttribute('ry', ry);
+  }
+}
+
+function finishDrawShape() {
+  if (!ptr.drawPath) return;
+  const tool = ptr.drawTool;
+  let shape = null;
+  if (tool === 'free') {
+    if (ptr.drawPoints && ptr.drawPoints.length >= 2) {
+      shape = { type:'free', points: ptr.drawPoints };
+    }
+  } else if (tool === 'line') {
+    const x1 = +ptr.drawPath.getAttribute('x1'), y1 = +ptr.drawPath.getAttribute('y1');
+    const x2 = +ptr.drawPath.getAttribute('x2'), y2 = +ptr.drawPath.getAttribute('y2');
+    if (Math.hypot(x2-x1, y2-y1) > 4) shape = { type:'line', a:{x:x1,y:y1}, b:{x:x2,y:y2} };
+  } else if (tool === 'ellipse') {
+    const rx = +ptr.drawPath.getAttribute('rx'), ry = +ptr.drawPath.getAttribute('ry');
+    const cx = +ptr.drawPath.getAttribute('cx'), cy = +ptr.drawPath.getAttribute('cy');
+    if (rx > 3 && ry > 3) shape = { type:'ellipse', cx, cy, rx, ry };
+  }
+  if (!shape) {
+    ptr.drawPath.remove();
+    ptr.drawPath = null; ptr.drawPoints = null; ptr.drawStart = null; ptr.drawTool = null;
+    return;
+  }
+  state.pendingShape = shape;
+  ptr.drawPath.setAttribute('stroke-dasharray', '6 4');
+  ptr.drawPath.setAttribute('opacity', '0.8');
+  ptr.drawPath.dataset.pending = '1';
+  delete ptr.drawPath.dataset.drawing;
+  ptr.drawPath = null; ptr.drawPoints = null; ptr.drawStart = null; ptr.drawTool = null;
+  toast('Shape drawn — tap to drop pin');
+}
+
+// ============ RENDER PINS & SHAPES ============
 function renderPins() {
   const layer = $('pinsLayer');
   layer.innerHTML = '';
@@ -2388,20 +2612,96 @@ function renderPins() {
   });
 }
 
-function renderLines() {
+function renderShapes() {
   const svg = $('planSvg');
-  svg.querySelectorAll('polyline').forEach(p => p.remove());
+  // Clear committed shapes + handles, keep in-progress drawing/pending paths
+  svg.querySelectorAll('[data-shape="1"], [data-handle], [data-shape-of]').forEach(n => n.remove());
   visiblePins().forEach(p => {
-    if (!p.line || p.line.length < 2) return;
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', pinHex(p));
-    path.setAttribute('stroke-width', '4');
-    path.setAttribute('stroke-linecap', 'round');
-    path.setAttribute('stroke-linejoin', 'round');
-    path.setAttribute('points', p.line.map(pt=>`${pt.x},${pt.y}`).join(' '));
-    svg.appendChild(path);
+    if (!p.shape) return;
+    const stroke = pinHex(p);
+    const sh = p.shape;
+    let el;
+    if (sh.type === 'free' && sh.points && sh.points.length >= 2) {
+      el = _newSvgEl('polyline');
+      el.setAttribute('points', sh.points.map(pt=>`${pt.x},${pt.y}`).join(' '));
+      el.setAttribute('fill', 'none');
+    } else if (sh.type === 'line') {
+      el = _newSvgEl('line');
+      el.setAttribute('x1', sh.a.x); el.setAttribute('y1', sh.a.y);
+      el.setAttribute('x2', sh.b.x); el.setAttribute('y2', sh.b.y);
+    } else if (sh.type === 'ellipse') {
+      el = _newSvgEl('ellipse');
+      el.setAttribute('cx', sh.cx); el.setAttribute('cy', sh.cy);
+      el.setAttribute('rx', sh.rx); el.setAttribute('ry', sh.ry);
+      el.setAttribute('fill', 'none');
+    }
+    if (!el) return;
+    el.setAttribute('stroke', stroke);
+    el.setAttribute('stroke-width', '4');
+    el.setAttribute('stroke-linecap', 'round');
+    el.setAttribute('stroke-linejoin', 'round');
+    el.dataset.shape = '1';
+    el.dataset.shapeOf = p.id;
+    svg.appendChild(el);
   });
+  renderShapeHandles();
+}
+
+function renderShapeHandles() {
+  const svg = $('planSvg');
+  svg.querySelectorAll('[data-handle]').forEach(n => n.remove());
+  const pin = state.pins.find(p => p.id === state.selectedPinId && !p.deleted);
+  if (!pin || !pin.shape) return;
+  const sh = pin.shape;
+  const r = Math.max(7, 9 / state.view.scale);
+  const handles = [];
+  if (sh.type === 'line') {
+    handles.push({ x: sh.a.x, y: sh.a.y, kind: 'a' });
+    handles.push({ x: sh.b.x, y: sh.b.y, kind: 'b' });
+    handles.push({ x: (sh.a.x+sh.b.x)/2, y: (sh.a.y+sh.b.y)/2, kind: 'mid', center: true });
+  } else if (sh.type === 'ellipse') {
+    handles.push({ x: sh.cx + sh.rx, y: sh.cy, kind: 'rx' });
+    handles.push({ x: sh.cx, y: sh.cy - sh.ry, kind: 'ry' });
+    handles.push({ x: sh.cx, y: sh.cy, kind: 'mid', center: true });
+  }
+  handles.forEach(h => {
+    const c = _newSvgEl('circle');
+    c.setAttribute('cx', h.x); c.setAttribute('cy', h.y);
+    c.setAttribute('r', r);
+    c.setAttribute('class', 'shape-handle' + (h.center ? ' center' : ''));
+    c.dataset.handle = h.kind;
+    c.dataset.handlePin = pin.id;
+    svg.appendChild(c);
+  });
+}
+
+// Hit-test a point against any visible pin's shape (image coords).
+function hitPinShape(x, y, threshold) {
+  for (const p of visiblePins()) {
+    const sh = p.shape;
+    if (!sh) continue;
+    if (sh.type === 'free' && sh.points) {
+      for (let i=1;i<sh.points.length;i++) {
+        if (_distPtSeg(x,y,sh.points[i-1],sh.points[i]) < threshold) return p;
+      }
+    } else if (sh.type === 'line') {
+      if (_distPtSeg(x,y,sh.a,sh.b) < threshold) return p;
+    } else if (sh.type === 'ellipse' && sh.rx > 0 && sh.ry > 0) {
+      const dx = (x - sh.cx)/sh.rx, dy = (y - sh.cy)/sh.ry;
+      const d2 = dx*dx + dy*dy;
+      // accept anywhere inside or near boundary
+      if (d2 <= 1.25) return p;
+    }
+  }
+  return null;
+}
+function _distPtSeg(px, py, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len2 = dx*dx + dy*dy;
+  if (len2 === 0) return Math.hypot(px-a.x, py-a.y);
+  let t = ((px-a.x)*dx + (py-a.y)*dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (a.x + t*dx), py - (a.y + t*dy));
 }
 
 // ============ FINDINGS PANEL ============
@@ -2439,7 +2739,7 @@ function renderFindings() {
           <div class="finding-num" style="background:${pinHex(p)}">${p.num}</div>
           <div class="finding-text">
             <strong>${escapeHtml(buildShortLabel(p))}</strong>
-            <small>${p.descriptors.location || (p.line ? 'line' : 'point')}${photoCount ? ' · '+photoCount+' photo'+(photoCount>1?'s':'')+' '+photoNumStr : ''}</small>
+            <small>${p.descriptors.location || (p.shape ? p.shape.type : 'point')}${photoCount ? ' · '+photoCount+' photo'+(photoCount>1?'s':'')+' '+photoNumStr : ''}</small>
           </div>
           ${firstPhoto
             ? `<img class="finding-thumb" src="${firstPhoto.data}">${photoCount>1?`<div class="thumb-badge">+${photoCount-1}</div>`:''}`
@@ -2714,7 +3014,7 @@ function renderDetail() {
     pin.descriptors = { ...state.selectedDescriptors };
     save();
     renderPins();
-    renderLines();
+    renderShapes();
     renderFindings();
     renderDetail();
     toast('Re-labeled');
@@ -2757,7 +3057,7 @@ function renderDetail() {
     state.selectedPinId = null;
     save();
     renderPins();
-    renderLines();
+    renderShapes();
     renderFindings();
     updateActiveIndicator();
     panel.classList.remove('open');
@@ -2902,7 +3202,7 @@ $('exportBtn').addEventListener('click', () => {
 
   // Pins
   lines.push('PINS');
-  const pinHeaders = ['Pin #','Surface','Severity','Hazard','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
+  const pinHeaders = ['Pin #','Surface','Severity','Hazard','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Shape','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
   lines.push(pinHeaders.join(','));
   state.pins.slice().sort((a,b)=>a.num-b.num).forEach(p => {
     const photoNums = (p.photos || []).map(ph => ph.num).join(';');
@@ -2921,7 +3221,7 @@ $('exportBtn').addEventListener('click', () => {
       p.notes || '',
       (p.photos || []).length,
       photoNums,
-      (p.line && p.line.length >= 2) ? 'Y' : 'N',
+      p.shape ? p.shape.type : '',
       p.x.toFixed(0), p.y.toFixed(0),
       p.created ? new Date(p.created).toISOString() : '',
       p.gps ? p.gps.lat.toFixed(6) : '',
@@ -2993,7 +3293,7 @@ $('clearBtn').addEventListener('click', () => {
   state.activePinId = null;
   state.nextNum = 1;
   state.nextPhotoNum = 1;
-  state.pendingLine = null;
+  state.pendingShape = null;
   save();
   $('jobAddress').value = '';
   mountPlan();
@@ -3054,7 +3354,7 @@ function softDeletePin(id) {
     document.getElementById('detailPanel').classList.remove('open');
   }
   save();
-  renderPins(); renderLines(); renderFindings(); updateActiveIndicator();
+  renderPins(); renderShapes(); renderFindings(); updateActiveIndicator();
   toast('Pin #' + p.num + ' moved to trash');
 }
 function refreshTrashCount() {
@@ -3101,13 +3401,13 @@ function restorePin(id) {
   const p = state.pins.find(x => x.id === id); if (!p) return;
   snapshot('Restore pin #' + p.num);
   p.deleted = false; p.deletedAt = null;
-  save(); renderPins(); renderLines(); renderFindings();
+  save(); renderPins(); renderShapes(); renderFindings();
 }
 function purgePin(id) {
   const p = state.pins.find(x => x.id === id); if (!p) return;
   snapshot('Purge pin #' + p.num);
   state.pins = state.pins.filter(x => x.id !== id);
-  save(); renderPins(); renderLines(); renderFindings();
+  save(); renderPins(); renderShapes(); renderFindings();
 }
 function restoreUnattached(num) {
   const ph = state.unattachedPhotos.find(x => x.num === num); if (!ph) return;
@@ -3250,7 +3550,7 @@ function runCsvExport() {
   lines.push('Total Photos,' + (visiblePins().reduce((n,p) => n + visiblePhotosOf(p).length, 0) + visibleUnattached().length));
   lines.push('');
   lines.push('PINS');
-  const pinHeaders = ['Pin #','Order','Surface','Severity','Hazard','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
+  const pinHeaders = ['Pin #','Order','Surface','Severity','Hazard','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Shape','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
   lines.push(pinHeaders.join(','));
   visiblePins().slice().sort((a,b) => {
     const ai = (typeof a.orderIdx === 'number') ? a.orderIdx : a.num;
@@ -3272,7 +3572,7 @@ function runCsvExport() {
       buildLabel(p),
       p.notes || '',
       photos.length, photoNums,
-      (p.line && p.line.length >= 2) ? 'Y' : 'N',
+      p.shape ? p.shape.type : '',
       p.x.toFixed(0), p.y.toFixed(0),
       p.created ? new Date(p.created).toISOString() : '',
       p.gps ? p.gps.lat.toFixed(6) : '',
@@ -3331,12 +3631,21 @@ function exportPlanPng(mode) {
 }
 function drawPinsOn(ctx, W, H) {
   visiblePins().forEach(p => {
-    if (!p.line || p.line.length < 2) return;
+    if (!p.shape) return;
     ctx.beginPath();
     ctx.strokeStyle = pinHex(p);
     ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    p.line.forEach((pt, i) => i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y));
-    ctx.stroke();
+    const sh = p.shape;
+    if (sh.type === 'free' && sh.points && sh.points.length >= 2) {
+      sh.points.forEach((pt, i) => i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y));
+      ctx.stroke();
+    } else if (sh.type === 'line') {
+      ctx.moveTo(sh.a.x, sh.a.y); ctx.lineTo(sh.b.x, sh.b.y);
+      ctx.stroke();
+    } else if (sh.type === 'ellipse') {
+      ctx.ellipse(sh.cx, sh.cy, sh.rx, sh.ry, 0, 0, Math.PI*2);
+      ctx.stroke();
+    }
   });
   const r = Math.max(14, Math.round(Math.min(W, H) * 0.018));
   visiblePins().forEach(p => {
@@ -3554,7 +3863,7 @@ document.getElementById('restoreInput').addEventListener('change', (e) => {
       state.selectedPinId = null; state.activePinId = null;
       save();
       document.getElementById('jobAddress').value = state.jobAddress;
-      mountPlan(); renderPins(); renderLines(); renderFindings(); renderNorthArrow(); renderWeather();
+      mountPlan(); renderPins(); renderShapes(); renderFindings(); renderNorthArrow(); renderWeather();
       toast('Restored');
     } catch (err) { console.error(err); toast('Bad backup file'); }
   };
@@ -3687,6 +3996,8 @@ renderNorthArrow();
 renderWeather();
 updateActiveIndicator();
 setupPointerEvents();
+setupToolBar();
+renderToolBar();
 setSync('idle');
 window.addEventListener('resize', () => {
   if (state.planImage) fitView();
