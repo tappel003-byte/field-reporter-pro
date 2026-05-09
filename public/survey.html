@@ -1925,7 +1925,7 @@ function updateHint() {
     return;
   }
   const s = getSurface(state.selectedSurface);
-  const action = (s.key === 'concrete') ? 'tap to drop pin · drag to sketch line' : 'tap to drop pin';
+  const action = (s.key === 'slab') ? 'tap to drop pin · drag to sketch line' : 'tap to drop pin';
   if (s.custom) {
     const label = state.selectedDescriptors.custom || '(type a label)';
     hint.innerHTML = `<b>Other</b> · ${escapeHtml(label)} — ${action}`;
