@@ -1335,6 +1335,9 @@
 
 <!-- Tools menu -->
 <div class="popup-menu" id="toolsMenu" style="display:none">
+  <button data-tool="addPhotos">+ Site photos (burst import)</button>
+  <button data-tool="export">Export ▾</button>
+  <button data-tool="clear">Clear all pins</button>
   <button data-tool="dark">Toggle dark mode</button>
   <button data-tool="duplicate">Duplicate project as template</button>
   <button data-tool="restore">Restore from backup (JSON)…</button>
@@ -1988,19 +1991,38 @@ function loadPlanFromFile(file) {
 }
 
 function resizeImage(dataUrl, maxDim, cb) {
-  const img = new Image();
-  img.onload = () => {
-    let w = img.width, h = img.height;
+  // Auto-orient via EXIF (createImageBitmap respects EXIF when imageOrientation:'from-image')
+  // Falls back to a plain Image() if the browser can't do it.
+  const finish = (bmp, w, h) => {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(bmp, 0, 0, w, h);
+    cb(c.toDataURL('image/jpeg', 0.82));
+    if (bmp.close) bmp.close();
+  };
+  fetch(dataUrl).then(r => r.blob()).then(blob => {
+    const opts = { imageOrientation: 'from-image' };
+    return createImageBitmap(blob, opts).catch(() => createImageBitmap(blob));
+  }).then(bmp => {
+    let w = bmp.width, h = bmp.height;
     if (w > maxDim || h > maxDim) {
       if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
       else { w = Math.round(w * maxDim / h); h = maxDim; }
     }
-    const c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    c.getContext('2d').drawImage(img, 0, 0, w, h);
-    cb(c.toDataURL('image/jpeg', 0.85));
-  };
-  img.src = dataUrl;
+    finish(bmp, w, h);
+  }).catch(() => {
+    // Fallback: no EXIF rotation, but still resize
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else { w = Math.round(w * maxDim / h); h = maxDim; }
+      }
+      finish(img, w, h);
+    };
+    img.src = dataUrl;
+  });
 }
 
 function mountPlan() {
