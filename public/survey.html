@@ -2448,7 +2448,11 @@ function renderDetail() {
             <div class="photo-num">#${ph.num}</div>
             <button class="photo-remove" data-action="remove">×</button>
           </div>
-        `).join('') : `<div class="detail-photo-placeholder">No photos · tap camera to add</div>`}
+        `).join('') : ''}
+        <button class="photo-add-tile" id="detailAddPhoto" title="Add photo to this pin">
+          <span class="plus">+</span>
+          <span>${(pin.photos && pin.photos.length) ? 'Add photo' : 'Add first photo'}</span>
+        </button>
       </div>
 
       <div class="detail-field">
