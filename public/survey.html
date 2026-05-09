@@ -1635,7 +1635,7 @@ function undo() {
   save();
   $('jobAddress').value = state.jobAddress || '';
   renderPins();
-  renderLines();
+  renderShapes();
   renderFindings();
   updateActiveIndicator();
   if (state.selectedPinId) renderDetail();
