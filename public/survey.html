@@ -1839,7 +1839,15 @@ function renderDescriptors() {
   $('descriptorsInner').querySelectorAll('.desc-chip').forEach(c => {
     c.addEventListener('click', () => {
       const f = c.dataset.field, v = c.dataset.val;
-      state.selectedDescriptors[f] = (state.selectedDescriptors[f] === v) ? '' : v;
+      if (f === 'pattern') {
+        // Multi-select: toggle within a comma-joined list
+        const cur = (state.selectedDescriptors.pattern || '').split(',').map(x=>x.trim()).filter(Boolean);
+        const i = cur.indexOf(v);
+        if (i >= 0) cur.splice(i,1); else cur.push(v);
+        state.selectedDescriptors.pattern = cur.join(', ');
+      } else {
+        state.selectedDescriptors[f] = (state.selectedDescriptors[f] === v) ? '' : v;
+      }
       save();
       renderDescriptors();
       updateHint();
@@ -1849,7 +1857,13 @@ function renderDescriptors() {
   if (closeBtn) closeBtn.addEventListener('click', () => selectSurface(state.selectedSurface));
 }
 function descChip(field, val) {
-  const sel = state.selectedDescriptors[field] === val;
+  let sel;
+  if (field === 'pattern') {
+    const cur = (state.selectedDescriptors.pattern || '').split(',').map(x=>x.trim()).filter(Boolean);
+    sel = cur.includes(val);
+  } else {
+    sel = state.selectedDescriptors[field] === val;
+  }
   return `<button class="desc-chip ${sel?'selected':''}" data-field="${escapeHtml(field)}" data-val="${escapeHtml(val)}">${escapeHtml(val)}</button>`;
 }
 
