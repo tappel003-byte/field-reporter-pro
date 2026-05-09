@@ -1680,6 +1680,8 @@ function load() {
       state.activePinId = null;
     }
     state.selectedSurface = d.selectedSurface || null;
+    // Drop stale rail selection if it points at a removed legacy surface
+    if (state.selectedSurface && !getSurface(state.selectedSurface)) state.selectedSurface = null;
     state.selectedDescriptors = d.selectedDescriptors || { size:'', pattern:'', location:'', custom:'' };
     state.northArrow = d.northArrow || { x: 24, y: 24, rot: 0, visible: true };
     state.weather = d.weather || null;
