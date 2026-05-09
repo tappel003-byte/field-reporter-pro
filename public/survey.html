@@ -1136,8 +1136,8 @@
     .active-target { font-size: 11.5px; }
   }
 
-  /* Phone-portrait fallback */
-  @media (max-width: 600px) and (orientation: portrait) {
+  /* Phone fallback — both portrait and landscape on small screens */
+  @media (max-width: 900px) {
     .findings, .detail { width: 100%; }
     .topbar { flex-wrap: wrap; height: auto; padding: 6px; gap: 6px; }
     .job-addr-wrap { order: 5; max-width: 100%; flex: 1 1 100%; margin-left: 0; }
@@ -1232,8 +1232,9 @@
 
 <div class="topbar">
   <div class="brand">Distress Survey<small>Field Tool</small></div>
-  <div class="job-addr-wrap">
-    <input type="text" id="jobAddress" placeholder="Job address (e.g. 1247 Carlisle Blvd NE)" autocomplete="off">
+  <div class="job-addr-wrap" style="display:flex;gap:4px;align-items:center;">
+    <input type="text" id="jobAddress" placeholder="Job address (e.g. 1247 Carlisle Blvd NE)" autocomplete="off" style="flex:1;">
+    <button class="top-btn" id="useLocBtn" title="Fill address from current location" style="padding:4px 8px;">📍</button>
   </div>
   <div class="topbar-spacer"></div>
   <label class="top-btn" id="uploadBtn">
@@ -1816,7 +1817,7 @@ function renderDescriptors() {
       </div>
     </div>` : ''}
     <div class="desc-group">
-      <div class="desc-group-label">${s.key==='window'||s.key==='door' ? 'Condition' : 'Pattern'}</div>
+      <div class="desc-group-label">${s.key==='window'||s.key==='door' ? 'Condition' : 'Pattern'} <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-soft);font-size:9px;">· tap multiple</span></div>
       <div class="desc-chips">
         ${s.patterns.map(v => descChip('pattern', v)).join('')}
       </div>
@@ -1838,7 +1839,15 @@ function renderDescriptors() {
   $('descriptorsInner').querySelectorAll('.desc-chip').forEach(c => {
     c.addEventListener('click', () => {
       const f = c.dataset.field, v = c.dataset.val;
-      state.selectedDescriptors[f] = (state.selectedDescriptors[f] === v) ? '' : v;
+      if (f === 'pattern') {
+        // Multi-select: toggle within a comma-joined list
+        const cur = (state.selectedDescriptors.pattern || '').split(',').map(x=>x.trim()).filter(Boolean);
+        const i = cur.indexOf(v);
+        if (i >= 0) cur.splice(i,1); else cur.push(v);
+        state.selectedDescriptors.pattern = cur.join(', ');
+      } else {
+        state.selectedDescriptors[f] = (state.selectedDescriptors[f] === v) ? '' : v;
+      }
       save();
       renderDescriptors();
       updateHint();
@@ -1848,7 +1857,13 @@ function renderDescriptors() {
   if (closeBtn) closeBtn.addEventListener('click', () => selectSurface(state.selectedSurface));
 }
 function descChip(field, val) {
-  const sel = state.selectedDescriptors[field] === val;
+  let sel;
+  if (field === 'pattern') {
+    const cur = (state.selectedDescriptors.pattern || '').split(',').map(x=>x.trim()).filter(Boolean);
+    sel = cur.includes(val);
+  } else {
+    sel = state.selectedDescriptors[field] === val;
+  }
   return `<button class="desc-chip ${sel?'selected':''}" data-field="${escapeHtml(field)}" data-val="${escapeHtml(val)}">${escapeHtml(val)}</button>`;
 }
 
@@ -3556,9 +3571,10 @@ function renderNorthArrow() {
 })();
 
 // ---- Address auto-fill from GPS (Nominatim) ----
-async function maybeReverseGeocode() {
-  if (state.jobAddress) return;
-  if (!navigator.geolocation) return;
+async function maybeReverseGeocode(force) {
+  if (state.jobAddress && !force) return;
+  if (!navigator.geolocation) { toast('Location not available on this device'); return; }
+  if (force) toast('Getting location…');
   navigator.geolocation.getCurrentPosition(async (pos) => {
     const { latitude, longitude } = pos.coords;
     try {
@@ -3571,16 +3587,21 @@ async function maybeReverseGeocode() {
         a.state, a.postcode
       ].filter(Boolean);
       const guess = parts.join(', ');
-      if (!state.jobAddress && guess) {
+      if (guess && (force || !state.jobAddress)) {
         state.jobAddress = guess;
         document.getElementById('jobAddress').value = guess;
         save();
-        toast('Address auto-filled');
+        toast('Address filled from location');
+      } else if (!guess) {
+        toast('Could not resolve address');
       }
-    } catch (e) { /* silent */ }
+    } catch (e) { toast('Address lookup failed'); }
     fetchWeather(false, latitude, longitude);
-  }, () => {}, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+  }, (err) => {
+    if (force) toast(err.code === 1 ? 'Location permission denied' : 'Location unavailable');
+  }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
 }
+document.getElementById('useLocBtn').addEventListener('click', () => maybeReverseGeocode(true));
 
 // ---- Weather (Open-Meteo, no key) ----
 async function fetchWeather(force, lat, lng) {
@@ -3630,6 +3651,10 @@ setupPointerEvents();
 setSync('idle');
 window.addEventListener('resize', () => {
   if (state.planImage) fitView();
+});
+window.addEventListener('orientationchange', () => {
+  // Slight delay so the browser has the new viewport size
+  setTimeout(() => { if (state.planImage) fitView(); }, 250);
 });
 setTimeout(() => { maybeReverseGeocode(); fetchWeather(false); }, 1200);
 </script>
