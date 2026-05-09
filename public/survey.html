@@ -3242,6 +3242,9 @@ document.getElementById('toolsMenu').addEventListener('click', (e) => {
   else if (tool === 'restore') document.getElementById('restoreInput').click();
   else if (tool === 'trash') openTrash();
   else if (tool === 'weather') fetchWeather(true);
+  else if (tool === 'addPhotos') document.getElementById('addPhotosBtn').click();
+  else if (tool === 'export') { toggleMenu('toolsMenu'); toggleMenu('exportMenu'); return; }
+  else if (tool === 'clear') document.getElementById('clearBtn').click();
   else if (tool === 'northToggle') {
     state.northArrow.visible = !state.northArrow.visible;
     save(); renderNorthArrow();
