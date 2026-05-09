@@ -2540,32 +2540,12 @@ function renderDetail() {
       </div>
 
       <div class="detail-field">
-        <div class="detail-field-label">Category</div>
-        <div class="cat-chips" id="catChips">
-          ${CATEGORIES.map(c => `
-            <button class="cat-chip ${pin.category === c.key ? 'selected' : ''}" data-cat="${c.key}">
-              <span class="swatch" style="background:${c.hex}"></span>${escapeHtml(c.name)}
-            </button>
-          `).join('')}
-        </div>
-      </div>
-
-      <div class="detail-field">
         <div class="detail-field-label">Severity ${sev >= 4 ? '· ⚠ HAZARD' : ''}</div>
         <div class="sev-row">
           <input type="range" id="sevSlider" min="0" max="5" step="1" value="${sev}">
           <div class="sev-val ${sev >= 4 ? 'high' : ''}" id="sevVal">${sev}</div>
         </div>
         <div style="font-size:9px;color:var(--ink-soft);margin-top:4px;letter-spacing:0.05em;">0 = none · 5 = severe (≥4 flags hazard triangle, photo required)</div>
-      </div>
-
-      <div class="detail-field">
-        <div class="detail-field-label">Tags</div>
-        <div class="desc-chips" id="tagChips">
-          ${availTags.map(t => `
-            <button class="desc-chip ${(pin.tags||[]).includes(t.key) ? 'selected' : ''}" data-tag="${t.key}">${escapeHtml(t.name)}</button>
-          `).join('')}
-        </div>
       </div>
 
       <div class="detail-field">
