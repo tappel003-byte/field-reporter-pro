@@ -1713,6 +1713,11 @@ function load() {
       p.category = newKey;
       if (typeof p.severity !== 'number') p.severity = 0;
       p.tags = []; // tags row dropped
+      // Migrate freehand line → unified shape schema
+      if (p.line && p.line.length >= 2 && !p.shape) {
+        p.shape = { type: 'free', points: p.line };
+      }
+      delete p.line;
     });
     // 30-day trash sweep — purge anything deleted > 30 days ago
     const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
