@@ -2611,6 +2611,7 @@ function finishDrawShape() {
 
 // ============ RENDER PINS & SHAPES ============
 function renderPins() {
+  renderRail();
   const layer = $('pinsLayer');
   layer.innerHTML = '';
   visiblePins().forEach(p => {
