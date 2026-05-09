@@ -2093,7 +2093,7 @@ function mountPlan() {
     svg.setAttribute('viewBox', `0 0 ${img.naturalWidth} ${img.naturalHeight}`);
     fitView();
     renderPins();
-    renderLines();
+    renderShapes();
     updateHint();
     updateActiveIndicator();
   };
@@ -2984,7 +2984,7 @@ function renderDetail() {
     pin.descriptors = { ...state.selectedDescriptors };
     save();
     renderPins();
-    renderLines();
+    renderShapes();
     renderFindings();
     renderDetail();
     toast('Re-labeled');
@@ -3027,7 +3027,7 @@ function renderDetail() {
     state.selectedPinId = null;
     save();
     renderPins();
-    renderLines();
+    renderShapes();
     renderFindings();
     updateActiveIndicator();
     panel.classList.remove('open');
@@ -3263,7 +3263,7 @@ $('clearBtn').addEventListener('click', () => {
   state.activePinId = null;
   state.nextNum = 1;
   state.nextPhotoNum = 1;
-  state.pendingLine = null;
+  state.pendingShape = null;
   save();
   $('jobAddress').value = '';
   mountPlan();
@@ -3324,7 +3324,7 @@ function softDeletePin(id) {
     document.getElementById('detailPanel').classList.remove('open');
   }
   save();
-  renderPins(); renderLines(); renderFindings(); updateActiveIndicator();
+  renderPins(); renderShapes(); renderFindings(); updateActiveIndicator();
   toast('Pin #' + p.num + ' moved to trash');
 }
 function refreshTrashCount() {
@@ -3371,13 +3371,13 @@ function restorePin(id) {
   const p = state.pins.find(x => x.id === id); if (!p) return;
   snapshot('Restore pin #' + p.num);
   p.deleted = false; p.deletedAt = null;
-  save(); renderPins(); renderLines(); renderFindings();
+  save(); renderPins(); renderShapes(); renderFindings();
 }
 function purgePin(id) {
   const p = state.pins.find(x => x.id === id); if (!p) return;
   snapshot('Purge pin #' + p.num);
   state.pins = state.pins.filter(x => x.id !== id);
-  save(); renderPins(); renderLines(); renderFindings();
+  save(); renderPins(); renderShapes(); renderFindings();
 }
 function restoreUnattached(num) {
   const ph = state.unattachedPhotos.find(x => x.num === num); if (!ph) return;
@@ -3824,7 +3824,7 @@ document.getElementById('restoreInput').addEventListener('change', (e) => {
       state.selectedPinId = null; state.activePinId = null;
       save();
       document.getElementById('jobAddress').value = state.jobAddress;
-      mountPlan(); renderPins(); renderLines(); renderFindings(); renderNorthArrow(); renderWeather();
+      mountPlan(); renderPins(); renderShapes(); renderFindings(); renderNorthArrow(); renderWeather();
       toast('Restored');
     } catch (err) { console.error(err); toast('Bad backup file'); }
   };
