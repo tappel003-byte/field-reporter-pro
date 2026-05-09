@@ -1817,7 +1817,7 @@ function renderDescriptors() {
       </div>
     </div>` : ''}
     <div class="desc-group">
-      <div class="desc-group-label">${s.key==='window'||s.key==='door' ? 'Condition' : 'Pattern'}</div>
+      <div class="desc-group-label">${s.key==='window'||s.key==='door' ? 'Condition' : 'Pattern'} <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-soft);font-size:9px;">· tap multiple</span></div>
       <div class="desc-chips">
         ${s.patterns.map(v => descChip('pattern', v)).join('')}
       </div>
