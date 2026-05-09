@@ -1136,8 +1136,8 @@
     .active-target { font-size: 11.5px; }
   }
 
-  /* Phone-portrait fallback */
-  @media (max-width: 600px) and (orientation: portrait) {
+  /* Phone fallback — both portrait and landscape on small screens */
+  @media (max-width: 900px) {
     .findings, .detail { width: 100%; }
     .topbar { flex-wrap: wrap; height: auto; padding: 6px; gap: 6px; }
     .job-addr-wrap { order: 5; max-width: 100%; flex: 1 1 100%; margin-left: 0; }
