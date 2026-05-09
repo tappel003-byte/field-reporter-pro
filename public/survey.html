@@ -1441,94 +1441,65 @@
 
 // ============ DATA ============
 const STORAGE_KEY = 'distress_v2';
+// Six unified surfaces — color = surface. The rail, the legend, and the pin
+// color all line up. (Tile crack telegraphs slab, T&G separation, vinyl seam
+// lift, etc. all live under "Floor covering" and get described in notes.)
 const SURFACES = [
-  { key: 'drywall',  name: 'Drywall',  color: 'var(--c-drywall)',  hex: '#1e2a4a',
+  { key: 'drywall', name: 'Drywall', color: 'var(--cat-wall)', hex: '#4a8a4a',
     sizes: ['Hairline','1/32"','1/16"','1/8"','3/16"','1/4"','3/8"','1/2"','>1/2"'],
-    patterns: ['Diagonal','Vertical','Horizontal','Stair-step','Spider','Network'],
-    locations: ['Corner','Mid-wall','Door Header','Window Header','Ceiling Joint'],
+    patterns: ['Diagonal','Vertical','Horizontal','Stair-step','Spider','Network','Shear'],
+    locations: ['Corner','Mid-wall','Door header','Window header','Ceiling joint'],
     offsets: ['None','1/16"','1/8"','1/4"','3/8"','1/2"','>1/2"'] },
-  { key: 'concrete', name: 'Concrete', color: 'var(--c-concrete)', hex: '#c0392b',
-    sizes: ['Hairline','1/16"','1/8"','3/16"','1/4"','3/8"','1/2"','3/4"','>3/4"'],
-    patterns: ['Diagonal','Vertical','Horizontal','Map','Random'],
-    locations: ['Slab','Footing','Foundation Wall','Driveway','Patio'],
-    offsets: ['None','1/16"','1/8"','1/4"','3/8"','1/2"','3/4"','1"','>1"'] },
-  { key: 'cmu',      name: 'CMU',      color: 'var(--c-cmu)',      hex: '#4a4a4a',
-    sizes: ['Hairline','1/16"','1/8"','1/4"','3/8"','1/2"','>1/2"'],
-    patterns: ['Stair-step','Vertical','Horizontal','Diagonal','Through-block'],
-    locations: ['Stem Wall','Retaining','Foundation','Pier'],
-    offsets: ['None','1/16"','1/8"','1/4"','3/8"','1/2"','3/4"','>3/4"'] },
-  { key: 'stucco',   name: 'Stucco',   color: 'var(--c-stucco)',   hex: '#b56947',
-    sizes: ['Hairline','1/16"','1/8"','1/4"','3/8"','>3/8"'],
-    patterns: ['Diagonal','Vertical','Horizontal','Map','Spider'],
-    locations: ['Corner','Mid-wall','Window','Door','Joint'],
-    offsets: ['None','1/16"','1/8"','1/4"','3/8"','1/2"','>1/2"'] },
-  { key: 'tile',     name: 'Tile',     color: 'var(--c-tile)',     hex: '#2a8a8a',
-    sizes: ['Hairline','1/32"','1/16"','1/8"','>1/8"'],
-    patterns: ['Cracked Tile','Grout Crack','Tile Lippage','Loose Tile'],
-    locations: ['Floor','Wall','Backsplash','Tub Surround'],
+  { key: 'ceiling', name: 'Ceiling', color: 'var(--cat-ceiling)', hex: '#2a6fb8',
+    sizes: ['Hairline','1/32"','1/16"','1/8"','3/16"','1/4"','>1/4"'],
+    patterns: ['Linear','Cross','Spider','Sag','Corner','Joint telegraph'],
+    locations: ['Corner','Mid-ceiling','Light fixture','Joint','Beam'],
+    offsets: ['None','1/16"','1/8"','1/4"','3/8"','>3/8"'] },
+  { key: 'floorcovering', name: 'Floor covering', color: 'var(--cat-floor)', hex: '#d4a72c',
+    sizes: ['Hairline','1/32"','1/16"','1/8"','3/16"','1/4"','>1/4"'],
+    patterns: ['Tile crack','Grout crack','Tile lippage','T&G separation','Vinyl seam lift','Loose plank','Bulge','Telegraphing slab'],
+    locations: ['Field','Threshold','Wall edge','Cabinet edge','Doorway'],
     offsets: ['None','1/32"','1/16"','1/8"','3/16"','>3/16"'] },
-  { key: 'window',   name: 'Window',   color: 'var(--c-window)',   hex: '#c89a3a',
-    sizes: [],
-    patterns: ['Binding','Cracked Glass','Out of Square','Gap at Frame','Stuck'],
-    locations: ['Top','Bottom','Side','Sill','Header'] },
-  { key: 'door',     name: 'Door',     color: 'var(--c-door)',     hex: '#6b4a8a',
-    sizes: [],
-    patterns: ['Binding','Won\'t Latch','Out of Square','Gap at Top','Gap at Bottom','Gap at Side','Drag on Floor'],
-    locations: ['Interior','Exterior','Closet','Garage'] },
-  { key: 'gap',      name: 'Gap',      color: 'var(--c-gap)',      hex: '#d97a2c',
-    sizes: ['1/16"','1/8"','1/4"','3/8"','1/2"','3/4"','>3/4"'],
-    patterns: ['Floor-Wall','Wall-Ceiling','Wall-Wall','Trim Separation','Cabinet Separation'],
-    locations: ['Continuous','Localized','Tapered'] },
-  { key: 'offset',   name: 'Offset',   color: 'var(--c-offset)',   hex: '#1a1a1a',
-    sizes: ['1/16"','1/8"','1/4"','3/8"','1/2"','3/4"','1"','>1"'],
-    patterns: ['Vertical Offset','Horizontal Offset','Out-of-plane','Tilt'],
-    locations: ['Slab','Wall','Floor','Counter'] },
-  { key: 'other',    name: 'Other',    color: 'var(--c-other)',    hex: '#7a8470',
-    custom: true,
-    sizes: [],
-    patterns: [],
-    locations: [] }
+  { key: 'slab', name: 'Slab/concrete', color: 'var(--cat-slab)', hex: '#c0392b',
+    sizes: ['Hairline','1/16"','1/8"','3/16"','1/4"','3/8"','1/2"','3/4"','>3/4"'],
+    patterns: ['Diagonal','Vertical','Horizontal','Map','Stair-step','Through-crack','Spalling'],
+    locations: ['Slab','Footing','Foundation wall','Driveway','Patio','Garage','Stem wall'],
+    offsets: ['None','1/16"','1/8"','1/4"','3/8"','1/2"','3/4"','1"','>1"'] },
+  { key: 'separation', name: 'Separation', color: 'var(--cat-separation)', hex: '#d97a2c',
+    sizes: ['Hairline','1/16"','1/8"','1/4"','3/8"','1/2"','3/4"','>3/4"'],
+    patterns: ['Floor-Wall','Wall-Ceiling','Wall-Wall','Trim','Cabinet','Door frame','Window frame','Out-of-plane','Tilt'],
+    locations: ['Continuous','Localized','Tapered'],
+    offsets: ['None','1/16"','1/8"','1/4"','3/8"','1/2"','3/4"','1"','>1"'] },
+  { key: 'other', name: 'Other', color: 'var(--cat-other)', hex: '#6e6e6e',
+    custom: true, sizes: [], patterns: [], locations: [] }
 ];
 
-// Categories — color = location, not material. Hazard triangle handles structural movement.
-const CATEGORIES = [
-  { key: 'wall',       name: 'Wall',         hex: '#4a8a4a' },
-  { key: 'ceiling',    name: 'Ceiling',      hex: '#2a6fb8' },
-  { key: 'floor',      name: 'Floor',        hex: '#d4a72c' },
-  { key: 'separation', name: 'Separation',   hex: '#d97a2c' },
-  { key: 'slab',       name: 'Slab Crack',   hex: '#c0392b' },
-  { key: 'other',      name: 'Other / Ext.', hex: '#6e6e6e' }
-];
+// Categories mirror surfaces 1:1 — kept for back-compat with code paths that
+// still ask for getCategory(). Pin color = surface color.
+const CATEGORIES = SURFACES.map(s => ({ key: s.key, name: s.name, hex: s.hex }));
 
-// Best-guess default category from the surface (material) for migration & fast pin entry.
-const DEFAULT_CATEGORY_BY_SURFACE = {
-  drywall:  'wall',
-  cmu:      'wall',
-  stucco:   'wall',
-  tile:     'floor',     // override to wall/ceiling on the pin if needed
+const DEFAULT_CATEGORY_BY_SURFACE = SURFACES.reduce((m, s) => (m[s.key] = s.key, m), {});
+
+// Legacy pin migration maps. Old pins had separate surface (10) + category (6).
+// Collapse to the new 6-surface model.
+const LEGACY_SURFACE_MAP = {
+  drywall: 'drywall', cmu: 'drywall', stucco: 'drywall',
+  tile: 'floorcovering',
   concrete: 'slab',
-  window:   'wall',
-  door:     'wall',
-  gap:      'separation',
-  offset:   'separation',
-  other:    'other'
+  window: 'other', door: 'other',
+  gap: 'separation', offset: 'separation',
+  other: 'other'
+};
+const LEGACY_CATEGORY_MAP = {
+  wall: 'drywall', ceiling: 'ceiling', floor: 'floorcovering',
+  slab: 'slab', separation: 'separation', other: 'other',
+  // new keys pass through
+  drywall: 'drywall', floorcovering: 'floorcovering'
 };
 
-// Tag catalog for the "Tags" multi-select. `materials` / `categories` filter visibility.
-// Empty array = always available.
-const TAGS = [
-  { key: 'hairline',     name: 'Hairline',      materials: [], categories: [] },
-  { key: 'wide',         name: 'Wide',          materials: [], categories: [] },
-  { key: 'through',      name: 'Through-crack', materials: [], categories: [] },
-  { key: 'shear',        name: 'Shear',         materials: ['drywall','cmu','stucco'], categories: [] },
-  { key: 'corner',       name: 'Corner crack',  materials: [], categories: ['wall','ceiling'] },
-  { key: 'stairstep',    name: 'Stair-step',    materials: ['cmu','stucco','concrete'], categories: [] },
-  { key: 'spalling',     name: 'Spalling',      materials: ['concrete','cmu','stucco'], categories: [] },
-  { key: 'efflorescence',name: 'Efflorescence', materials: ['concrete','cmu','stucco'], categories: [] },
-  { key: 'bowing',       name: 'Bowing',        materials: [], categories: [] },
-  { key: 'settlement',   name: 'Settlement',    materials: [], categories: [] },
-  { key: 'moisture',     name: 'Moisture',      materials: [], categories: [] }
-];
+// Tags row was removed — the surface + descriptors + notes now carry all of
+// the meaning the tags used to encode.
+const TAGS = [];
 
 
 const state = {
@@ -1676,9 +1647,15 @@ function load() {
     state.pins.forEach(p => {
       if (p.photo && !p.photos) { p.photos = [{ num: 0, data: p.photo }]; delete p.photo; }
       if (!p.photos) p.photos = [];
-      if (!p.category) p.category = DEFAULT_CATEGORY_BY_SURFACE[p.surface] || 'other';
+      // Collapse legacy surface (10) + category (6) → unified 6-surface model.
+      // Prefer existing category (closer to user intent); fall back to surface map.
+      const fromCat = p.category && LEGACY_CATEGORY_MAP[p.category];
+      const fromSurf = p.surface && LEGACY_SURFACE_MAP[p.surface];
+      const newKey = fromCat || fromSurf || 'other';
+      p.surface = newKey;
+      p.category = newKey;
       if (typeof p.severity !== 'number') p.severity = 0;
-      if (!Array.isArray(p.tags)) p.tags = [];
+      p.tags = []; // tags row dropped
     });
     // 30-day trash sweep — purge anything deleted > 30 days ago
     const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
@@ -1703,6 +1680,8 @@ function load() {
       state.activePinId = null;
     }
     state.selectedSurface = d.selectedSurface || null;
+    // Drop stale rail selection if it points at a removed legacy surface
+    if (state.selectedSurface && !getSurface(state.selectedSurface)) state.selectedSurface = null;
     state.selectedDescriptors = d.selectedDescriptors || { size:'', pattern:'', location:'', custom:'' };
     state.northArrow = d.northArrow || { x: 24, y: 24, rot: 0, visible: true };
     state.weather = d.weather || null;
@@ -1946,7 +1925,7 @@ function updateHint() {
     return;
   }
   const s = getSurface(state.selectedSurface);
-  const action = (s.key === 'concrete') ? 'tap to drop pin · drag to sketch line' : 'tap to drop pin';
+  const action = (s.key === 'slab') ? 'tap to drop pin · drag to sketch line' : 'tap to drop pin';
   if (s.custom) {
     const label = state.selectedDescriptors.custom || '(type a label)';
     hint.innerHTML = `<b>Other</b> · ${escapeHtml(label)} — ${action}`;
@@ -2215,8 +2194,8 @@ function onPointerMove(e) {
     const moved = Math.hypot(dx, dy);
 
     if (ptr.mode === 'down' && moved > ptr.movedThreshold) {
-      // Decide: only Concrete supports line sketching. Everything else pans on drag.
-      if (state.selectedSurface === 'concrete') {
+      // Decide: only Slab/concrete supports line sketching. Everything else pans on drag.
+      if (state.selectedSurface === 'slab') {
         ptr.mode = 'draw';
         startDrawLine(ptr.startX, ptr.startY);
         extendDrawLine(e.clientX, e.clientY);
@@ -2537,11 +2516,12 @@ function renderDetail() {
   const s = getSurface(pin.surface);
   const cat = getCategory(pin.category) || getCategory('other');
   const sev = pin.severity || 0;
-  const availTags = tagsForPin(pin);
   panel.innerHTML = `
     <div class="detail-head" style="background:${pinCategoryHex(pin)}">
       <div class="detail-num">${pin.num}${pinIsHazard(pin) ? ' ⚠' : ''}</div>
-      <div class="detail-title">${escapeHtml(cat.name)} · ${escapeHtml(s.name)}</div>
+      <div class="detail-title">${escapeHtml(s.name)}</div>
+      <button class="detail-close" id="detailClose">×</button>
+    </div>
       <button class="detail-close" id="detailClose">×</button>
     </div>
     <div class="detail-body">
@@ -2560,32 +2540,12 @@ function renderDetail() {
       </div>
 
       <div class="detail-field">
-        <div class="detail-field-label">Category</div>
-        <div class="cat-chips" id="catChips">
-          ${CATEGORIES.map(c => `
-            <button class="cat-chip ${pin.category === c.key ? 'selected' : ''}" data-cat="${c.key}">
-              <span class="swatch" style="background:${c.hex}"></span>${escapeHtml(c.name)}
-            </button>
-          `).join('')}
-        </div>
-      </div>
-
-      <div class="detail-field">
         <div class="detail-field-label">Severity ${sev >= 4 ? '· ⚠ HAZARD' : ''}</div>
         <div class="sev-row">
           <input type="range" id="sevSlider" min="0" max="5" step="1" value="${sev}">
           <div class="sev-val ${sev >= 4 ? 'high' : ''}" id="sevVal">${sev}</div>
         </div>
         <div style="font-size:9px;color:var(--ink-soft);margin-top:4px;letter-spacing:0.05em;">0 = none · 5 = severe (≥4 flags hazard triangle, photo required)</div>
-      </div>
-
-      <div class="detail-field">
-        <div class="detail-field-label">Tags</div>
-        <div class="desc-chips" id="tagChips">
-          ${availTags.map(t => `
-            <button class="desc-chip ${(pin.tags||[]).includes(t.key) ? 'selected' : ''}" data-tag="${t.key}">${escapeHtml(t.name)}</button>
-          `).join('')}
-        </div>
       </div>
 
       <div class="detail-field">
@@ -2644,18 +2604,7 @@ function renderDetail() {
     renderFindings();
   });
 
-  // ---- Category chips ----
-  panel.querySelectorAll('#catChips .cat-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-      snapshot('Re-categorize pin #' + pin.num);
-      pin.category = btn.dataset.cat;
-      save();
-      renderPins();
-      renderLines();
-      renderFindings();
-      renderDetail();
-    });
-  });
+  // (Category chips removed — the rail now is the category.)
 
   // ---- Severity slider ----
   const sevSlider = $('sevSlider');
@@ -2681,18 +2630,7 @@ function renderDetail() {
     });
   }
 
-  // ---- Tag chips (multi-select) ----
-  panel.querySelectorAll('#tagChips .desc-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const key = btn.dataset.tag;
-      pin.tags = pin.tags || [];
-      const i = pin.tags.indexOf(key);
-      if (i >= 0) pin.tags.splice(i, 1);
-      else pin.tags.push(key);
-      btn.classList.toggle('selected');
-      save();
-    });
-  });
+  // (Tag chips removed — surface + descriptors + notes carry the meaning.)
 
   $('detailNotes').addEventListener('input', (e) => {
     pin.notes = e.target.value;
@@ -2964,21 +2902,17 @@ $('exportBtn').addEventListener('click', () => {
 
   // Pins
   lines.push('PINS');
-  const pinHeaders = ['Pin #','Category','Severity','Hazard','Surface','Tags','Shear','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
+  const pinHeaders = ['Pin #','Surface','Severity','Hazard','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
   lines.push(pinHeaders.join(','));
   state.pins.slice().sort((a,b)=>a.num-b.num).forEach(p => {
     const photoNums = (p.photos || []).map(ph => ph.num).join(';');
     const offsetVal = (p.descriptors.offset && p.descriptors.offset !== 'None') ? p.descriptors.offset : '';
-    const tagNames = (p.tags || []).map(k => TAGS.find(t => t.key === k)?.name || k).join('; ');
     const sev = p.severity || 0;
     lines.push([
       p.num,
-      getCategory(p.category)?.name || '',
+      getSurface(p.surface)?.name || '',
       sev,
       sev >= 4 ? 'Y' : '',
-      getSurface(p.surface)?.name || '',
-      tagNames,
-      (p.tags || []).includes('shear') ? 'Y' : '',
       p.descriptors.size || '',
       p.descriptors.pattern || '',
       p.descriptors.location || (p.descriptors.custom || ''),
@@ -3316,7 +3250,7 @@ function runCsvExport() {
   lines.push('Total Photos,' + (visiblePins().reduce((n,p) => n + visiblePhotosOf(p).length, 0) + visibleUnattached().length));
   lines.push('');
   lines.push('PINS');
-  const pinHeaders = ['Pin #','Order','Category','Severity','Hazard','Surface','Tags','Shear','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
+  const pinHeaders = ['Pin #','Order','Surface','Severity','Hazard','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
   lines.push(pinHeaders.join(','));
   visiblePins().slice().sort((a,b) => {
     const ai = (typeof a.orderIdx === 'number') ? a.orderIdx : a.num;
@@ -3326,15 +3260,11 @@ function runCsvExport() {
     const photos = visiblePhotosOf(p);
     const photoNums = photos.map(ph => ph.num).join(';');
     const offsetVal = (p.descriptors.offset && p.descriptors.offset !== 'None') ? p.descriptors.offset : '';
-    const tagNames = (p.tags || []).map(k => TAGS.find(t => t.key === k)?.name || k).join('; ');
     const sev = p.severity || 0;
     lines.push([
       p.num, i+1,
-      getCategory(p.category)?.name || '',
-      sev, sev >= 4 ? 'Y' : '',
       getSurface(p.surface)?.name || '',
-      tagNames,
-      (p.tags || []).includes('shear') ? 'Y' : '',
+      sev, sev >= 4 ? 'Y' : '',
       p.descriptors.size || '',
       p.descriptors.pattern || '',
       p.descriptors.location || (p.descriptors.custom || ''),
