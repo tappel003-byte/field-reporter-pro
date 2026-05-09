@@ -1999,8 +1999,8 @@ function descChip(field, val) {
 function updateHint() {
   const hint = $('hint');
   if (!state.planImage) { hint.style.display = 'none'; return; }
-  if (!state.selectedSurface) {
-    hint.innerHTML = '<b>Pick a surface</b> from the left to begin';
+  if (!hasLivePins()) {
+    hint.innerHTML = '<b>Tap the plan</b> to drop your first pin';
     hint.style.display = '';
     return;
   }
