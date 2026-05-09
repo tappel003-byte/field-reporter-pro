@@ -2709,7 +2709,7 @@ function renderFindings() {
           <div class="finding-num" style="background:${pinHex(p)}">${p.num}</div>
           <div class="finding-text">
             <strong>${escapeHtml(buildShortLabel(p))}</strong>
-            <small>${p.descriptors.location || (p.line ? 'line' : 'point')}${photoCount ? ' · '+photoCount+' photo'+(photoCount>1?'s':'')+' '+photoNumStr : ''}</small>
+            <small>${p.descriptors.location || (p.shape ? p.shape.type : 'point')}${photoCount ? ' · '+photoCount+' photo'+(photoCount>1?'s':'')+' '+photoNumStr : ''}</small>
           </div>
           ${firstPhoto
             ? `<img class="finding-thumb" src="${firstPhoto.data}">${photoCount>1?`<div class="thumb-badge">+${photoCount-1}</div>`:''}`
