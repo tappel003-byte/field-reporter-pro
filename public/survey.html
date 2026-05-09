@@ -3996,6 +3996,8 @@ renderNorthArrow();
 renderWeather();
 updateActiveIndicator();
 setupPointerEvents();
+setupToolBar();
+renderToolBar();
 setSync('idle');
 window.addEventListener('resize', () => {
   if (state.planImage) fitView();
