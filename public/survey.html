@@ -3652,6 +3652,10 @@ setSync('idle');
 window.addEventListener('resize', () => {
   if (state.planImage) fitView();
 });
+window.addEventListener('orientationchange', () => {
+  // Slight delay so the browser has the new viewport size
+  setTimeout(() => { if (state.planImage) fitView(); }, 250);
+});
 setTimeout(() => { maybeReverseGeocode(); fetchWeather(false); }, 1200);
 </script>
 </body>
