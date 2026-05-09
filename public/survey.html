@@ -2604,18 +2604,7 @@ function renderDetail() {
     renderFindings();
   });
 
-  // ---- Category chips ----
-  panel.querySelectorAll('#catChips .cat-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-      snapshot('Re-categorize pin #' + pin.num);
-      pin.category = btn.dataset.cat;
-      save();
-      renderPins();
-      renderLines();
-      renderFindings();
-      renderDetail();
-    });
-  });
+  // (Category chips removed — the rail now is the category.)
 
   // ---- Severity slider ----
   const sevSlider = $('sevSlider');
