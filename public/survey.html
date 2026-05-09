@@ -1624,14 +1624,14 @@ function undo() {
   state.selectedPinId = snap.state.selectedPinId;
   state.nextNum = snap.state.nextNum;
   state.nextPhotoNum = snap.state.nextPhotoNum;
-  state.pendingLine = null;
+  state.pendingShape = null;
   // Clear any in-progress drawing
   if (ptr.drawPath) { try { ptr.drawPath.remove(); } catch(e){} }
   ptr.drawPath = null;
   ptr.drawPoints = null;
-  // Remove any leftover dashed pending-line paths from SVG
+  // Remove any leftover dashed pending shapes from SVG
   const svg = $('planSvg');
-  if (svg) svg.querySelectorAll('polyline[stroke-dasharray]').forEach(p => p.remove());
+  if (svg) svg.querySelectorAll('[data-pending="1"]').forEach(p => p.remove());
   save();
   $('jobAddress').value = state.jobAddress || '';
   renderPins();
