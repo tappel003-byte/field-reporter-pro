@@ -6,7 +6,7 @@
 <title>Distress Survey</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #f4f0e8;
@@ -173,11 +173,14 @@
   .cat-chip.selected { background: var(--ink); color: var(--paper); border-color: var(--ink); }
   html, body {
     margin: 0; padding: 0; height: 100%; overflow: hidden;
-    font-family: 'DM Mono', monospace;
+    font-family: 'Source Serif 4', Georgia, serif;
     background: var(--bg);
     color: var(--ink);
     overscroll-behavior: none;
   }
+  /* Mono only for numeric/measurement contexts */
+  .pin-circle, .sync-pill, .desc-group-label, .descriptors-sub,
+  .active-label, .weather-stamp, .sev-val { font-family: 'DM Mono', monospace; }
   body { display: flex; flex-direction: column; touch-action: none; }
 
   /* TOP BAR */
@@ -1128,20 +1131,84 @@
   }
   .hint b { color: var(--ink); font-weight: 500; }
 
-  /* Tablet & smaller adjustments */
-  @media (max-width: 900px) {
-    .brand small { display: none; }
-    .job-addr-wrap { max-width: 200px; margin-left: 8px; }
-    .active-indicator { min-width: 90px; padding: 5px 8px; }
-    .active-target { font-size: 11.5px; }
+  /* Bigger invisible tap target around every pin */
+  .pin::before {
+    content: ''; position: absolute; inset: -10px;
+    border-radius: 50%;
   }
 
-  /* Phone fallback — both portrait and landscape on small screens */
+  /* ============ PHONE LAYOUT (≤900px) ============ */
   @media (max-width: 900px) {
-    .findings, .detail { width: 100%; }
-    .topbar { flex-wrap: wrap; height: auto; padding: 6px; gap: 6px; }
-    .job-addr-wrap { order: 5; max-width: 100%; flex: 1 1 100%; margin-left: 0; }
+    /* --- Single-row top bar with horizontal scroll --- */
+    .topbar {
+      height: 44px; padding: 0 8px; gap: 6px;
+      flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .topbar::-webkit-scrollbar { display: none; }
+    .brand { font-size: 13px; flex-shrink: 0; }
+    .brand small { display: none; }
     .topbar-spacer { display: none; }
+    .top-btn { height: 30px; padding: 0 9px; font-size: 10px; flex-shrink: 0; }
+    .sync-pill { height: 22px; font-size: 9px; flex-shrink: 0; }
+
+    /* Address collapses to a chip; tap to expand */
+    .job-addr-wrap { order: -1; max-width: 36px; margin-left: 0; flex: 0 0 auto;
+      transition: max-width 0.2s ease; }
+    .job-addr-wrap input { display: none; }
+    .job-addr-wrap.expanded { max-width: 240px; flex: 1 1 240px; }
+    .job-addr-wrap.expanded input { display: block; }
+    /* Hide secondary buttons (accessible via More ▾) */
+    #addPhotosBtn, #exportBtn, #clearBtn { display: none; }
+
+    /* --- Material rail → bottom horizontal strip --- */
+    .rail {
+      left: 0; right: 0; top: auto; bottom: 0;
+      width: auto; height: 64px;
+      flex-direction: row;
+      padding: 6px 8px; gap: 6px;
+      border-right: 0; border-top: 1px solid var(--rule);
+      box-shadow: 0 -1px 4px rgba(0,0,0,0.04);
+      overflow-x: auto; overflow-y: hidden;
+    }
+    .rail-btn { width: 64px; height: 52px; margin: 0; }
+    .rail-swatch { width: 16px; height: 16px; }
+    .rail-label { font-size: 8px; }
+
+    /* --- Plan fills the whole stage above the rail --- */
+    .plan-area { left: 0; right: 0; top: 0; bottom: 64px; }
+    .plan-area.shifted { left: 0; }
+
+    /* --- Descriptors → bottom sheet sliding up over the plan --- */
+    .descriptors {
+      left: 0; right: 0; top: auto; bottom: 64px;
+      width: 100% !important; height: 0;
+      max-height: 60vh;
+      border-right: 0; border-top: 1px solid var(--rule);
+      transition: height 0.2s ease;
+      box-shadow: 0 -4px 14px rgba(0,0,0,0.12);
+    }
+    .descriptors.open { width: 100% !important; height: 60vh; }
+    .descriptors-inner { width: 100%; padding: 10px 12px 80px; }
+
+    /* Camera cluster + zoom move above the rail */
+    .cam-cluster { bottom: 76px; right: 10px; }
+    .mode-toggle { bottom: 76px; left: 10px; }
+    .zoom-ctrl { top: 54px; right: 8px; }
+    .weather-stamp { bottom: 72px; left: 10px; }
+  }
+
+  /* Landscape on small phones — compress further so plan is dominant */
+  @media (max-width: 900px) and (orientation: landscape) {
+    .topbar { height: 38px; }
+    .brand { display: none; }
+    .rail { height: 56px; }
+    .rail-btn { height: 44px; width: 56px; }
+    .plan-area { bottom: 56px; }
+    .descriptors { bottom: 56px; max-height: 70vh; }
+    .descriptors.open { height: 70vh; }
+    .cam-cluster, .mode-toggle, .weather-stamp { bottom: 64px; }
   }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
