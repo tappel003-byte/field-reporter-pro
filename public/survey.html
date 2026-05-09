@@ -710,6 +710,48 @@
   .zoom-ctrl button:active { background: var(--rule-soft); }
   .zoom-ctrl button + button { border-top: 1px solid var(--rule); }
 
+  /* DRAW TOOL BAR */
+  .tool-bar {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    display: flex;
+    z-index: 25;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .tool-bar button {
+    width: 40px; height: 40px;
+    background: transparent;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: var(--ink);
+    font-weight: 500;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tool-bar button + button { border-left: 1px solid var(--rule); }
+  .tool-bar button.active {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .tool-bar button svg { width: 20px; height: 20px; display: block; }
+
+  /* SHAPE HANDLES (SVG) */
+  .shape-handle {
+    fill: var(--paper);
+    stroke: var(--ink);
+    stroke-width: 2;
+    cursor: grab;
+    pointer-events: all;
+  }
+  .shape-handle:active { cursor: grabbing; }
+  .shape-handle.center { fill: var(--ink); }
+
+
   /* FINDINGS PANEL */
   .findings {
     position: absolute;
