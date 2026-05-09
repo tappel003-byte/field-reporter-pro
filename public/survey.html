@@ -1671,7 +1671,8 @@ function save() {
       selectedDescriptors: state.selectedDescriptors,
       northArrow: state.northArrow,
       weather: state.weather,
-      darkMode: state.darkMode
+      darkMode: state.darkMode,
+      drawTool: state.drawTool
     }));
     setSync('saved');
   } catch (e) {
