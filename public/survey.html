@@ -2194,8 +2194,8 @@ function onPointerMove(e) {
     const moved = Math.hypot(dx, dy);
 
     if (ptr.mode === 'down' && moved > ptr.movedThreshold) {
-      // Decide: only Concrete supports line sketching. Everything else pans on drag.
-      if (state.selectedSurface === 'concrete') {
+      // Decide: only Slab/concrete supports line sketching. Everything else pans on drag.
+      if (state.selectedSurface === 'slab') {
         ptr.mode = 'draw';
         startDrawLine(ptr.startX, ptr.startY);
         extendDrawLine(e.clientX, e.clientY);
