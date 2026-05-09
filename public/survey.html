@@ -1821,8 +1821,21 @@ function toast(msg) {
 }
 
 // ============ RAIL ============
+function hasLivePins() {
+  return state.pins.some(p => !p.deleted);
+}
 function renderRail() {
   const rail = $('rail');
+  const planArea = $('planArea');
+  // Surfaces stay hidden until the first pin is dropped.
+  if (!hasLivePins()) {
+    rail.innerHTML = '';
+    rail.classList.add('hidden');
+    planArea.classList.add('no-rail');
+    return;
+  }
+  rail.classList.remove('hidden');
+  planArea.classList.remove('no-rail');
   const sorted = [...SURFACES].sort((a,b) => a.name.localeCompare(b.name));
   rail.innerHTML = sorted.map(s => `
     <button class="rail-btn ${state.selectedSurface === s.key ? 'selected' : ''}" data-key="${s.key}">
