@@ -3250,7 +3250,7 @@ function runCsvExport() {
   lines.push('Total Photos,' + (visiblePins().reduce((n,p) => n + visiblePhotosOf(p).length, 0) + visibleUnattached().length));
   lines.push('');
   lines.push('PINS');
-  const pinHeaders = ['Pin #','Order','Category','Severity','Hazard','Surface','Tags','Shear','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
+  const pinHeaders = ['Pin #','Order','Surface','Severity','Hazard','Size','Pattern','Location','Offset','Description','Notes','Photo Count','Photo Numbers','Has Line','X','Y','Created','GPS Lat','GPS Lng','GPS Acc (m)'];
   lines.push(pinHeaders.join(','));
   visiblePins().slice().sort((a,b) => {
     const ai = (typeof a.orderIdx === 'number') ? a.orderIdx : a.num;
@@ -3260,15 +3260,11 @@ function runCsvExport() {
     const photos = visiblePhotosOf(p);
     const photoNums = photos.map(ph => ph.num).join(';');
     const offsetVal = (p.descriptors.offset && p.descriptors.offset !== 'None') ? p.descriptors.offset : '';
-    const tagNames = (p.tags || []).map(k => TAGS.find(t => t.key === k)?.name || k).join('; ');
     const sev = p.severity || 0;
     lines.push([
       p.num, i+1,
-      getCategory(p.category)?.name || '',
-      sev, sev >= 4 ? 'Y' : '',
       getSurface(p.surface)?.name || '',
-      tagNames,
-      (p.tags || []).includes('shear') ? 'Y' : '',
+      sev, sev >= 4 ? 'Y' : '',
       p.descriptors.size || '',
       p.descriptors.pattern || '',
       p.descriptors.location || (p.descriptors.custom || ''),
