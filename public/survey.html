@@ -2189,6 +2189,33 @@ function setupPointerEvents() {
   wrap.addEventListener('wheel', onWheel, { passive: false });
 }
 
+function renderToolBar() {
+  const bar = $('toolBar');
+  if (!bar) return;
+  bar.querySelectorAll('button').forEach(btn => {
+    btn.classList.toggle('active', state.drawTool === btn.dataset.tool);
+  });
+}
+function setupToolBar() {
+  const bar = $('toolBar');
+  if (!bar) return;
+  bar.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const t = btn.dataset.tool;
+      state.drawTool = (state.drawTool === t) ? null : t;
+      // Cancel any pending shape if tool turned off
+      if (!state.drawTool) {
+        state.pendingShape = null;
+        const svg = $('planSvg');
+        if (svg) svg.querySelectorAll('[data-pending="1"]').forEach(p => p.remove());
+      }
+      save();
+      renderToolBar();
+      toast(state.drawTool ? ('Tool: ' + state.drawTool) : 'Tool off — drag pans');
+    });
+  });
+}
+
 function onWheel(e) {
   if (!state.planImage) return;
   e.preventDefault();
