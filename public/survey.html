@@ -879,6 +879,26 @@
     border-radius: 2px;
     letter-spacing: 0.04em;
   }
+  .photo-add-tile {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 2px;
+    background: var(--paper);
+    border: 1.5px dashed var(--rule);
+    color: var(--ink-soft);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    padding: 0;
+  }
+  .photo-add-tile:hover, .photo-add-tile:active { border-color: var(--ink); color: var(--ink); }
+  .photo-add-tile .plus { font-size: 22px; line-height: 1; font-weight: 300; }
   .photo-remove {
     position: absolute;
     top: 3px;
