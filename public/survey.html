@@ -3557,9 +3557,10 @@ function renderNorthArrow() {
 })();
 
 // ---- Address auto-fill from GPS (Nominatim) ----
-async function maybeReverseGeocode() {
-  if (state.jobAddress) return;
-  if (!navigator.geolocation) return;
+async function maybeReverseGeocode(force) {
+  if (state.jobAddress && !force) return;
+  if (!navigator.geolocation) { toast('Location not available on this device'); return; }
+  if (force) toast('Getting location…');
   navigator.geolocation.getCurrentPosition(async (pos) => {
     const { latitude, longitude } = pos.coords;
     try {
@@ -3572,16 +3573,21 @@ async function maybeReverseGeocode() {
         a.state, a.postcode
       ].filter(Boolean);
       const guess = parts.join(', ');
-      if (!state.jobAddress && guess) {
+      if (guess && (force || !state.jobAddress)) {
         state.jobAddress = guess;
         document.getElementById('jobAddress').value = guess;
         save();
-        toast('Address auto-filled');
+        toast('Address filled from location');
+      } else if (!guess) {
+        toast('Could not resolve address');
       }
-    } catch (e) { /* silent */ }
+    } catch (e) { toast('Address lookup failed'); }
     fetchWeather(false, latitude, longitude);
-  }, () => {}, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+  }, (err) => {
+    if (force) toast(err.code === 1 ? 'Location permission denied' : 'Location unavailable');
+  }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
 }
+document.getElementById('useLocBtn').addEventListener('click', () => maybeReverseGeocode(true));
 
 // ---- Weather (Open-Meteo, no key) ----
 async function fetchWeather(force, lat, lng) {
