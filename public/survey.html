@@ -2196,6 +2196,23 @@ function onWheel(e) {
 function onPointerDown(e) {
   if (!state.planImage) return;
 
+  // Tapped on a shape handle?
+  const handleEl = e.target.closest && e.target.closest('[data-handle]');
+  if (handleEl && ptr.pointers.size === 0) {
+    e.preventDefault();
+    ptr.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    ptr.mode = 'handle';
+    ptr.handleKind = handleEl.dataset.handle;
+    ptr.handlePinId = handleEl.dataset.handlePin;
+    ptr.startX = e.clientX; ptr.startY = e.clientY;
+    const pin = state.pins.find(p => p.id === ptr.handlePinId);
+    if (pin && pin.shape) {
+      ptr.handleStart = JSON.parse(JSON.stringify(pin.shape));
+      snapshot('Reshape pin #' + pin.num);
+    }
+    return;
+  }
+
   // Tapped on existing pin?
   const pinEl = e.target.closest('.pin');
   if (pinEl && ptr.pointers.size === 0) {
@@ -2215,15 +2232,29 @@ function onPointerDown(e) {
     ptr.startY = e.clientY;
     ptr.mode = 'down';
     ptr.drawPath = null;
+    // Long-press: if user holds still, hit-test shapes and open detail.
+    clearTimeout(ptr.longPressT);
+    ptr.longPressFired = false;
+    ptr.longPressT = setTimeout(() => {
+      if (ptr.mode !== 'down') return;
+      const c = pointerToImageCoords(ptr.startX, ptr.startY);
+      const threshold = 14 / state.view.scale;
+      const hit = hitPinShape(c.x, c.y, threshold);
+      if (hit) {
+        ptr.longPressFired = true;
+        if (navigator.vibrate) try { navigator.vibrate(15); } catch(e){}
+        selectPin(hit.id);
+        openDetail();
+      }
+    }, 550);
   } else if (ptr.pointers.size === 2) {
-    // start pinch
+    clearTimeout(ptr.longPressT);
     const pts = Array.from(ptr.pointers.values());
     ptr.lastDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
     ptr.lastMid = { x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2 };
     ptr.mode = 'pinch';
-    // cancel any drawing in progress
     if (ptr.drawPath) {
-      $('planSvg').removeChild(ptr.drawPath);
+      try { $('planSvg').removeChild(ptr.drawPath); } catch(e){}
       ptr.drawPath = null;
     }
   }
@@ -2233,6 +2264,33 @@ function onPointerMove(e) {
   if (!ptr.pointers.has(e.pointerId)) return;
   ptr.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, pinHit: ptr.pointers.get(e.pointerId).pinHit });
 
+  if (ptr.mode === 'handle') {
+    const pin = state.pins.find(p => p.id === ptr.handlePinId);
+    if (!pin || !pin.shape) return;
+    const c = pointerToImageCoords(e.clientX, e.clientY);
+    const start = ptr.handleStart;
+    if (pin.shape.type === 'line') {
+      if (ptr.handleKind === 'a') pin.shape.a = { x:c.x, y:c.y };
+      else if (ptr.handleKind === 'b') pin.shape.b = { x:c.x, y:c.y };
+      else if (ptr.handleKind === 'mid') {
+        const sc = pointerToImageCoords(ptr.startX, ptr.startY);
+        const ddx = c.x - sc.x, ddy = c.y - sc.y;
+        pin.shape.a = { x: start.a.x + ddx, y: start.a.y + ddy };
+        pin.shape.b = { x: start.b.x + ddx, y: start.b.y + ddy };
+      }
+    } else if (pin.shape.type === 'ellipse') {
+      if (ptr.handleKind === 'rx') pin.shape.rx = Math.max(2, Math.abs(c.x - pin.shape.cx));
+      else if (ptr.handleKind === 'ry') pin.shape.ry = Math.max(2, Math.abs(pin.shape.cy - c.y));
+      else if (ptr.handleKind === 'mid') {
+        const sc = pointerToImageCoords(ptr.startX, ptr.startY);
+        pin.shape.cx = start.cx + (c.x - sc.x);
+        pin.shape.cy = start.cy + (c.y - sc.y);
+      }
+    }
+    renderShapes();
+    return;
+  }
+
   if (ptr.mode === 'pinch' && ptr.pointers.size === 2) {
     const pts = Array.from(ptr.pointers.values());
     const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
@@ -2241,7 +2299,6 @@ function onPointerMove(e) {
       const factor = dist / ptr.lastDist;
       zoomBy(factor, mid.x, mid.y);
     }
-    // pan from midpoint delta
     if (ptr.lastMid) {
       state.view.tx += (mid.x - ptr.lastMid.x);
       state.view.ty += (mid.y - ptr.lastMid.y);
@@ -2258,11 +2315,12 @@ function onPointerMove(e) {
     const moved = Math.hypot(dx, dy);
 
     if (ptr.mode === 'down' && moved > ptr.movedThreshold) {
-      // Decide: only Slab/concrete supports line sketching. Everything else pans on drag.
-      if (state.selectedSurface === 'slab') {
+      clearTimeout(ptr.longPressT);
+      // Drag-to-draw requires BOTH a surface and a tool selected. Otherwise pan.
+      if (state.selectedSurface && state.drawTool) {
         ptr.mode = 'draw';
-        startDrawLine(ptr.startX, ptr.startY);
-        extendDrawLine(e.clientX, e.clientY);
+        startDrawShape(ptr.startX, ptr.startY);
+        extendDrawShape(e.clientX, e.clientY);
       } else {
         ptr.mode = 'pan';
       }
@@ -2271,7 +2329,7 @@ function onPointerMove(e) {
       state.view.ty += (e.clientY - (ptr._lastY ?? ptr.startY));
       applyTransform();
     } else if (ptr.mode === 'draw') {
-      extendDrawLine(e.clientX, e.clientY);
+      extendDrawShape(e.clientX, e.clientY);
     }
     ptr._lastX = e.clientX;
     ptr._lastY = e.clientY;
@@ -2281,7 +2339,6 @@ function onPointerMove(e) {
     const moved = Math.hypot(e.clientX - ptr.startX, e.clientY - ptr.startY);
     if (moved > ptr.movedThreshold) {
       ptr.mode = 'drag-pin';
-      // Snapshot position before drag begins
       const data = ptr.pointers.get(e.pointerId);
       const pin = data && state.pins.find(p => p.id === data.pinHit);
       if (pin) snapshot('Move pin #' + pin.num);
@@ -2305,6 +2362,15 @@ function onPointerMove(e) {
 function onPointerUp(e) {
   const data = ptr.pointers.get(e.pointerId);
   ptr.pointers.delete(e.pointerId);
+  clearTimeout(ptr.longPressT);
+
+  if (ptr.mode === 'handle') {
+    save();
+    renderShapes();
+    ptr.mode = null;
+    ptr.handleKind = null; ptr.handlePinId = null; ptr.handleStart = null;
+    return;
+  }
 
   if (ptr.mode === 'pinch') {
     if (ptr.pointers.size < 2) ptr.mode = 'idle';
@@ -2322,11 +2388,16 @@ function onPointerUp(e) {
     return;
   }
 
+  if (ptr.longPressFired) {
+    ptr.longPressFired = false;
+    ptr.mode = null;
+    return;
+  }
+
   if (ptr.mode === 'down') {
-    // This was a tap (no significant move). Drop a pin.
     handleTap(ptr.startX, ptr.startY);
   } else if (ptr.mode === 'draw') {
-    finishDrawLine();
+    finishDrawShape();
   }
 
   ptr.mode = null;
