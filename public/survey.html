@@ -3601,12 +3601,21 @@ function exportPlanPng(mode) {
 }
 function drawPinsOn(ctx, W, H) {
   visiblePins().forEach(p => {
-    if (!p.line || p.line.length < 2) return;
+    if (!p.shape) return;
     ctx.beginPath();
     ctx.strokeStyle = pinHex(p);
     ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    p.line.forEach((pt, i) => i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y));
-    ctx.stroke();
+    const sh = p.shape;
+    if (sh.type === 'free' && sh.points && sh.points.length >= 2) {
+      sh.points.forEach((pt, i) => i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y));
+      ctx.stroke();
+    } else if (sh.type === 'line') {
+      ctx.moveTo(sh.a.x, sh.a.y); ctx.lineTo(sh.b.x, sh.b.y);
+      ctx.stroke();
+    } else if (sh.type === 'ellipse') {
+      ctx.ellipse(sh.cx, sh.cy, sh.rx, sh.ry, 0, 0, Math.PI*2);
+      ctx.stroke();
+    }
   });
   const r = Math.max(14, Math.round(Math.min(W, H) * 0.018));
   visiblePins().forEach(p => {
