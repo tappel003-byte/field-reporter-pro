@@ -2343,25 +2343,25 @@ function handleTap(clientX, clientY) {
   // bound to image
   if (c.x < 0 || c.y < 0 || c.x > state.imgNatural.w || c.y > state.imgNatural.h) return;
 
-  // If there's a pending line, this tap becomes the pin for that line
-  if (state.pendingLine) {
-    snapshot('Add pin #' + state.nextNum + ' with line');
-    const pin = createPin(c.x, c.y, state.pendingLine);
-    state.pendingLine = null;
+  // If there's a pending shape, this tap becomes the pin for that shape
+  if (state.pendingShape) {
+    snapshot('Add pin #' + state.nextNum + ' with ' + state.pendingShape.type);
+    const pin = createPin(c.x, c.y, state.pendingShape);
+    state.pendingShape = null;
     state.pins.push(pin);
     state.selectedPinId = pin.id;
     state.activePinId = pin.id;
     state.nextNum++;
     save();
     renderPins();
-    renderLines();
+    renderShapes();
     renderFindings();
     updateActiveIndicator();
     toast('Pin #' + pin.num);
     return;
   }
 
-  // Otherwise create a fresh pin (no line)
+  // Otherwise create a fresh pin (no shape)
   snapshot('Add pin #' + state.nextNum);
   const pin = createPin(c.x, c.y, null);
   state.pins.push(pin);
@@ -2375,7 +2375,7 @@ function handleTap(clientX, clientY) {
   toast('Pin #' + pin.num);
 }
 
-function createPin(x, y, line) {
+function createPin(x, y, shape) {
   const meta = (window.capturePinMeta && window.capturePinMeta()) || { timestamp: Date.now() };
   return {
     id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
@@ -2388,54 +2388,113 @@ function createPin(x, y, line) {
     descriptors: { ...state.selectedDescriptors },
     photos: [],
     notes: '',
-    line: line,
+    shape: shape || null,
     created: meta.timestamp,
     gps: meta.gps || null
   };
 }
 
-// ============ LINE DRAWING ============
-function startDrawLine(clientX, clientY) {
+// ============ SHAPE DRAWING ============
+// Three tools: 'free' (polyline), 'line' (straight a→b), 'ellipse' (cx,cy,rx,ry).
+// Drawing requires both a surface (for color) and a tool to be selected. The
+// shape is staged as state.pendingShape; the next canvas tap pairs it with a pin.
+
+function _shapeStroke() {
+  return getSurface(state.selectedSurface)?.hex || '#1a1a1a';
+}
+function _newSvgEl(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+
+function startDrawShape(clientX, clientY) {
   const c = pointerToImageCoords(clientX, clientY);
   const svg = $('planSvg');
-  const surface = getSurface(state.selectedSurface);
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-  path.setAttribute('fill', 'none');
-  path.setAttribute('stroke', surface.hex);
-  path.setAttribute('stroke-width', '4');
-  path.setAttribute('stroke-linecap', 'round');
-  path.setAttribute('stroke-linejoin', 'round');
-  path.setAttribute('points', `${c.x},${c.y}`);
-  svg.appendChild(path);
-  ptr.drawPath = path;
-  ptr.drawPoints = [{x: c.x, y: c.y}];
-}
-function extendDrawLine(clientX, clientY) {
-  if (!ptr.drawPath) return;
-  const c = pointerToImageCoords(clientX, clientY);
-  const last = ptr.drawPoints[ptr.drawPoints.length-1];
-  const minDist = 3 / state.view.scale;
-  if (Math.hypot(c.x-last.x, c.y-last.y) < minDist) return;
-  ptr.drawPoints.push({x: c.x, y: c.y});
-  ptr.drawPath.setAttribute('points', ptr.drawPoints.map(p=>`${p.x},${p.y}`).join(' '));
-}
-function finishDrawLine() {
-  if (!ptr.drawPath || !ptr.drawPoints || ptr.drawPoints.length < 2) {
-    if (ptr.drawPath) ptr.drawPath.remove();
-    ptr.drawPath = null;
-    ptr.drawPoints = null;
+  const stroke = _shapeStroke();
+  const tool = state.drawTool;
+  let el;
+  if (tool === 'free') {
+    el = _newSvgEl('polyline');
+    el.setAttribute('points', `${c.x},${c.y}`);
+    ptr.drawPoints = [{x:c.x, y:c.y}];
+  } else if (tool === 'line') {
+    el = _newSvgEl('line');
+    el.setAttribute('x1', c.x); el.setAttribute('y1', c.y);
+    el.setAttribute('x2', c.x); el.setAttribute('y2', c.y);
+    ptr.drawStart = {x:c.x, y:c.y};
+  } else if (tool === 'ellipse') {
+    el = _newSvgEl('ellipse');
+    el.setAttribute('cx', c.x); el.setAttribute('cy', c.y);
+    el.setAttribute('rx', 0); el.setAttribute('ry', 0);
+    el.setAttribute('fill', 'none');
+    ptr.drawStart = {x:c.x, y:c.y};
+  } else {
     return;
   }
-  // store as pending; next tap will pair it with a pin
-  state.pendingLine = ptr.drawPoints;
-  // remove provisional path; will redraw via renderLines once pin pairs
-  ptr.drawPath.setAttribute('stroke-dasharray', '6 4');
-  ptr.drawPath.setAttribute('opacity', '0.8');
-  ptr.drawPath = null;
-  toast('Line drawn — tap to drop pin');
+  el.setAttribute('stroke', stroke);
+  el.setAttribute('stroke-width', '4');
+  el.setAttribute('stroke-linecap', 'round');
+  el.setAttribute('stroke-linejoin', 'round');
+  if (tool !== 'ellipse') el.setAttribute('fill', 'none');
+  el.dataset.drawing = '1';
+  svg.appendChild(el);
+  ptr.drawPath = el;
+  ptr.drawTool = tool;
 }
 
-// ============ RENDER PINS & LINES ============
+function extendDrawShape(clientX, clientY) {
+  if (!ptr.drawPath) return;
+  const c = pointerToImageCoords(clientX, clientY);
+  const tool = ptr.drawTool;
+  if (tool === 'free') {
+    const last = ptr.drawPoints[ptr.drawPoints.length-1];
+    const minDist = 3 / state.view.scale;
+    if (Math.hypot(c.x-last.x, c.y-last.y) < minDist) return;
+    ptr.drawPoints.push({x:c.x, y:c.y});
+    ptr.drawPath.setAttribute('points', ptr.drawPoints.map(p=>`${p.x},${p.y}`).join(' '));
+  } else if (tool === 'line') {
+    ptr.drawPath.setAttribute('x2', c.x);
+    ptr.drawPath.setAttribute('y2', c.y);
+  } else if (tool === 'ellipse') {
+    const s = ptr.drawStart;
+    const cx = (s.x + c.x)/2, cy = (s.y + c.y)/2;
+    const rx = Math.abs(c.x - s.x)/2, ry = Math.abs(c.y - s.y)/2;
+    ptr.drawPath.setAttribute('cx', cx);
+    ptr.drawPath.setAttribute('cy', cy);
+    ptr.drawPath.setAttribute('rx', rx);
+    ptr.drawPath.setAttribute('ry', ry);
+  }
+}
+
+function finishDrawShape() {
+  if (!ptr.drawPath) return;
+  const tool = ptr.drawTool;
+  let shape = null;
+  if (tool === 'free') {
+    if (ptr.drawPoints && ptr.drawPoints.length >= 2) {
+      shape = { type:'free', points: ptr.drawPoints };
+    }
+  } else if (tool === 'line') {
+    const x1 = +ptr.drawPath.getAttribute('x1'), y1 = +ptr.drawPath.getAttribute('y1');
+    const x2 = +ptr.drawPath.getAttribute('x2'), y2 = +ptr.drawPath.getAttribute('y2');
+    if (Math.hypot(x2-x1, y2-y1) > 4) shape = { type:'line', a:{x:x1,y:y1}, b:{x:x2,y:y2} };
+  } else if (tool === 'ellipse') {
+    const rx = +ptr.drawPath.getAttribute('rx'), ry = +ptr.drawPath.getAttribute('ry');
+    const cx = +ptr.drawPath.getAttribute('cx'), cy = +ptr.drawPath.getAttribute('cy');
+    if (rx > 3 && ry > 3) shape = { type:'ellipse', cx, cy, rx, ry };
+  }
+  if (!shape) {
+    ptr.drawPath.remove();
+    ptr.drawPath = null; ptr.drawPoints = null; ptr.drawStart = null; ptr.drawTool = null;
+    return;
+  }
+  state.pendingShape = shape;
+  ptr.drawPath.setAttribute('stroke-dasharray', '6 4');
+  ptr.drawPath.setAttribute('opacity', '0.8');
+  ptr.drawPath.dataset.pending = '1';
+  delete ptr.drawPath.dataset.drawing;
+  ptr.drawPath = null; ptr.drawPoints = null; ptr.drawStart = null; ptr.drawTool = null;
+  toast('Shape drawn — tap to drop pin');
+}
+
+// ============ RENDER PINS & SHAPES ============
 function renderPins() {
   const layer = $('pinsLayer');
   layer.innerHTML = '';
@@ -2452,20 +2511,96 @@ function renderPins() {
   });
 }
 
-function renderLines() {
+function renderShapes() {
   const svg = $('planSvg');
-  svg.querySelectorAll('polyline').forEach(p => p.remove());
+  // Clear committed shapes + handles, keep in-progress drawing/pending paths
+  svg.querySelectorAll('[data-shape="1"], [data-handle], [data-shape-of]').forEach(n => n.remove());
   visiblePins().forEach(p => {
-    if (!p.line || p.line.length < 2) return;
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', pinHex(p));
-    path.setAttribute('stroke-width', '4');
-    path.setAttribute('stroke-linecap', 'round');
-    path.setAttribute('stroke-linejoin', 'round');
-    path.setAttribute('points', p.line.map(pt=>`${pt.x},${pt.y}`).join(' '));
-    svg.appendChild(path);
+    if (!p.shape) return;
+    const stroke = pinHex(p);
+    const sh = p.shape;
+    let el;
+    if (sh.type === 'free' && sh.points && sh.points.length >= 2) {
+      el = _newSvgEl('polyline');
+      el.setAttribute('points', sh.points.map(pt=>`${pt.x},${pt.y}`).join(' '));
+      el.setAttribute('fill', 'none');
+    } else if (sh.type === 'line') {
+      el = _newSvgEl('line');
+      el.setAttribute('x1', sh.a.x); el.setAttribute('y1', sh.a.y);
+      el.setAttribute('x2', sh.b.x); el.setAttribute('y2', sh.b.y);
+    } else if (sh.type === 'ellipse') {
+      el = _newSvgEl('ellipse');
+      el.setAttribute('cx', sh.cx); el.setAttribute('cy', sh.cy);
+      el.setAttribute('rx', sh.rx); el.setAttribute('ry', sh.ry);
+      el.setAttribute('fill', 'none');
+    }
+    if (!el) return;
+    el.setAttribute('stroke', stroke);
+    el.setAttribute('stroke-width', '4');
+    el.setAttribute('stroke-linecap', 'round');
+    el.setAttribute('stroke-linejoin', 'round');
+    el.dataset.shape = '1';
+    el.dataset.shapeOf = p.id;
+    svg.appendChild(el);
   });
+  renderShapeHandles();
+}
+
+function renderShapeHandles() {
+  const svg = $('planSvg');
+  svg.querySelectorAll('[data-handle]').forEach(n => n.remove());
+  const pin = state.pins.find(p => p.id === state.selectedPinId && !p.deleted);
+  if (!pin || !pin.shape) return;
+  const sh = pin.shape;
+  const r = Math.max(7, 9 / state.view.scale);
+  const handles = [];
+  if (sh.type === 'line') {
+    handles.push({ x: sh.a.x, y: sh.a.y, kind: 'a' });
+    handles.push({ x: sh.b.x, y: sh.b.y, kind: 'b' });
+    handles.push({ x: (sh.a.x+sh.b.x)/2, y: (sh.a.y+sh.b.y)/2, kind: 'mid', center: true });
+  } else if (sh.type === 'ellipse') {
+    handles.push({ x: sh.cx + sh.rx, y: sh.cy, kind: 'rx' });
+    handles.push({ x: sh.cx, y: sh.cy - sh.ry, kind: 'ry' });
+    handles.push({ x: sh.cx, y: sh.cy, kind: 'mid', center: true });
+  }
+  handles.forEach(h => {
+    const c = _newSvgEl('circle');
+    c.setAttribute('cx', h.x); c.setAttribute('cy', h.y);
+    c.setAttribute('r', r);
+    c.setAttribute('class', 'shape-handle' + (h.center ? ' center' : ''));
+    c.dataset.handle = h.kind;
+    c.dataset.handlePin = pin.id;
+    svg.appendChild(c);
+  });
+}
+
+// Hit-test a point against any visible pin's shape (image coords).
+function hitPinShape(x, y, threshold) {
+  for (const p of visiblePins()) {
+    const sh = p.shape;
+    if (!sh) continue;
+    if (sh.type === 'free' && sh.points) {
+      for (let i=1;i<sh.points.length;i++) {
+        if (_distPtSeg(x,y,sh.points[i-1],sh.points[i]) < threshold) return p;
+      }
+    } else if (sh.type === 'line') {
+      if (_distPtSeg(x,y,sh.a,sh.b) < threshold) return p;
+    } else if (sh.type === 'ellipse' && sh.rx > 0 && sh.ry > 0) {
+      const dx = (x - sh.cx)/sh.rx, dy = (y - sh.cy)/sh.ry;
+      const d2 = dx*dx + dy*dy;
+      // accept anywhere inside or near boundary
+      if (d2 <= 1.25) return p;
+    }
+  }
+  return null;
+}
+function _distPtSeg(px, py, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len2 = dx*dx + dy*dy;
+  if (len2 === 0) return Math.hypot(px-a.x, py-a.y);
+  let t = ((px-a.x)*dx + (py-a.y)*dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (a.x + t*dx), py - (a.y + t*dy));
 }
 
 // ============ FINDINGS PANEL ============
