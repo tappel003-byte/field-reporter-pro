@@ -459,6 +459,8 @@
     transition: left 0.18s ease;
   }
   .plan-area.shifted { left: 272px; }
+  .rail.hidden { display: none; }
+  .plan-area.no-rail { left: 0; }
 
   .plan-empty {
     position: absolute;
@@ -1221,6 +1223,7 @@
     /* --- Plan fills the whole stage above the rail --- */
     .plan-area { left: 0; right: 0; top: 0; bottom: 64px; }
     .plan-area.shifted { left: 0; }
+    .plan-area.no-rail { bottom: 0; }
 
     /* --- Descriptors → bottom sheet sliding up over the plan --- */
     .descriptors {
@@ -1818,8 +1821,21 @@ function toast(msg) {
 }
 
 // ============ RAIL ============
+function hasLivePins() {
+  return state.pins.some(p => !p.deleted);
+}
 function renderRail() {
   const rail = $('rail');
+  const planArea = $('planArea');
+  // Surfaces stay hidden until the first pin is dropped.
+  if (!hasLivePins()) {
+    rail.innerHTML = '';
+    rail.classList.add('hidden');
+    planArea.classList.add('no-rail');
+    return;
+  }
+  rail.classList.remove('hidden');
+  planArea.classList.remove('no-rail');
   const sorted = [...SURFACES].sort((a,b) => a.name.localeCompare(b.name));
   rail.innerHTML = sorted.map(s => `
     <button class="rail-btn ${state.selectedSurface === s.key ? 'selected' : ''}" data-key="${s.key}">
@@ -1983,8 +1999,8 @@ function descChip(field, val) {
 function updateHint() {
   const hint = $('hint');
   if (!state.planImage) { hint.style.display = 'none'; return; }
-  if (!state.selectedSurface) {
-    hint.innerHTML = '<b>Pick a surface</b> from the left to begin';
+  if (!hasLivePins()) {
+    hint.innerHTML = '<b>Tap the plan</b> to drop your first pin';
     hint.style.display = '';
     return;
   }
@@ -2436,10 +2452,8 @@ function onPointerUp(e) {
 
 // ============ TAP HANDLER ============
 function handleTap(clientX, clientY) {
-  if (!state.selectedSurface) {
-    toast('Pick a surface first');
-    return;
-  }
+  // Default to drywall on the very first pin so users don't have to pre-pick.
+  if (!state.selectedSurface) state.selectedSurface = 'drywall';
   const c = pointerToImageCoords(clientX, clientY);
   // bound to image
   if (c.x < 0 || c.y < 0 || c.x > state.imgNatural.w || c.y > state.imgNatural.h) return;
@@ -2597,6 +2611,7 @@ function finishDrawShape() {
 
 // ============ RENDER PINS & SHAPES ============
 function renderPins() {
+  renderRail();
   const layer = $('pinsLayer');
   layer.innerHTML = '';
   visiblePins().forEach(p => {
@@ -2712,7 +2727,7 @@ function renderFindings() {
   const list = $('findingsList');
 
   if (!vp.length && !vu.length) {
-    list.innerHTML = '<div class="findings-empty">No pins yet. Pick a surface and tap the plan.</div>';
+    list.innerHTML = '<div class="findings-empty">No pins yet. Tap the plan to drop your first pin.</div>';
     refreshTrashCount();
     return;
   }
