@@ -4915,6 +4915,98 @@ document.getElementById('modeDrawBtn').addEventListener('click', () => setMode('
   makeDraggable(sw, grip, 'modeSwitcherPos');
 })();
 
+// Floating tools toolbar (Findings/Undo/Plan/+Photos/Export)
+(function setupFloatToolbar(){
+  const ft = document.getElementById('floatToolbar');
+  const header = document.getElementById('floatToolbarHeader');
+  if (!ft || !header) return;
+  const pos = state.ui.toolsBarPos || { x: Math.max(8, window.innerWidth - 220), y: 64 };
+  ft.style.left = pos.x + 'px';
+  ft.style.top = pos.y + 'px';
+  ft.style.right = 'auto';
+  makeDraggable(ft, header, 'toolsBarPos');
+  const cb = document.getElementById('floatToolbarCollapseBtn');
+  if (state.ui.toolsBarCollapsed) ft.classList.add('fp-collapsed');
+  if (cb) {
+    cb.textContent = ft.classList.contains('fp-collapsed') ? '▸' : '▾';
+    cb.addEventListener('click', (e) => {
+      e.stopPropagation();
+      ft.classList.toggle('fp-collapsed');
+      cb.textContent = ft.classList.contains('fp-collapsed') ? '▸' : '▾';
+      state.ui.toolsBarCollapsed = ft.classList.contains('fp-collapsed');
+      v3Save();
+    });
+  }
+})();
+
+// Floating camera button — long-press to drag, tap to open burst camera
+(function setupCameraDrag(){
+  const cluster = document.getElementById('camCluster');
+  if (!cluster) return;
+  const pos = state.ui.cameraPos;
+  if (pos) {
+    cluster.style.left = pos.x + 'px';
+    cluster.style.top = pos.y + 'px';
+    cluster.style.right = 'auto';
+    cluster.style.bottom = 'auto';
+  }
+  // Drag via long-press anywhere on the cluster
+  let pressTimer = null, dragging = false, startX = 0, startY = 0, startL = 0, startT = 0;
+  const LONG_PRESS_MS = 280;
+  const apply = (l, t) => {
+    const r = cluster.getBoundingClientRect();
+    const maxL = Math.max(0, window.innerWidth - r.width - 4);
+    const maxT = Math.max(0, window.innerHeight - r.height - 4);
+    l = Math.min(Math.max(4, l), maxL);
+    t = Math.min(Math.max(4, t), maxT);
+    cluster.style.left = l + 'px';
+    cluster.style.top = t + 'px';
+    cluster.style.right = 'auto';
+    cluster.style.bottom = 'auto';
+  };
+  cluster.addEventListener('pointerdown', (e) => {
+    // Allow buttons to handle their own taps; we only kick off a drag from the cluster background
+    startX = e.clientX; startY = e.clientY;
+    const r = cluster.getBoundingClientRect();
+    startL = r.left; startT = r.top;
+    dragging = false;
+    pressTimer = setTimeout(() => {
+      dragging = true;
+      cluster.classList.add('dragging');
+      if (navigator.vibrate) navigator.vibrate(8);
+      cluster.setPointerCapture && cluster.setPointerCapture(e.pointerId);
+    }, LONG_PRESS_MS);
+  });
+  cluster.addEventListener('pointermove', (e) => {
+    if (!dragging) {
+      // cancel long-press if user moved before threshold (treat as tap/scroll)
+      if (pressTimer && (Math.abs(e.clientX - startX) > 6 || Math.abs(e.clientY - startY) > 6)) {
+        clearTimeout(pressTimer); pressTimer = null;
+      }
+      return;
+    }
+    apply(startL + (e.clientX - startX), startT + (e.clientY - startY));
+  });
+  const end = (e) => {
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    if (dragging) {
+      dragging = false;
+      cluster.classList.remove('dragging');
+      const r = cluster.getBoundingClientRect();
+      state.ui.cameraPos = { x: r.left, y: r.top };
+      v3Save();
+      // Swallow the trailing click so the camera doesn't open right after a drag
+      const swallow = (ev) => { ev.stopPropagation(); ev.preventDefault(); window.removeEventListener('click', swallow, true); };
+      window.addEventListener('click', swallow, true);
+    }
+  };
+  cluster.addEventListener('pointerup', end);
+  cluster.addEventListener('pointercancel', end);
+})();
+
+// Trigger weather fetch on load so the inline chip populates
+setTimeout(() => { try { fetchWeather(false); } catch(e){} }, 600);
+
 // --- Overflow menu wiring ---
 document.getElementById('overflowBtn').addEventListener('click', (e) => {
   e.stopPropagation();
