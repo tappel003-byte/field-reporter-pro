@@ -1383,39 +1383,61 @@
     text-overflow: ellipsis;
   }
 
-  /* Floating tools toolbar (replaces row 2) */
-  .float-toolbar {
-    position: fixed;
-    top: 64px;
-    right: 12px;
-    z-index: 50;
-    background: var(--paper);
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.16);
-    min-width: 180px;
-    max-width: 92vw;
-    touch-action: none;
-    user-select: none;
+  /* Sticky header stack (tools bar + address bar) */
+  .sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 55;
+    background: color-mix(in oklab, var(--paper) 94%, transparent);
+    backdrop-filter: saturate(140%) blur(10px);
+    -webkit-backdrop-filter: saturate(140%) blur(10px);
+    border-bottom: 1px solid var(--rule);
   }
-  .float-toolbar.dragging { opacity: 0.85; }
+  .sticky-header .topbar.v3 {
+    position: static;
+    border-bottom: none;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  /* Tools bar (sticky above address) */
+  .float-toolbar {
+    position: relative;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--rule-soft);
+    border-radius: 0;
+    box-shadow: none;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    touch-action: auto;
+    user-select: auto;
+  }
   .float-toolbar .ft-header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 6px 10px;
-    border-bottom: 1px solid var(--rule-soft);
-    cursor: grab;
-    min-height: 32px;
+    padding: 4px 10px 0;
+    border-bottom: none;
+    cursor: default;
+    min-height: 24px;
   }
+  .float-toolbar .ft-header .fp-grip { display: none; }
   .float-toolbar .ft-body {
-    display: flex; flex-wrap: wrap; gap: 6px;
-    padding: 8px 10px;
+    display: flex; flex-wrap: nowrap; gap: 6px;
+    padding: 6px 10px 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
+  .float-toolbar .ft-body::-webkit-scrollbar { display: none; }
   .float-toolbar .ft-body .top-btn {
     height: 38px;
     min-height: 38px;
     padding: 0 12px;
     font-size: 11px;
-    flex: 1 1 auto;
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
   .float-toolbar.fp-collapsed .ft-body { display: none; }
 
@@ -1884,20 +1906,8 @@
 </head>
 <body>
 
-<div class="topbar v3">
-  <div class="row row1">
-    <div class="brand-mini">Distress Survey</div>
-    <button class="icon-btn" id="useLocBtn" title="Fill address from current location">📍</button>
-    <input type="text" id="jobAddress" class="addr-input" placeholder="Job address" autocomplete="off">
-    <div class="weather-inline" id="weatherInline" title="Weather at job site" style="display:none"></div>
-    <div class="sync-pill" id="syncPill" data-state="idle" title="Auto-save status">
-      <span class="sync-dot"></span><span class="sync-text">Saved</span>
-    </div>
-    <button class="icon-btn" id="overflowBtn" title="More" aria-label="More">⋯</button>
-  </div>
-</div>
-
-<!-- Floating tools toolbar (moved out of header so it can be dragged) -->
+<div class="sticky-header">
+<!-- Sticky tools bar (sits above the address row) -->
 <div class="float-toolbar" id="floatToolbar">
   <div class="ft-header" id="floatToolbarHeader">
     <span class="fp-title"><span class="fp-grip">⋮⋮</span><span>Tools</span></span>
@@ -1918,6 +1928,19 @@
     <button class="top-btn danger" id="clearBtn" style="display:none">Clear</button>
   </div>
 </div>
+
+<div class="topbar v3">
+  <div class="row row1">
+    <div class="brand-mini">Distress Survey</div>
+    <button class="icon-btn" id="useLocBtn" title="Fill address from current location">📍</button>
+    <input type="text" id="jobAddress" class="addr-input" placeholder="Job address" autocomplete="off">
+    <div class="sync-pill" id="syncPill" data-state="idle" title="Auto-save status">
+      <span class="sync-dot"></span><span class="sync-text">Saved</span>
+    </div>
+    <button class="icon-btn" id="overflowBtn" title="More" aria-label="More">⋯</button>
+  </div>
+</div>
+</div><!-- /.sticky-header -->
 
 <!-- Floating Pin/Draw mode switcher -->
 <div class="mode-switcher" id="modeSwitcher">
@@ -4919,16 +4942,10 @@ document.getElementById('modeDrawBtn').addEventListener('click', () => setMode('
   makeDraggable(sw, grip, 'modeSwitcherPos');
 })();
 
-// Floating tools toolbar (Findings/Undo/Plan/+Photos/Export)
+// Sticky tools bar — collapse only (no longer draggable)
 (function setupFloatToolbar(){
   const ft = document.getElementById('floatToolbar');
-  const header = document.getElementById('floatToolbarHeader');
-  if (!ft || !header) return;
-  const pos = state.ui.toolsBarPos || { x: Math.max(8, window.innerWidth - 220), y: 64 };
-  ft.style.left = pos.x + 'px';
-  ft.style.top = pos.y + 'px';
-  ft.style.right = 'auto';
-  makeDraggable(ft, header, 'toolsBarPos');
+  if (!ft) return;
   const cb = document.getElementById('floatToolbarCollapseBtn');
   if (state.ui.toolsBarCollapsed) ft.classList.add('fp-collapsed');
   if (cb) {
