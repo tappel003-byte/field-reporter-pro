@@ -3211,6 +3211,80 @@ $('camInput').addEventListener('change', (e) => {
   e.target.value = '';
 });
 
+// ---- Burst camera (in-app, no "Use Photo" confirmation) ----
+const burstCam = {
+  stream: null,
+  count: 0,
+  busy: false,
+  async open() {
+    const overlay = $('burstCam');
+    const video = $('burstVideo');
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      // Fallback: native picker
+      $('camInput').click();
+      return;
+    }
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } },
+        audio: false
+      });
+    } catch (err) {
+      console.warn('getUserMedia failed', err);
+      toast('Camera unavailable — using photo picker');
+      $('camInput').click();
+      return;
+    }
+    video.srcObject = this.stream;
+    this.count = 0;
+    $('burstCount').textContent = '0 photos';
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+  },
+  close() {
+    const overlay = $('burstCam');
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+    if (this.stream) {
+      this.stream.getTracks().forEach(t => t.stop());
+      this.stream = null;
+    }
+    $('burstVideo').srcObject = null;
+    if (this.count > 0) toast('Captured ' + this.count + ' photo' + (this.count > 1 ? 's' : ''));
+    this.count = 0;
+  },
+  snap() {
+    if (this.busy) return;
+    const video = $('burstVideo');
+    if (!video.videoWidth) return;
+    this.busy = true;
+    // flash
+    const flash = $('burstFlash');
+    flash.classList.add('flash');
+    setTimeout(() => flash.classList.remove('flash'), 90);
+    // haptic
+    if (navigator.vibrate) navigator.vibrate(10);
+    // capture frame to canvas
+    const maxW = 1600;
+    const sw = video.videoWidth, sh = video.videoHeight;
+    const scale = Math.min(1, maxW / sw);
+    const w = Math.round(sw * scale), h = Math.round(sh * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    const meta = (window.capturePinMeta && window.capturePinMeta()) || { timestamp: Date.now() };
+    addPhotoToState(dataUrl, { takenAt: Date.now(), gps: meta.gps || null, silent: true });
+    this.count++;
+    $('burstCount').textContent = this.count + ' photo' + (this.count > 1 ? 's' : '');
+    this.busy = false;
+  }
+};
+
+$('camBtn').addEventListener('click', () => burstCam.open());
+$('burstShutter').addEventListener('click', () => burstCam.snap());
+$('burstDone').addEventListener('click', () => burstCam.close());
+
 // Burst import — handles 1 or many files; metadata captured per file.
 function burstImportPhotos(files) {
   if (!files.length) return;
