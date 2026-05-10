@@ -4910,11 +4910,32 @@ window.__applyFloatingPos__ = function() {
       v3Save();
     });
   }
-  // Close → behaves like deselecting surface
+  // Done (✓) → deselect surface and close panel
   const xb = document.getElementById('descriptorsCloseBtn');
   if (xb) xb.addEventListener('click', (e) => {
     e.stopPropagation();
     if (state.selectedSurface) selectSurface(state.selectedSurface);
+  });
+  // Trash → clear descriptors for this surface (keep surface selected)
+  const tb = document.getElementById('descriptorsTrashBtn');
+  if (tb) tb.addEventListener('click', (e) => {
+    e.stopPropagation();
+    state.selectedDescriptors = { size:'', pattern:'', location:'', offset:'', custom:'' };
+    save();
+    renderDescriptors();
+    updateHint();
+    if (typeof toast === 'function') toast('Selections cleared');
+  });
+  // Camera → open burst camera
+  const camB = document.getElementById('descriptorsCameraBtn');
+  if (camB) camB.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (window.burstCam && typeof window.burstCam.open === 'function') {
+      window.burstCam.open();
+    } else {
+      const ci = document.getElementById('camInput');
+      if (ci) ci.click();
+    }
   });
 })();
 
