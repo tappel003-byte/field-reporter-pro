@@ -1512,7 +1512,18 @@
     <input type="file" id="camInput" accept="image/*" capture="environment" multiple style="display:none">
   </div>
 
-  <!-- FINDINGS PANEL -->
+  <!-- BURST CAMERA OVERLAY -->
+  <div class="burst-cam" id="burstCam" aria-hidden="true">
+    <video id="burstVideo" autoplay playsinline muted></video>
+    <div class="burst-flash" id="burstFlash"></div>
+    <div class="burst-cam-top">
+      <span id="burstCount">0 photos</span>
+      <button id="burstDone">Done</button>
+    </div>
+    <div class="burst-cam-bottom">
+      <button class="burst-shutter" id="burstShutter" aria-label="Capture"></button>
+    </div>
+  </div>
   <div class="findings" id="findingsPanel">
     <div class="findings-head">
       <div class="findings-title">Findings</div>
