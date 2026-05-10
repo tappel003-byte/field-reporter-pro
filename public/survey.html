@@ -2422,7 +2422,6 @@ function renderRail() {
       <div class="rail-fp-header" id="railFpHeader" style="display:flex;align-items:center;justify-content:space-between;width:100%">
         <span class="fp-title" style="display:flex;align-items:center;gap:6px"><span class="fp-grip">⋮⋮</span><span>Surfaces</span></span>
         <span class="fp-actions" style="display:flex;gap:4px"><button class="fp-iconbtn" id="railCollapseBtn" title="Collapse" aria-label="Collapse">▾</button></span>
-        <span>Surfaces</span><span class="fp-grip">⋮⋮</span>
       </div>
     ` + sorted.map(s => `
       <button class="rail-btn ${state.selectedSurface === s.key ? 'selected' : ''}" data-key="${s.key}" style="--swatch:${s.hex}">
