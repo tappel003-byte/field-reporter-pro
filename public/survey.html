@@ -4930,9 +4930,7 @@ window.__applyFloatingPos__ = function() {
   const camB = document.getElementById('descriptorsCameraBtn');
   if (camB) camB.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (window.burstCam && typeof window.burstCam.open === 'function') {
-      window.burstCam.open();
-    } else {
+    try { burstCam.open(); } catch (_) {
       const ci = document.getElementById('camInput');
       if (ci) ci.click();
     }
