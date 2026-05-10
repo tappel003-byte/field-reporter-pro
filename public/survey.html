@@ -4863,8 +4863,9 @@ window.__applyFloatingPos__ = function() {
     rail.style.top = pos.y + 'px';
     rail.style.right = 'auto';
     rail.style.bottom = 'auto';
-    if (!rail.dataset.dragWired) {
-      rail.dataset.dragWired = '1';
+    // Rewire on every call — renderRail replaces innerHTML, destroying old handlers
+    if (!railHeader.dataset.dragWired) {
+      railHeader.dataset.dragWired = '1';
       makeDraggable(rail, railHeader, 'surfacesPos');
     }
     if (state.ui.surfacesCollapsed) rail.classList.add('fp-collapsed');
