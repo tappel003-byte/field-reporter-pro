@@ -1819,6 +1819,31 @@
     .float-toolbar { max-width: 96vw; right: 8px; top: 60px; }
     .weather-inline { max-width: 28vw; font-size: 9px; padding: 3px 6px; }
   }
+
+  /* Floating fullscreen toggle */
+  .fs-fab {
+    position: fixed;
+    top: 96px;
+    right: 12px;
+    z-index: 65;
+    width: 44px; height: 44px;
+    border-radius: 999px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.18);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    touch-action: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    font-size: 20px;
+    line-height: 1;
+    padding: 0;
+  }
+  .fs-fab:active { transform: scale(0.94); }
+  .fs-fab.dragging { cursor: grabbing; opacity: 0.85; }
+  body.fs-on .fs-fab { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -1967,7 +1992,10 @@
 </div>
 
 <!-- Tools menu -->
+<button class="fs-fab" id="fsFab" title="Fullscreen" aria-label="Fullscreen"><span id="fsFabIcon">⛶</span></button>
+
 <div class="popup-menu" id="toolsMenu" style="display:none">
+  <button data-tool="fullscreen" id="toolsFullscreenBtn">Fullscreen</button>
   <button data-tool="addPhotos">+ Site photos (burst import)</button>
   <button data-tool="export">Export ▾</button>
   <button data-tool="clear">Clear all pins</button>
@@ -4292,6 +4320,7 @@ document.getElementById('toolsMenu').addEventListener('click', (e) => {
   else if (tool === 'addPhotos') document.getElementById('addPhotosBtn').click();
   else if (tool === 'export') { toggleMenu('toolsMenu'); toggleMenu('exportMenu'); return; }
   else if (tool === 'clear') document.getElementById('clearBtn').click();
+  else if (tool === 'fullscreen') { toggleMenu('toolsMenu'); toggleFullscreen(); return; }
   else if (tool === 'northToggle') {
     state.northArrow.visible = !state.northArrow.visible;
     save(); renderNorthArrow();
@@ -4935,6 +4964,124 @@ window.__applyFloatingPos__ = function() {
       if (ci) ci.click();
     }
   });
+})();
+
+// ---- Fullscreen toggle ----
+function isFullscreen() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+function fullscreenSupported() {
+  return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled ||
+    document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+}
+function toggleFullscreen() {
+  try {
+    if (isFullscreen()) {
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    } else {
+      const el = document.documentElement;
+      (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+    }
+  } catch (err) {
+    if (typeof toast === 'function') toast('Fullscreen unavailable');
+  }
+}
+function syncFullscreenUI() {
+  const on = isFullscreen();
+  document.body.classList.toggle('fs-on', on);
+  const icon = document.getElementById('fsFabIcon');
+  if (icon) icon.textContent = on ? '⤢' : '⛶';
+  const fab = document.getElementById('fsFab');
+  if (fab) {
+    fab.title = on ? 'Exit fullscreen' : 'Fullscreen';
+    fab.setAttribute('aria-label', fab.title);
+  }
+  const menuBtn = document.getElementById('toolsFullscreenBtn');
+  if (menuBtn) menuBtn.textContent = on ? 'Exit fullscreen' : 'Fullscreen';
+  // Reclamp any floating element that's now off-screen
+  document.querySelectorAll('[style*="left:"]').forEach(el => {
+    if (!el.style.position && getComputedStyle(el).position !== 'fixed') return;
+    const r = el.getBoundingClientRect();
+    const maxL = Math.max(0, window.innerWidth - r.width - 4);
+    const maxT = Math.max(0, window.innerHeight - r.height - 4);
+    if (r.left > maxL) el.style.left = maxL + 'px';
+    if (r.top > maxT) el.style.top = maxT + 'px';
+  });
+}
+document.addEventListener('fullscreenchange', syncFullscreenUI);
+document.addEventListener('webkitfullscreenchange', syncFullscreenUI);
+
+(function setupFsFab(){
+  const fab = document.getElementById('fsFab');
+  if (!fab) return;
+  if (!fullscreenSupported()) {
+    fab.style.display = 'none';
+    const menuBtn = document.getElementById('toolsFullscreenBtn');
+    if (menuBtn) menuBtn.style.display = 'none';
+    return;
+  }
+  // Restore saved pos
+  state.ui = state.ui || {};
+  const pos = state.ui.fullscreenPos;
+  if (pos) {
+    fab.style.left = pos.x + 'px';
+    fab.style.top = pos.y + 'px';
+    fab.style.right = 'auto';
+  }
+  // Long-press drag (tap = toggle)
+  let pressTimer = null, dragging = false, startX = 0, startY = 0, startL = 0, startT = 0, didDrag = false;
+  const LONG_PRESS_MS = 280;
+  const apply = (l, t) => {
+    const r = fab.getBoundingClientRect();
+    const maxL = Math.max(0, window.innerWidth - r.width - 4);
+    const maxT = Math.max(0, window.innerHeight - r.height - 4);
+    l = Math.min(Math.max(4, l), maxL);
+    t = Math.min(Math.max(4, t), maxT);
+    fab.style.left = l + 'px';
+    fab.style.top = t + 'px';
+    fab.style.right = 'auto';
+  };
+  fab.addEventListener('pointerdown', (e) => {
+    startX = e.clientX; startY = e.clientY;
+    const r = fab.getBoundingClientRect();
+    startL = r.left; startT = r.top;
+    dragging = false; didDrag = false;
+    pressTimer = setTimeout(() => {
+      dragging = true;
+      fab.classList.add('dragging');
+      if (navigator.vibrate) navigator.vibrate(8);
+      fab.setPointerCapture && fab.setPointerCapture(e.pointerId);
+    }, LONG_PRESS_MS);
+  });
+  fab.addEventListener('pointermove', (e) => {
+    if (!dragging) {
+      if (pressTimer && (Math.abs(e.clientX - startX) > 6 || Math.abs(e.clientY - startY) > 6)) {
+        clearTimeout(pressTimer); pressTimer = null;
+      }
+      return;
+    }
+    didDrag = true;
+    apply(startL + (e.clientX - startX), startT + (e.clientY - startY));
+  });
+  const end = () => {
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    if (dragging) {
+      dragging = false;
+      fab.classList.remove('dragging');
+      const r = fab.getBoundingClientRect();
+      state.ui.fullscreenPos = { x: r.left, y: r.top };
+      if (typeof v3Save === 'function') v3Save();
+      const swallow = (ev) => { ev.stopPropagation(); ev.preventDefault(); window.removeEventListener('click', swallow, true); };
+      window.addEventListener('click', swallow, true);
+    }
+  };
+  fab.addEventListener('pointerup', end);
+  fab.addEventListener('pointercancel', end);
+  fab.addEventListener('click', (e) => {
+    if (didDrag) { didDrag = false; return; }
+    toggleFullscreen();
+  });
+  syncFullscreenUI();
 })();
 
 
