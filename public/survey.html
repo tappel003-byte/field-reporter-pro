@@ -1314,23 +1314,22 @@
     padding: 0;
     overflow: visible;
     flex-wrap: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 55;
+    background: color-mix(in oklab, var(--paper) 92%, transparent);
+    backdrop-filter: saturate(140%) blur(10px);
+    -webkit-backdrop-filter: saturate(140%) blur(10px);
+    border-bottom: 1px solid var(--rule);
   }
   .topbar.v3 .row {
     display: flex; align-items: center; gap: 8px;
     padding: 6px 10px;
-    min-height: 40px;
+    min-height: 44px;
   }
   .topbar.v3 .row.row1 {
-    border-bottom: 1px solid var(--rule-soft);
-    background: var(--paper);
+    background: transparent;
   }
-  .topbar.v3 .row.row2 {
-    background: var(--rule-soft);
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .topbar.v3 .row.row2::-webkit-scrollbar { display: none; }
   .topbar.v3 .row1 .brand-mini {
     font-family: 'Playfair Display', serif;
     font-size: 13px; font-weight: 700;
@@ -1338,7 +1337,7 @@
   }
   .topbar.v3 .addr-input {
     flex: 1; min-width: 0;
-    height: 30px; padding: 0 10px;
+    height: 32px; padding: 0 10px;
     border: 1px solid var(--rule);
     border-radius: 4px;
     background: var(--paper);
@@ -1349,21 +1348,73 @@
   }
   .topbar.v3 .addr-input:focus { outline: none; border-color: var(--ink); }
   .topbar.v3 .icon-btn {
-    width: 32px; height: 32px;
+    width: 44px; height: 44px;
     border: 1px solid var(--rule);
     background: var(--paper);
     color: var(--ink);
     border-radius: 4px;
     display: inline-flex; align-items: center; justify-content: center;
     cursor: pointer;
-    font-size: 16px; line-height: 1;
+    font-size: 18px; line-height: 1;
     flex-shrink: 0;
     padding: 0;
   }
   .topbar.v3 .icon-btn:active { background: var(--rule-soft); }
   .topbar.v3 .icon-btn.danger { color: var(--c-concrete); }
-  .topbar.v3 .row2 .top-btn { height: 28px; padding: 0 10px; font-size: 10px; flex-shrink: 0; }
-  .topbar.v3 .sync-pill { margin-left: auto; flex-shrink: 0; }
+  .topbar.v3 .sync-pill { flex-shrink: 0; }
+
+  /* Inline weather chip (lives next to the address) */
+  .weather-inline {
+    flex-shrink: 0;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+    padding: 4px 8px;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    background: var(--paper);
+    max-width: 38vw;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Floating tools toolbar (replaces row 2) */
+  .float-toolbar {
+    position: fixed;
+    top: 64px;
+    right: 12px;
+    z-index: 50;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.16);
+    min-width: 180px;
+    max-width: 92vw;
+    touch-action: none;
+    user-select: none;
+  }
+  .float-toolbar.dragging { opacity: 0.85; }
+  .float-toolbar .ft-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--rule-soft);
+    cursor: grab;
+    min-height: 32px;
+  }
+  .float-toolbar .ft-body {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 8px 10px;
+  }
+  .float-toolbar .ft-body .top-btn {
+    height: 38px;
+    min-height: 38px;
+    padding: 0 12px;
+    font-size: 11px;
+    flex: 1 1 auto;
+  }
+  .float-toolbar.fp-collapsed .ft-body { display: none; }
 
   /* Floating Pin/Draw mode switcher */
   .mode-switcher {
