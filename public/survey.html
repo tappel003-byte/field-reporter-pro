@@ -1304,6 +1304,333 @@
     .descriptors.open { height: 70vh; }
     .cam-cluster, .mode-toggle, .weather-stamp { bottom: 64px; }
   }
+
+  /* =================================================
+     TWO-ROW HEADER + FLOATING PALETTES (v3 redesign)
+     ================================================= */
+  .topbar.v3 {
+    display: block;
+    height: auto;
+    padding: 0;
+    overflow: visible;
+    flex-wrap: nowrap;
+  }
+  .topbar.v3 .row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px;
+    min-height: 40px;
+  }
+  .topbar.v3 .row.row1 {
+    border-bottom: 1px solid var(--rule-soft);
+    background: var(--paper);
+  }
+  .topbar.v3 .row.row2 {
+    background: var(--rule-soft);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .topbar.v3 .row.row2::-webkit-scrollbar { display: none; }
+  .topbar.v3 .row1 .brand-mini {
+    font-family: 'Playfair Display', serif;
+    font-size: 13px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .topbar.v3 .addr-input {
+    flex: 1; min-width: 0;
+    height: 30px; padding: 0 10px;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--paper);
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    color: var(--ink);
+    -webkit-user-select: text; user-select: text;
+    text-overflow: ellipsis;
+  }
+  .topbar.v3 .addr-input:focus { outline: none; border-color: var(--ink); }
+  .topbar.v3 .icon-btn {
+    width: 32px; height: 32px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 16px; line-height: 1;
+    flex-shrink: 0;
+    padding: 0;
+  }
+  .topbar.v3 .icon-btn:active { background: var(--rule-soft); }
+  .topbar.v3 .icon-btn.danger { color: var(--c-concrete); }
+  .topbar.v3 .row2 .top-btn { height: 28px; padding: 0 10px; font-size: 10px; flex-shrink: 0; }
+  .topbar.v3 .sync-pill { margin-left: auto; flex-shrink: 0; }
+
+  /* Floating Pin/Draw mode switcher */
+  .mode-switcher {
+    position: fixed;
+    top: 96px; left: 12px;
+    z-index: 60;
+    display: flex;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.18);
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+  }
+  .mode-switcher .ms-grip {
+    width: 18px;
+    background: var(--rule-soft);
+    cursor: grab;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-soft);
+    font-size: 11px;
+  }
+  .mode-switcher.dragging .ms-grip { cursor: grabbing; }
+  .mode-switcher button {
+    background: transparent;
+    border: none;
+    padding: 9px 16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    color: var(--ink-soft);
+    font-weight: 600;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .mode-switcher button.active {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .mode-switcher button + button { border-left: 1px solid var(--rule); }
+
+  /* Floating panel base (rail + draw toolbar when in v3 modes) */
+  .floating-panel {
+    position: fixed !important;
+    z-index: 55;
+    background: var(--paper) !important;
+    border: 1px solid var(--rule) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.18) !important;
+    padding: 6px !important;
+    display: flex !important;
+    overflow: visible !important;
+  }
+  .floating-panel .fp-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 2px 6px 6px;
+    border-bottom: 1px solid var(--rule-soft);
+    margin-bottom: 6px;
+    cursor: grab;
+    touch-action: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    user-select: none;
+  }
+  .floating-panel.dragging .fp-header { cursor: grabbing; }
+  .floating-panel .fp-grip { font-size: 14px; line-height: 1; }
+
+  /* Surfaces palette as floating panel */
+  body.mode-draw .rail { display: none !important; }
+  body.mode-pin .rail.floating {
+    /* Override base rail layout */
+    position: fixed !important;
+    left: auto; right: auto;
+    top: auto; bottom: auto;
+    width: auto !important;
+    height: auto !important;
+    flex-direction: column !important;
+    border: 1px solid var(--rule) !important;
+    border-radius: 8px !important;
+    background: var(--paper) !important;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.18) !important;
+    padding: 4px !important;
+    gap: 3px !important;
+    z-index: 55;
+    overflow: visible !important;
+    max-height: 70vh;
+  }
+  body.mode-pin .rail.floating .rail-fp-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 6px 6px;
+    border-bottom: 1px solid var(--rule-soft);
+    margin-bottom: 4px;
+    cursor: grab; touch-action: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    user-select: none;
+  }
+  body.mode-pin .rail.floating.dragging .rail-fp-header { cursor: grabbing; }
+  body.mode-pin .rail.floating .rail-btn {
+    width: 96px; height: 32px;
+    margin: 0 !important;
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    padding: 0 8px !important;
+    border-radius: 4px !important;
+  }
+  body.mode-pin .rail.floating .rail-btn::before {
+    content: '';
+    width: 12px; height: 12px; border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--swatch, var(--rule));
+  }
+  body.mode-pin .rail.floating .rail-label {
+    font-size: 10px;
+    text-align: left;
+  }
+  /* Plan area no longer reserves space for docked rail in v3 */
+  body.v3-ui .plan-area {
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: 0 !important;
+  }
+  body.v3-ui .descriptors {
+    /* Keep descriptor side-panel for surface picker hidden in v3 (we use the palette + detail panel) */
+    display: none !important;
+  }
+
+  /* Floating draw toolbar */
+  body.mode-pin .draw-toolbar { display: none !important; }
+  .draw-toolbar.v3 {
+    position: fixed !important;
+    z-index: 55;
+    top: auto; left: auto;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+    padding: 6px;
+    display: flex !important;
+    flex-direction: column;
+    gap: 6px;
+    width: 240px;
+  }
+  .draw-toolbar.v3 .dt-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 2px 4px 4px;
+    border-bottom: 1px solid var(--rule-soft);
+    cursor: grab; touch-action: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    user-select: none;
+  }
+  .draw-toolbar.v3.dragging .dt-header { cursor: grabbing; }
+  .draw-toolbar.v3 .dt-row {
+    display: flex; gap: 4px; align-items: center;
+  }
+  .draw-toolbar.v3 .dt-row .dt-label {
+    font-family: 'DM Mono', monospace; font-size: 9px;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink-soft); width: 44px;
+  }
+  .draw-toolbar.v3 .dt-tool {
+    width: 36px; height: 36px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    border-radius: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--ink);
+    padding: 0;
+  }
+  .draw-toolbar.v3 .dt-tool svg { width: 18px; height: 18px; }
+  .draw-toolbar.v3 .dt-tool.active {
+    background: var(--ink); color: var(--paper); border-color: var(--ink);
+  }
+  .draw-toolbar.v3 .dt-tool[disabled] { opacity: 0.35; cursor: not-allowed; }
+  .draw-toolbar.v3 .dt-color {
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 2px solid var(--paper);
+    box-shadow: 0 0 0 1px var(--rule);
+    cursor: pointer; padding: 0;
+  }
+  .draw-toolbar.v3 .dt-color.active { box-shadow: 0 0 0 2px var(--ink); }
+  .draw-toolbar.v3 .dt-stroke {
+    width: 32px; height: 28px;
+    border: 1px solid var(--rule); background: var(--paper);
+    border-radius: 4px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .draw-toolbar.v3 .dt-stroke .swatch {
+    background: var(--ink); border-radius: 999px;
+  }
+  .draw-toolbar.v3 .dt-stroke.active { background: var(--rule-soft); border-color: var(--ink); }
+
+  /* Hide legacy docked draw tool-bar in v3 */
+  body.v3-ui .tool-bar { display: none !important; }
+  /* Hide legacy bottom-left mode-toggle in v3 (we use the floating switcher) */
+  body.v3-ui .mode-toggle { display: none !important; }
+
+  /* Detail panel (per-pin) — checkmark + trash header */
+  .detail-head .detail-trash {
+    background: rgba(255,255,255,0.16);
+    border: 1px solid rgba(255,255,255,0.4);
+    color: var(--paper);
+    width: 32px; height: 32px;
+    border-radius: 4px;
+    cursor: pointer; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .detail-head .detail-trash:active { background: rgba(255,255,255,0.3); }
+  .detail-head .detail-done {
+    background: #2e9b4e;
+    border: 1px solid #27843f;
+    color: #fff;
+    width: 38px; height: 32px;
+    border-radius: 4px;
+    cursor: pointer; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  }
+  .detail-head .detail-done:active { background: #27843f; }
+
+  /* Edit-pin tooltip in draw mode */
+  .edit-pin-tooltip {
+    position: fixed;
+    z-index: 80;
+    transform: translate(-50%, calc(-100% - 14px));
+    background: var(--ink);
+    color: var(--paper);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    white-space: nowrap;
+  }
+  .edit-pin-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: -5px; left: 50%;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid var(--ink);
+  }
+
+  /* Stable v3 phone tweaks: keep address visible */
+  @media (max-width: 900px) {
+    .topbar.v3 .row { padding: 5px 8px; gap: 6px; }
+    .topbar.v3 .row1 .brand-mini { display: none; }
+    .topbar.v3 .row2 .top-btn { padding: 0 8px; }
+  }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -1391,27 +1718,40 @@
 </head>
 <body>
 
-<div class="topbar">
-  <div class="brand">Distress Survey<small>Field Tool</small></div>
-  <div class="job-addr-wrap" id="jobAddrWrap" style="display:flex;gap:4px;align-items:center;">
-    <button class="top-btn" id="useLocBtn" title="Fill address from current location" style="padding:4px 8px;flex-shrink:0;">📍</button>
-    <input type="text" id="jobAddress" placeholder="Job address" autocomplete="off" style="flex:1;">
+<div class="topbar v3">
+  <div class="row row1">
+    <div class="brand-mini">Distress Survey</div>
+    <button class="icon-btn" id="useLocBtn" title="Fill address from current location">📍</button>
+    <input type="text" id="jobAddress" class="addr-input" placeholder="Job address" autocomplete="off">
+    <button class="icon-btn" id="overflowBtn" title="More" aria-label="More">⋯</button>
   </div>
-  <div class="topbar-spacer"></div>
-  <label class="top-btn" id="uploadBtn">
-    <span>Upload Plan</span>
-    <input type="file" id="planFile" accept="image/*">
-  </label>
-  <button class="top-btn" id="findingsBtn">Findings <span id="pinCount">0</span></button>
-  <button class="top-btn" id="addPhotosBtn" title="Burst-import photos">+ Photos</button>
-  <button class="top-btn" id="undoBtn" disabled>↶ Undo</button>
-  <button class="top-btn" id="exportBtn">Export ▾</button>
-  <button class="top-btn" id="toolsBtn">More ▾</button>
-  <button class="top-btn danger" id="clearBtn">Clear</button>
-  <div class="sync-pill" id="syncPill" data-state="idle" title="Auto-save status">
-    <span class="sync-dot"></span><span class="sync-text">Saved</span>
+  <div class="row row2">
+    <button class="top-btn" id="findingsBtn">Findings <span id="pinCount">0</span></button>
+    <button class="top-btn" id="addPhotosBtn" title="Burst-import photos">+ Photos</button>
+    <button class="top-btn" id="undoBtn" disabled>↶ Undo</button>
+    <button class="top-btn" id="redoBtn" disabled style="display:none">↷ Redo</button>
+    <label class="top-btn" id="uploadBtn">
+      <span>Plan</span>
+      <input type="file" id="planFile" accept="image/*">
+    </label>
+    <button class="top-btn" id="exportBtn">Export ▾</button>
+    <button class="top-btn danger" id="clearBtn" style="display:none">Clear</button>
+    <button class="top-btn" id="toolsBtn" style="display:none">More ▾</button>
+    <div class="sync-pill" id="syncPill" data-state="idle" title="Auto-save status">
+      <span class="sync-dot"></span><span class="sync-text">Saved</span>
+    </div>
   </div>
 </div>
+
+<!-- Floating Pin/Draw mode switcher -->
+<div class="mode-switcher" id="modeSwitcher">
+  <div class="ms-grip" title="Drag">⋮⋮</div>
+  <button data-mode="pin" class="active" id="modePinBtn">📍 Pin</button>
+  <button data-mode="draw" id="modeDrawBtn">✏️ Draw</button>
+</div>
+
+<!-- Edit-pin tooltip (draw mode) -->
+<div class="edit-pin-tooltip" id="editPinTooltip" style="display:none">Edit pin →</div>
 
 <!-- Hidden burst-import input -->
 <input type="file" id="burstInput" accept="image/*" multiple style="display:none">
@@ -1477,17 +1817,54 @@
     <div class="hint" id="hint" style="display:none"></div>
   </div>
 
-  <!-- DRAW TOOLS -->
+  <!-- DRAW TOOLS (legacy, hidden in v3) -->
   <div class="tool-bar" id="toolBar" style="display:none">
-    <button data-tool="free" title="Freehand">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c2-3 4-5 7-5s5 2 7 5"/><path d="M14 4l3 3-9 9-4 1 1-4z"/></svg>
-    </button>
-    <button data-tool="line" title="Straight line">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="20" x2="20" y2="4"/><circle cx="4" cy="20" r="2" fill="currentColor"/><circle cx="20" cy="4" r="2" fill="currentColor"/></svg>
-    </button>
-    <button data-tool="ellipse" title="Ellipse">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="9" ry="6"/></svg>
-    </button>
+    <button data-tool="free" title="Freehand"></button>
+    <button data-tool="line" title="Straight line"></button>
+    <button data-tool="ellipse" title="Ellipse"></button>
+  </div>
+
+  <!-- v3 Floating Draw Toolbar -->
+  <div class="draw-toolbar v3" id="drawToolbar" style="display:none">
+    <div class="dt-header" id="drawToolbarHeader">
+      <span>✏️ Draw</span>
+      <span class="fp-grip">⋮⋮</span>
+    </div>
+    <div class="dt-row">
+      <span class="dt-label">Tool</span>
+      <button class="dt-tool" data-dt-tool="free" title="Freehand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c2-3 4-5 7-5s5 2 7 5"/><path d="M14 4l3 3-9 9-4 1 1-4z"/></svg>
+      </button>
+      <button class="dt-tool" data-dt-tool="line" title="Straight line">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="20" x2="20" y2="4"/></svg>
+      </button>
+      <button class="dt-tool" data-dt-tool="ellipse" title="Ellipse">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="9" ry="6"/></svg>
+      </button>
+      <button class="dt-tool" data-dt-tool="erase" title="Eraser">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6 6 12-12-6-6L3 17z"/><path d="M9 11l6 6"/></svg>
+      </button>
+      <button class="dt-tool" data-dt-tool="symbols" disabled title="Symbols (coming soon)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l3 6 6 .9-4.5 4.4 1 6.2L12 17.8 6.5 20.5l1-6.2L3 9.9 9 9z"/></svg>
+      </button>
+    </div>
+    <div class="dt-row">
+      <span class="dt-label">Color</span>
+      <button class="dt-color" data-dt-color="#1a1a1a" style="background:#1a1a1a"></button>
+      <button class="dt-color" data-dt-color="#c0392b" style="background:#c0392b"></button>
+      <button class="dt-color" data-dt-color="#d97a2c" style="background:#d97a2c"></button>
+      <button class="dt-color" data-dt-color="#d4a72c" style="background:#d4a72c"></button>
+      <button class="dt-color" data-dt-color="#4a8a4a" style="background:#4a8a4a"></button>
+      <button class="dt-color" data-dt-color="#2a6fb8" style="background:#2a6fb8"></button>
+    </div>
+    <div class="dt-row">
+      <span class="dt-label">Stroke</span>
+      <button class="dt-stroke" data-dt-stroke="2"><span class="swatch" style="width:14px;height:2px"></span></button>
+      <button class="dt-stroke" data-dt-stroke="4"><span class="swatch" style="width:14px;height:4px"></span></button>
+      <button class="dt-stroke" data-dt-stroke="7"><span class="swatch" style="width:14px;height:7px"></span></button>
+      <span style="flex:1"></span>
+      <button class="dt-tool" id="drawClearAllBtn" title="Clear all sketches" style="width:auto;padding:0 8px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:0.1em;text-transform:uppercase">Clear</button>
+    </div>
   </div>
 
   <!-- ZOOM -->
@@ -1735,7 +2112,13 @@ function save() {
       northArrow: state.northArrow,
       weather: state.weather,
       darkMode: state.darkMode,
-      drawTool: state.drawTool
+      drawTool: state.drawTool,
+      mode: state.mode,
+      ui: state.ui,
+      drawColor: state.drawColor,
+      drawWeight: state.drawWeight,
+      drawSubTool: state.drawSubTool,
+      drawStrokes: state.drawStrokes
     }));
     setSync('saved');
   } catch (e) {
@@ -1813,6 +2196,12 @@ function load() {
     state.darkMode = !!d.darkMode;
     state.drawTool = d.drawTool || null;
     if (state.drawTool && !['free','line','ellipse'].includes(state.drawTool)) state.drawTool = null;
+    if (d.mode === 'pin' || d.mode === 'draw') state.mode = d.mode;
+    if (d.ui && typeof d.ui === 'object') state.ui = d.ui;
+    if (d.drawColor) state.drawColor = d.drawColor;
+    if (d.drawWeight) state.drawWeight = d.drawWeight;
+    if (d.drawSubTool) state.drawSubTool = d.drawSubTool;
+    if (Array.isArray(d.drawStrokes)) state.drawStrokes = d.drawStrokes;
   } catch(e) { console.warn(e); }
 }
 
@@ -1887,7 +2276,32 @@ function hasLivePins() {
 function renderRail() {
   const rail = $('rail');
   const planArea = $('planArea');
-  // Surfaces stay hidden until the first pin is dropped.
+  // v3: in pin mode, surfaces palette is ALWAYS visible (floating).
+  if (window.__V3_UI__) {
+    if (state.mode === 'draw') {
+      rail.style.display = 'none';
+      return;
+    }
+    rail.style.display = '';
+    rail.classList.add('floating');
+    planArea.classList.remove('no-rail');
+    const sorted = [...SURFACES].sort((a,b) => a.name.localeCompare(b.name));
+    rail.innerHTML = `
+      <div class="rail-fp-header" id="railFpHeader">
+        <span>Surfaces</span><span class="fp-grip">⋮⋮</span>
+      </div>
+    ` + sorted.map(s => `
+      <button class="rail-btn ${state.selectedSurface === s.key ? 'selected' : ''}" data-key="${s.key}" style="--swatch:${s.hex}">
+        <div class="rail-label">${s.name}</div>
+      </button>
+    `).join('');
+    rail.querySelectorAll('.rail-btn').forEach(btn => {
+      btn.addEventListener('click', () => selectSurface(btn.dataset.key));
+    });
+    if (window.__applyFloatingPos__) window.__applyFloatingPos__();
+    return;
+  }
+  // Legacy path (kept as fallback)
   if (!hasLivePins()) {
     rail.innerHTML = '';
     rail.classList.add('hidden');
@@ -2893,11 +3307,10 @@ function renderDetail() {
   const sev = pin.severity || 0;
   panel.innerHTML = `
     <div class="detail-head" style="background:${pinCategoryHex(pin)}">
+      <button class="detail-trash" id="detailTrashBtn" title="Discard pin" aria-label="Discard pin">🗑</button>
       <div class="detail-num">${pin.num}${pinIsHazard(pin) ? ' ⚠' : ''}</div>
       <div class="detail-title">${escapeHtml(s.name)}</div>
-      <button class="detail-close" id="detailClose">×</button>
-    </div>
-      <button class="detail-close" id="detailClose">×</button>
+      <button class="detail-done" id="detailClose" title="Done — save and close" aria-label="Done">✓</button>
     </div>
     <div class="detail-body">
       <div class="detail-photos">
@@ -2973,6 +3386,16 @@ function renderDetail() {
   `;
   panel.classList.add('open');
   $('detailClose').addEventListener('click', () => {
+    panel.classList.remove('open');
+    state.selectedPinId = null;
+    renderPins();
+    renderFindings();
+    if (navigator.vibrate) try { navigator.vibrate(10); } catch(e){}
+  });
+  const trashBtn = document.getElementById('detailTrashBtn');
+  if (trashBtn) trashBtn.addEventListener('click', () => {
+    if (!confirm('Discard this pin?')) return;
+    softDeletePin(pin.id);
     panel.classList.remove('open');
     state.selectedPinId = null;
     renderPins();
@@ -4132,11 +4555,431 @@ function renderWeather() {
 }
 
 // =====================================================================
+// ============ V3 UI: modes, floating palettes, draw layer ============
+// =====================================================================
+window.__V3_UI__ = true;
+document.body.classList.add('v3-ui');
+
+// --- state.mode + ui positions ---
+state.mode = state.mode || 'pin';
+state.ui = state.ui || {};
+state.drawColor = state.drawColor || '#1a1a1a';
+state.drawWeight = state.drawWeight || 4;
+state.drawSubTool = state.drawSubTool || 'free'; // free | line | ellipse | erase
+state.drawStrokes = state.drawStrokes || []; // [{type, color, weight, points|a|b|cx,cy,rx,ry, id}]
+
+(function patchPersistence(){
+  const _save = window.save;
+  const _load = window.load;
+  // The existing save/load uses STORAGE_KEY directly; piggyback on existing
+  // serializer by stuffing extras onto state which is already serialized via
+  // JSON.stringify of state-relevant fields. Confirm by stamping immediately.
+})();
+
+function v3Save() { try { save(); } catch(e) {} }
+
+// --- Draggable helper for floating panels ---
+function makeDraggable(el, handle, key) {
+  if (!el || !handle) return;
+  let startX, startY, startL, startT, dragging = false;
+  const apply = (l, t) => {
+    const maxL = Math.max(0, window.innerWidth - el.offsetWidth - 4);
+    const maxT = Math.max(0, window.innerHeight - el.offsetHeight - 4);
+    l = Math.min(Math.max(4, l), maxL);
+    t = Math.min(Math.max(4, t), maxT);
+    el.style.left = l + 'px';
+    el.style.top = t + 'px';
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
+  };
+  // restore
+  const saved = state.ui[key];
+  if (saved) apply(saved.x, saved.y);
+  handle.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button')) return;
+    dragging = true;
+    el.classList.add('dragging');
+    startX = e.clientX; startY = e.clientY;
+    const r = el.getBoundingClientRect();
+    startL = r.left; startT = r.top;
+    handle.setPointerCapture && handle.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  handle.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    apply(startL + (e.clientX - startX), startT + (e.clientY - startY));
+  });
+  const end = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    el.classList.remove('dragging');
+    const r = el.getBoundingClientRect();
+    state.ui[key] = { x: r.left, y: r.top };
+    v3Save();
+  };
+  handle.addEventListener('pointerup', end);
+  handle.addEventListener('pointercancel', end);
+}
+
+window.__applyFloatingPos__ = function() {
+  const rail = document.getElementById('rail');
+  const railHeader = document.getElementById('railFpHeader');
+  if (rail && railHeader) {
+    const pos = state.ui.surfacesPos || { x: 12, y: 156 };
+    rail.style.left = pos.x + 'px';
+    rail.style.top = pos.y + 'px';
+    rail.style.right = 'auto';
+    rail.style.bottom = 'auto';
+    if (!rail.dataset.dragWired) {
+      rail.dataset.dragWired = '1';
+      makeDraggable(rail, railHeader, 'surfacesPos');
+    }
+  }
+};
+
+// --- Mode switcher ---
+function setMode(mode) {
+  state.mode = mode;
+  document.body.classList.toggle('mode-pin', mode === 'pin');
+  document.body.classList.toggle('mode-draw', mode === 'draw');
+  document.getElementById('modePinBtn').classList.toggle('active', mode === 'pin');
+  document.getElementById('modeDrawBtn').classList.toggle('active', mode === 'draw');
+  const dt = document.getElementById('drawToolbar');
+  if (dt) dt.style.display = (mode === 'draw') ? '' : 'none';
+  // hide edit-pin tooltip on mode change
+  hideEditPinTooltip();
+  renderRail();
+  v3Save();
+}
+document.getElementById('modePinBtn').addEventListener('click', () => setMode('pin'));
+document.getElementById('modeDrawBtn').addEventListener('click', () => setMode('draw'));
+
+// Mode switcher draggable
+(function setupModeSwitcherDrag(){
+  const sw = document.getElementById('modeSwitcher');
+  const grip = sw.querySelector('.ms-grip');
+  const pos = state.ui.modeSwitcherPos;
+  if (pos) { sw.style.left = pos.x + 'px'; sw.style.top = pos.y + 'px'; }
+  makeDraggable(sw, grip, 'modeSwitcherPos');
+})();
+
+// --- Overflow menu wiring ---
+document.getElementById('overflowBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const menu = document.getElementById('toolsMenu');
+  // Position near the overflow button
+  const r = e.currentTarget.getBoundingClientRect();
+  menu.style.top = (r.bottom + 4) + 'px';
+  menu.style.right = (window.innerWidth - r.right) + 'px';
+  menu.style.left = 'auto';
+  toggleMenu('toolsMenu');
+});
+
+// --- Draw toolbar ---
+(function setupDrawToolbar(){
+  const dt = document.getElementById('drawToolbar');
+  if (!dt) return;
+  const header = document.getElementById('drawToolbarHeader');
+  // default position: bottom-center, ish
+  const pos = state.ui.drawToolbarPos || { x: Math.max(8, (window.innerWidth - 240)/2), y: Math.max(8, window.innerHeight - 220) };
+  dt.style.left = pos.x + 'px';
+  dt.style.top = pos.y + 'px';
+  makeDraggable(dt, header, 'drawToolbarPos');
+
+  function syncActives() {
+    dt.querySelectorAll('[data-dt-tool]').forEach(b => {
+      b.classList.toggle('active', b.dataset.dtTool === state.drawSubTool);
+    });
+    dt.querySelectorAll('[data-dt-color]').forEach(b => {
+      b.classList.toggle('active', b.dataset.dtColor === state.drawColor);
+    });
+    dt.querySelectorAll('[data-dt-stroke]').forEach(b => {
+      b.classList.toggle('active', String(state.drawWeight) === b.dataset.dtStroke);
+    });
+  }
+  dt.querySelectorAll('[data-dt-tool]').forEach(b => {
+    if (b.disabled) return;
+    b.addEventListener('click', () => {
+      state.drawSubTool = b.dataset.dtTool;
+      syncActives(); v3Save();
+    });
+  });
+  dt.querySelectorAll('[data-dt-color]').forEach(b => {
+    b.addEventListener('click', () => {
+      state.drawColor = b.dataset.dtColor;
+      syncActives(); v3Save();
+    });
+  });
+  dt.querySelectorAll('[data-dt-stroke]').forEach(b => {
+    b.addEventListener('click', () => {
+      state.drawWeight = parseInt(b.dataset.dtStroke, 10);
+      syncActives(); v3Save();
+    });
+  });
+  document.getElementById('drawClearAllBtn').addEventListener('click', () => {
+    if (!state.drawStrokes.length) return;
+    if (!confirm('Clear all sketches?')) return;
+    snapshot('Clear sketches');
+    state.drawStrokes = [];
+    v3Save();
+    renderDrawStrokes();
+  });
+  syncActives();
+})();
+
+// --- Draw stroke layer (separate from pin shapes) ---
+function renderDrawStrokes() {
+  const svg = document.getElementById('planSvg');
+  if (!svg) return;
+  svg.querySelectorAll('[data-dstroke="1"]').forEach(n => n.remove());
+  state.drawStrokes.forEach(st => {
+    let el;
+    if (st.type === 'free') {
+      el = document.createElementNS('http://www.w3.org/2000/svg','polyline');
+      el.setAttribute('points', st.points.map(p => `${p.x},${p.y}`).join(' '));
+      el.setAttribute('fill', 'none');
+    } else if (st.type === 'line') {
+      el = document.createElementNS('http://www.w3.org/2000/svg','line');
+      el.setAttribute('x1', st.a.x); el.setAttribute('y1', st.a.y);
+      el.setAttribute('x2', st.b.x); el.setAttribute('y2', st.b.y);
+    } else if (st.type === 'ellipse') {
+      el = document.createElementNS('http://www.w3.org/2000/svg','ellipse');
+      el.setAttribute('cx', st.cx); el.setAttribute('cy', st.cy);
+      el.setAttribute('rx', st.rx); el.setAttribute('ry', st.ry);
+      el.setAttribute('fill', 'none');
+    }
+    if (!el) return;
+    el.setAttribute('stroke', st.color);
+    el.setAttribute('stroke-width', st.weight);
+    el.setAttribute('stroke-linecap', 'round');
+    el.setAttribute('stroke-linejoin', 'round');
+    el.dataset.dstroke = '1';
+    el.dataset.dstrokeId = st.id;
+    svg.appendChild(el);
+  });
+}
+
+// Patch renderShapes to also render draw strokes
+(function patchRenderShapes(){
+  const _orig = window.renderShapes;
+  window.renderShapes = function() {
+    _orig && _orig();
+    renderDrawStrokes();
+  };
+})();
+
+// --- Override pointer behavior in draw mode ---
+// Original onPointerMove gates draw on (selectedSurface && drawTool). In draw
+// mode we want freeform sketching independent of pin/surface.
+let _v3DrawCtx = null;
+function v3StartStroke(clientX, clientY) {
+  const c = pointerToImageCoords(clientX, clientY);
+  const svg = document.getElementById('planSvg');
+  const tool = state.drawSubTool;
+  if (tool === 'erase') {
+    _v3DrawCtx = { type: 'erase' };
+    v3EraseAt(c.x, c.y);
+    return;
+  }
+  let el, ctx;
+  if (tool === 'line') {
+    el = document.createElementNS('http://www.w3.org/2000/svg','line');
+    el.setAttribute('x1', c.x); el.setAttribute('y1', c.y);
+    el.setAttribute('x2', c.x); el.setAttribute('y2', c.y);
+    ctx = { type:'line', a:{x:c.x,y:c.y}, b:{x:c.x,y:c.y}, el };
+  } else if (tool === 'ellipse') {
+    el = document.createElementNS('http://www.w3.org/2000/svg','ellipse');
+    el.setAttribute('cx', c.x); el.setAttribute('cy', c.y);
+    el.setAttribute('rx', 0); el.setAttribute('ry', 0);
+    el.setAttribute('fill', 'none');
+    ctx = { type:'ellipse', start:{x:c.x,y:c.y}, el };
+  } else {
+    el = document.createElementNS('http://www.w3.org/2000/svg','polyline');
+    el.setAttribute('points', `${c.x},${c.y}`);
+    el.setAttribute('fill', 'none');
+    ctx = { type:'free', points:[{x:c.x,y:c.y}], el };
+  }
+  el.setAttribute('stroke', state.drawColor);
+  el.setAttribute('stroke-width', state.drawWeight);
+  el.setAttribute('stroke-linecap','round');
+  el.setAttribute('stroke-linejoin','round');
+  el.dataset.dstrokeLive = '1';
+  svg.appendChild(el);
+  _v3DrawCtx = ctx;
+}
+function v3ExtendStroke(clientX, clientY) {
+  if (!_v3DrawCtx) return;
+  const c = pointerToImageCoords(clientX, clientY);
+  if (_v3DrawCtx.type === 'erase') { v3EraseAt(c.x, c.y); return; }
+  if (_v3DrawCtx.type === 'free') {
+    const last = _v3DrawCtx.points[_v3DrawCtx.points.length-1];
+    if (Math.hypot(c.x-last.x, c.y-last.y) < 3 / state.view.scale) return;
+    _v3DrawCtx.points.push({x:c.x,y:c.y});
+    _v3DrawCtx.el.setAttribute('points', _v3DrawCtx.points.map(p=>`${p.x},${p.y}`).join(' '));
+  } else if (_v3DrawCtx.type === 'line') {
+    _v3DrawCtx.b = {x:c.x,y:c.y};
+    _v3DrawCtx.el.setAttribute('x2', c.x);
+    _v3DrawCtx.el.setAttribute('y2', c.y);
+  } else if (_v3DrawCtx.type === 'ellipse') {
+    const s = _v3DrawCtx.start;
+    const cx = (s.x + c.x)/2, cy = (s.y + c.y)/2;
+    const rx = Math.abs(c.x - s.x)/2, ry = Math.abs(c.y - s.y)/2;
+    _v3DrawCtx.el.setAttribute('cx', cx); _v3DrawCtx.el.setAttribute('cy', cy);
+    _v3DrawCtx.el.setAttribute('rx', rx); _v3DrawCtx.el.setAttribute('ry', ry);
+    _v3DrawCtx.cx = cx; _v3DrawCtx.cy = cy; _v3DrawCtx.rx = rx; _v3DrawCtx.ry = ry;
+  }
+}
+function v3FinishStroke() {
+  if (!_v3DrawCtx) return;
+  const ctx = _v3DrawCtx; _v3DrawCtx = null;
+  if (ctx.type === 'erase') return;
+  if (ctx.el) ctx.el.remove();
+  let stroke = null;
+  const id = 'd_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+  if (ctx.type === 'free' && ctx.points.length >= 2) {
+    stroke = { id, type:'free', points: ctx.points, color: state.drawColor, weight: state.drawWeight };
+  } else if (ctx.type === 'line' && Math.hypot(ctx.b.x-ctx.a.x, ctx.b.y-ctx.a.y) > 4) {
+    stroke = { id, type:'line', a: ctx.a, b: ctx.b, color: state.drawColor, weight: state.drawWeight };
+  } else if (ctx.type === 'ellipse' && ctx.rx > 3 && ctx.ry > 3) {
+    stroke = { id, type:'ellipse', cx: ctx.cx, cy: ctx.cy, rx: ctx.rx, ry: ctx.ry, color: state.drawColor, weight: state.drawWeight };
+  }
+  if (stroke) {
+    snapshot('Sketch');
+    state.drawStrokes.push(stroke);
+    v3Save();
+  }
+  renderDrawStrokes();
+}
+function v3EraseAt(x, y) {
+  // Remove any stroke whose bbox contains (x,y) within tolerance
+  const tol = 12 / state.view.scale;
+  const before = state.drawStrokes.length;
+  state.drawStrokes = state.drawStrokes.filter(st => {
+    if (st.type === 'free') {
+      return !st.points.some(p => Math.hypot(p.x-x, p.y-y) < tol);
+    } else if (st.type === 'line') {
+      // distance from point to segment
+      const a = st.a, b = st.b;
+      const dx = b.x-a.x, dy = b.y-a.y;
+      const len2 = dx*dx+dy*dy || 1;
+      const t = Math.max(0, Math.min(1, ((x-a.x)*dx + (y-a.y)*dy)/len2));
+      const px = a.x + t*dx, py = a.y + t*dy;
+      return !(Math.hypot(px-x, py-y) < tol);
+    } else if (st.type === 'ellipse') {
+      const dx = (x - st.cx)/(st.rx||1), dy = (y - st.cy)/(st.ry||1);
+      const d = Math.abs(Math.hypot(dx, dy) - 1) * Math.min(st.rx, st.ry);
+      return !(d < tol);
+    }
+    return true;
+  });
+  if (state.drawStrokes.length !== before) {
+    renderDrawStrokes();
+    v3Save();
+  }
+}
+
+// Hook into existing pointer events to override behavior in draw mode.
+(function patchPointerForDraw(){
+  const wrap = document.getElementById('canvasWrap');
+  if (!wrap) return;
+  // Use capture-phase listeners that run BEFORE the original handlers.
+  wrap.addEventListener('pointerdown', (e) => {
+    if (state.mode !== 'draw') return;
+    if (!state.planImage) return;
+    // Let pin taps + handles fall through to legacy logic
+    if (e.target.closest && (e.target.closest('.pin') || e.target.closest('[data-handle]'))) return;
+    if (e.isPrimary === false) return;
+    // Two-finger pinch: fall through
+    if (ptr.pointers.size >= 1) return;
+    e.stopPropagation();
+    e.preventDefault();
+    ptr.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, v3draw: true });
+    ptr.mode = 'v3draw';
+    ptr.startX = e.clientX; ptr.startY = e.clientY;
+    v3StartStroke(e.clientX, e.clientY);
+  }, true);
+  wrap.addEventListener('pointermove', (e) => {
+    if (ptr.mode === 'v3draw' && ptr.pointers.has(e.pointerId)) {
+      e.stopPropagation();
+      v3ExtendStroke(e.clientX, e.clientY);
+    }
+  }, true);
+  const end = (e) => {
+    if (ptr.mode === 'v3draw' && ptr.pointers.has(e.pointerId)) {
+      ptr.pointers.delete(e.pointerId);
+      ptr.mode = null;
+      v3FinishStroke();
+      e.stopPropagation();
+    }
+  };
+  wrap.addEventListener('pointerup', end, true);
+  wrap.addEventListener('pointercancel', end, true);
+})();
+
+// --- Edit-pin tooltip in draw mode ---
+let _editTipPinId = null;
+function showEditPinTooltip(pin, clientX, clientY) {
+  const tip = document.getElementById('editPinTooltip');
+  if (!tip) return;
+  _editTipPinId = pin.id;
+  tip.style.left = clientX + 'px';
+  tip.style.top = clientY + 'px';
+  tip.style.display = '';
+  tip.textContent = '#' + pin.num + ' — Edit pin →';
+}
+function hideEditPinTooltip() {
+  const tip = document.getElementById('editPinTooltip');
+  if (tip) tip.style.display = 'none';
+  _editTipPinId = null;
+}
+document.getElementById('editPinTooltip').addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (!_editTipPinId) return;
+  const id = _editTipPinId;
+  hideEditPinTooltip();
+  setMode('pin');
+  selectPin(id);
+  openDetail();
+});
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.edit-pin-tooltip')) return;
+  if (e.target.closest('.pin')) return;
+  hideEditPinTooltip();
+});
+
+// Patch tap-pin behavior: in draw mode, show tooltip instead of opening detail
+(function patchTapPin(){
+  const wrap = document.getElementById('canvasWrap');
+  if (!wrap) return;
+  wrap.addEventListener('pointerup', (e) => {
+    if (state.mode !== 'draw') return;
+    const pinEl = e.target.closest && e.target.closest('.pin');
+    if (!pinEl) return;
+    const id = pinEl.dataset.pinId;
+    const pin = state.pins.find(p => p.id === id);
+    if (!pin) return;
+    e.stopPropagation();
+    showEditPinTooltip(pin, e.clientX, e.clientY);
+  }, true);
+})();
+
+// --- Init mode on load ---
+setMode(state.mode || 'pin');
+
+// Toolbar visibility on plan mount: ensure legacy toolbar stays hidden in v3
+(function ensureLegacyToolbarHidden(){
+  const tb = document.getElementById('toolBar');
+  if (tb) tb.style.display = 'none';
+})();
+
+// =====================================================================
 // ============ INIT ============
 // =====================================================================
 load();
 applyDarkMode();
 $('jobAddress').value = state.jobAddress || '';
+// Re-apply mode after load (state.mode may have been overwritten)
+setMode(state.mode || 'pin');
 renderRail();
 renderDescriptors();
 mountPlan();
@@ -4147,6 +4990,7 @@ updateActiveIndicator();
 setupPointerEvents();
 setupToolBar();
 renderToolBar();
+renderDrawStrokes();
 setSync('idle');
 window.addEventListener('resize', () => {
   if (state.planImage) fitView();

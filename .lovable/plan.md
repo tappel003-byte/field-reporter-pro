@@ -1,104 +1,93 @@
-## Categories (color = location)
+# Survey UI Redesign — Two Modes, Floating Palettes
 
-| Color | Category |
-|---|---|
-| Green | Wall |
-| Blue | Ceiling |
-| Yellow | Floor |
-| Orange | Separation / Gap |
-| Red | Slab crack |
-| Gray | Other / Exterior |
+Frontend-only changes in `public/survey.html`. No backend, no schema changes.
 
-- **Hazard triangle** overlay on any pin with severity ≥ 4 (replaces a dedicated "structural movement" color).
-- **Openings** (window/door): parked. Tagged via material field for now.
-- **Material** stays as a separate metadata field.
-- **High-severity pins (≥4) require a photo** before they can be saved.
+## Header — two rows
 
-## Pin flow — single panel, 6–7 seconds end-to-end
+**Row 1 (identity):**
+- Back arrow (left)
+- Job address headline, auto-filled from GPS, editable inline. Truncates with ellipsis on narrow screens; tap to expand/edit.
+- `⋯` overflow menu (upper right): Rename, Duplicate, Export, Settings, Trash, Sign out.
 
-One tap to drop, then one panel with everything in order:
+**Row 2 (project tools):**
+- Undo / Redo
+- Burst camera (site photos)
+- Site photos tray button
 
-1. Tap canvas → pin drops instantly with default category
-2. Category (one tap)
-3. Material (one tap)
-4. Severity slider (optional)
-5. Voice-dictate note (or skip)
-6. Photo (or skip — required only if severity ≥ 4)
-7. Done → next pin
+The mode switch is NOT in the header — it floats (see below).
 
-No modals on top of modals. Stop early on any pin and it still saves with whatever's filled in. **Long-press** the canvas to drop a new pin pre-filled with the previous pin's category, material, and descriptors.
+## Floating Pin/Draw switcher
 
-## Descriptors (multi-select per pin)
+- **Top-left floating pill**, draggable, position remembered per project.
+- Two segments: **Pin** | **Draw**. Exactly one active. Active segment is filled, inactive is outlined.
+- Tapping the inactive segment swaps modes and swaps which floating palette is visible.
 
-- Hairline / Wide / Through-crack
-- **Shear** (Drywall, CMU, Stucco)
-- **Corner crack** (Wall + Ceiling)
-- Stair-step (CMU, Brick)
-- Spalling, Efflorescence, Bowing, Settlement, Moisture
+## Pin mode
 
-## Migration of existing pins
+- **Floating Surfaces palette** appears (hidden in Draw mode).
+  - Six surfaces: Wall, Ceiling, Floor, Separation/Gap, Slab crack, Other. Color dot + label.
+  - Draggable; position remembered per project.
+  - Stays visible the entire time you're in Pin mode — does not auto-close when the descriptor panel opens.
+  - Tapping a surface sets the active surface for the *next* pin (and updates the current open pin live if its descriptor panel is open).
+- **Tap canvas** → pin drops with active surface → descriptor panel opens (bottom sheet).
+- **Long-press canvas** → pin drops pre-filled with previous pin's category, material, descriptors.
+- **Drag** = pan, **pinch** = zoom.
 
-Auto-map by best guess; user can re-categorize:
-- drywall/CMU/stucco/tile-on-wall → Wall
-- drywall/tile on ceiling → Ceiling
-- tile/concrete on floor → Floor
-- window/door → Wall (material preserved)
-- everything else → Other
+### Descriptor panel
 
-## Plan canvas
+Order: Category (from rail) → Material → Severity slider → Voice note → Photo → Done.
 
-- **North arrow** — draggable + rotatable handle, saved per project
-- **Drag-to-reorder pins** — manual only
+Header of panel:
+- Left: small **trash icon** — discards this pin.
+- Right: large **green checkmark "Done"** — saves and closes.
 
-## Site Photos tray (unattached photos)
+On Done: brief haptic tick, panel slides down, pin stays on canvas. No toast.
 
-Built for speed (50+ at a time):
+The panel can be dismissed only via checkmark or trash — no swipe-to-dismiss (avoids accidental discard).
 
-- Burst import from camera roll, queues in background
-- Auto GPS + timestamp
-- Auto-orient + compress on import (originals preserved)
-- Optional tag (Grading, Drainage, Access, Exterior, Roof, Other)
-- Optional one-line caption
-- "Promote to pin" if a site photo belongs on the plan
+## Draw mode
 
-## Exports
+- Surfaces palette is hidden.
+- **Floating Draw toolbar** appears (bottom-center, draggable, position remembered per project):
+  - Tools: Free / Line / Ellipse / Eraser
+  - Colors: 6 swatches
+  - Stroke weight: 3 sizes
+  - Clear all (with confirm)
+  - Symbols slot (disabled/"coming soon" placeholder for future arrows, hatching, doors, windows, dimensions)
+- Tap-and-drag draws on the **draw layer**.
+- **Pins remain visible** (read-only) so you can sketch context around them.
+- Tapping a pin in Draw mode → small floating tooltip near the pin: **"Edit pin →"**. Tap the tooltip to switch to Pin mode and open that pin's descriptor panel. Tap pin again or tap elsewhere to dismiss tooltip without switching.
 
-- **Floor plan** — three PNG presets:
-  1. Plan only
-  2. Plan + numbered pins
-  3. Plan + pins + legend
-- **Per-pin photo card** — 4×6 landscape (photo top, pin # + category color dot + description below). Exported as **both** a zip of PNGs and a single multi-page PDF.
-- **CSV export** gets `Category` and `Shear` columns.
+## Layers concept (rendering)
 
-## Project-level polish
+- **Pin layer**: pins, severity badges, surface tags. Edited only in Pin mode.
+- **Draw layer**: freeform strokes and (later) symbols. Edited only in Draw mode.
+- Both layers always render on the canvas. Mode controls editability, not visibility.
 
-- **Job address auto-fill** from first GPS fix (reverse-geocoded, editable)
-- **Date + weather stamp** captured at job start
-- **Auto-save** on every change
-- **"Recently deleted" trash** — 30-day recovery for pins and photos
-- **Project duplicate** — clone a job as a template
-- **Bright mode** (high-contrast outdoor) toggle, plus dark mode
-- **Haptic tick** when a pin drops
+## State additions (frontend only, persisted in existing project record)
 
-## Photo handling — preserve originals
+- `mode: 'pin' | 'draw'` (per project)
+- `ui.modeSwitcherPos: {x, y}` (per project)
+- `ui.surfacesPalettePos: {x, y}` (per project)
+- `ui.drawToolbarPos: {x, y}` (per project)
+- `drawStrokes: [...]` already exists or extends current draw data on the project
 
-- Compressed thumbnail used for in-app display and fast loading
-- **Original full-res file kept** for evidence-grade exports later
-- Supplemental high-res shots from a real camera can be added to existing pins or the Site Photos tray after the fact
+## What goes away
 
-## Explicitly skipped
+- The current single combined tool selector (replaced by mode-specific floating palettes).
+- The crowded single-row top bar (replaced by two rows + floating switcher).
+- "Surfaces hidden until pin drops" behavior (surfaces are always visible in Pin mode now).
 
-Rooms/areas, per-pin N/S/E/W elevation tag, filter by category/severity, scale calibration, inspector/company on project, photo-required toggle (covered by severity ≥ 4 rule), structural-movement color (covered by hazard triangle).
+## Out of scope (future)
+
+- Symbols library content (slot only, disabled).
+- Layer reordering / lock UI (single fixed stacking for now).
+- Mode-switcher onboarding tooltip on first run (can add later if needed).
 
 ## Technical notes
 
-- All work happens in `public/survey.html`. Frontend/presentation only — no backend or schema changes.
-- New pin fields: `category`, `descriptors[]`. Existing `surface`/`material` preserved.
-- Pin renderer: category drives base color; SVG hazard-triangle badge layered when `severity >= 4`.
-- North arrow stored on the project (position + rotation).
-- Site Photos in a separate `sitePhotos[]` array on the project record.
-- Address auto-fill: free reverse-geocode (Nominatim) called once per project on first GPS fix; cached.
-- Weather stamp: free endpoint (Open-Meteo) keyed off project GPS + start time.
-- Photo handling: client-side EXIF orientation fix; resized thumbnail + original both kept.
-- Auto-save: debounce ~500ms; trash is a soft-delete flag with 30-day sweep.
-- PDF export: jsPDF for the photo-card PDF; PNGs via canvas export.
+- All work in `public/survey.html`. Three new draggable floating containers share a small drag helper (pointer events, clamp to viewport, persist on pointerup).
+- Mode swap is a single state setter that toggles which palette element has `hidden` and which canvas pointer handler is bound.
+- Descriptor panel header gets the trash icon (left) and an enlarged green checkmark (right). Existing close logic re-wired to checkmark; trash calls existing delete-pin path.
+- Edit-pin tooltip in Draw mode: lightweight absolutely-positioned div anchored to pin screen coords, dismissed on next tap or mode change.
+- Haptic tick uses existing `navigator.vibrate(10)` pattern if present.
