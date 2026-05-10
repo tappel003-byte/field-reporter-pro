@@ -4543,11 +4543,431 @@ function renderWeather() {
 }
 
 // =====================================================================
+// ============ V3 UI: modes, floating palettes, draw layer ============
+// =====================================================================
+window.__V3_UI__ = true;
+document.body.classList.add('v3-ui');
+
+// --- state.mode + ui positions ---
+state.mode = state.mode || 'pin';
+state.ui = state.ui || {};
+state.drawColor = state.drawColor || '#1a1a1a';
+state.drawWeight = state.drawWeight || 4;
+state.drawSubTool = state.drawSubTool || 'free'; // free | line | ellipse | erase
+state.drawStrokes = state.drawStrokes || []; // [{type, color, weight, points|a|b|cx,cy,rx,ry, id}]
+
+(function patchPersistence(){
+  const _save = window.save;
+  const _load = window.load;
+  // The existing save/load uses STORAGE_KEY directly; piggyback on existing
+  // serializer by stuffing extras onto state which is already serialized via
+  // JSON.stringify of state-relevant fields. Confirm by stamping immediately.
+})();
+
+function v3Save() { try { save(); } catch(e) {} }
+
+// --- Draggable helper for floating panels ---
+function makeDraggable(el, handle, key) {
+  if (!el || !handle) return;
+  let startX, startY, startL, startT, dragging = false;
+  const apply = (l, t) => {
+    const maxL = Math.max(0, window.innerWidth - el.offsetWidth - 4);
+    const maxT = Math.max(0, window.innerHeight - el.offsetHeight - 4);
+    l = Math.min(Math.max(4, l), maxL);
+    t = Math.min(Math.max(4, t), maxT);
+    el.style.left = l + 'px';
+    el.style.top = t + 'px';
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
+  };
+  // restore
+  const saved = state.ui[key];
+  if (saved) apply(saved.x, saved.y);
+  handle.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button')) return;
+    dragging = true;
+    el.classList.add('dragging');
+    startX = e.clientX; startY = e.clientY;
+    const r = el.getBoundingClientRect();
+    startL = r.left; startT = r.top;
+    handle.setPointerCapture && handle.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  handle.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    apply(startL + (e.clientX - startX), startT + (e.clientY - startY));
+  });
+  const end = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    el.classList.remove('dragging');
+    const r = el.getBoundingClientRect();
+    state.ui[key] = { x: r.left, y: r.top };
+    v3Save();
+  };
+  handle.addEventListener('pointerup', end);
+  handle.addEventListener('pointercancel', end);
+}
+
+window.__applyFloatingPos__ = function() {
+  const rail = document.getElementById('rail');
+  const railHeader = document.getElementById('railFpHeader');
+  if (rail && railHeader) {
+    const pos = state.ui.surfacesPos || { x: 12, y: 156 };
+    rail.style.left = pos.x + 'px';
+    rail.style.top = pos.y + 'px';
+    rail.style.right = 'auto';
+    rail.style.bottom = 'auto';
+    if (!rail.dataset.dragWired) {
+      rail.dataset.dragWired = '1';
+      makeDraggable(rail, railHeader, 'surfacesPos');
+    }
+  }
+};
+
+// --- Mode switcher ---
+function setMode(mode) {
+  state.mode = mode;
+  document.body.classList.toggle('mode-pin', mode === 'pin');
+  document.body.classList.toggle('mode-draw', mode === 'draw');
+  document.getElementById('modePinBtn').classList.toggle('active', mode === 'pin');
+  document.getElementById('modeDrawBtn').classList.toggle('active', mode === 'draw');
+  const dt = document.getElementById('drawToolbar');
+  if (dt) dt.style.display = (mode === 'draw') ? '' : 'none';
+  // hide edit-pin tooltip on mode change
+  hideEditPinTooltip();
+  renderRail();
+  v3Save();
+}
+document.getElementById('modePinBtn').addEventListener('click', () => setMode('pin'));
+document.getElementById('modeDrawBtn').addEventListener('click', () => setMode('draw'));
+
+// Mode switcher draggable
+(function setupModeSwitcherDrag(){
+  const sw = document.getElementById('modeSwitcher');
+  const grip = sw.querySelector('.ms-grip');
+  const pos = state.ui.modeSwitcherPos;
+  if (pos) { sw.style.left = pos.x + 'px'; sw.style.top = pos.y + 'px'; }
+  makeDraggable(sw, grip, 'modeSwitcherPos');
+})();
+
+// --- Overflow menu wiring ---
+document.getElementById('overflowBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const menu = document.getElementById('toolsMenu');
+  // Position near the overflow button
+  const r = e.currentTarget.getBoundingClientRect();
+  menu.style.top = (r.bottom + 4) + 'px';
+  menu.style.right = (window.innerWidth - r.right) + 'px';
+  menu.style.left = 'auto';
+  toggleMenu('toolsMenu');
+});
+
+// --- Draw toolbar ---
+(function setupDrawToolbar(){
+  const dt = document.getElementById('drawToolbar');
+  if (!dt) return;
+  const header = document.getElementById('drawToolbarHeader');
+  // default position: bottom-center, ish
+  const pos = state.ui.drawToolbarPos || { x: Math.max(8, (window.innerWidth - 240)/2), y: Math.max(8, window.innerHeight - 220) };
+  dt.style.left = pos.x + 'px';
+  dt.style.top = pos.y + 'px';
+  makeDraggable(dt, header, 'drawToolbarPos');
+
+  function syncActives() {
+    dt.querySelectorAll('[data-dt-tool]').forEach(b => {
+      b.classList.toggle('active', b.dataset.dtTool === state.drawSubTool);
+    });
+    dt.querySelectorAll('[data-dt-color]').forEach(b => {
+      b.classList.toggle('active', b.dataset.dtColor === state.drawColor);
+    });
+    dt.querySelectorAll('[data-dt-stroke]').forEach(b => {
+      b.classList.toggle('active', String(state.drawWeight) === b.dataset.dtStroke);
+    });
+  }
+  dt.querySelectorAll('[data-dt-tool]').forEach(b => {
+    if (b.disabled) return;
+    b.addEventListener('click', () => {
+      state.drawSubTool = b.dataset.dtTool;
+      syncActives(); v3Save();
+    });
+  });
+  dt.querySelectorAll('[data-dt-color]').forEach(b => {
+    b.addEventListener('click', () => {
+      state.drawColor = b.dataset.dtColor;
+      syncActives(); v3Save();
+    });
+  });
+  dt.querySelectorAll('[data-dt-stroke]').forEach(b => {
+    b.addEventListener('click', () => {
+      state.drawWeight = parseInt(b.dataset.dtStroke, 10);
+      syncActives(); v3Save();
+    });
+  });
+  document.getElementById('drawClearAllBtn').addEventListener('click', () => {
+    if (!state.drawStrokes.length) return;
+    if (!confirm('Clear all sketches?')) return;
+    snapshot('Clear sketches');
+    state.drawStrokes = [];
+    v3Save();
+    renderDrawStrokes();
+  });
+  syncActives();
+})();
+
+// --- Draw stroke layer (separate from pin shapes) ---
+function renderDrawStrokes() {
+  const svg = document.getElementById('planSvg');
+  if (!svg) return;
+  svg.querySelectorAll('[data-dstroke="1"]').forEach(n => n.remove());
+  state.drawStrokes.forEach(st => {
+    let el;
+    if (st.type === 'free') {
+      el = document.createElementNS('http://www.w3.org/2000/svg','polyline');
+      el.setAttribute('points', st.points.map(p => `${p.x},${p.y}`).join(' '));
+      el.setAttribute('fill', 'none');
+    } else if (st.type === 'line') {
+      el = document.createElementNS('http://www.w3.org/2000/svg','line');
+      el.setAttribute('x1', st.a.x); el.setAttribute('y1', st.a.y);
+      el.setAttribute('x2', st.b.x); el.setAttribute('y2', st.b.y);
+    } else if (st.type === 'ellipse') {
+      el = document.createElementNS('http://www.w3.org/2000/svg','ellipse');
+      el.setAttribute('cx', st.cx); el.setAttribute('cy', st.cy);
+      el.setAttribute('rx', st.rx); el.setAttribute('ry', st.ry);
+      el.setAttribute('fill', 'none');
+    }
+    if (!el) return;
+    el.setAttribute('stroke', st.color);
+    el.setAttribute('stroke-width', st.weight);
+    el.setAttribute('stroke-linecap', 'round');
+    el.setAttribute('stroke-linejoin', 'round');
+    el.dataset.dstroke = '1';
+    el.dataset.dstrokeId = st.id;
+    svg.appendChild(el);
+  });
+}
+
+// Patch renderShapes to also render draw strokes
+(function patchRenderShapes(){
+  const _orig = window.renderShapes;
+  window.renderShapes = function() {
+    _orig && _orig();
+    renderDrawStrokes();
+  };
+})();
+
+// --- Override pointer behavior in draw mode ---
+// Original onPointerMove gates draw on (selectedSurface && drawTool). In draw
+// mode we want freeform sketching independent of pin/surface.
+let _v3DrawCtx = null;
+function v3StartStroke(clientX, clientY) {
+  const c = pointerToImageCoords(clientX, clientY);
+  const svg = document.getElementById('planSvg');
+  const tool = state.drawSubTool;
+  if (tool === 'erase') {
+    _v3DrawCtx = { type: 'erase' };
+    v3EraseAt(c.x, c.y);
+    return;
+  }
+  let el, ctx;
+  if (tool === 'line') {
+    el = document.createElementNS('http://www.w3.org/2000/svg','line');
+    el.setAttribute('x1', c.x); el.setAttribute('y1', c.y);
+    el.setAttribute('x2', c.x); el.setAttribute('y2', c.y);
+    ctx = { type:'line', a:{x:c.x,y:c.y}, b:{x:c.x,y:c.y}, el };
+  } else if (tool === 'ellipse') {
+    el = document.createElementNS('http://www.w3.org/2000/svg','ellipse');
+    el.setAttribute('cx', c.x); el.setAttribute('cy', c.y);
+    el.setAttribute('rx', 0); el.setAttribute('ry', 0);
+    el.setAttribute('fill', 'none');
+    ctx = { type:'ellipse', start:{x:c.x,y:c.y}, el };
+  } else {
+    el = document.createElementNS('http://www.w3.org/2000/svg','polyline');
+    el.setAttribute('points', `${c.x},${c.y}`);
+    el.setAttribute('fill', 'none');
+    ctx = { type:'free', points:[{x:c.x,y:c.y}], el };
+  }
+  el.setAttribute('stroke', state.drawColor);
+  el.setAttribute('stroke-width', state.drawWeight);
+  el.setAttribute('stroke-linecap','round');
+  el.setAttribute('stroke-linejoin','round');
+  el.dataset.dstrokeLive = '1';
+  svg.appendChild(el);
+  _v3DrawCtx = ctx;
+}
+function v3ExtendStroke(clientX, clientY) {
+  if (!_v3DrawCtx) return;
+  const c = pointerToImageCoords(clientX, clientY);
+  if (_v3DrawCtx.type === 'erase') { v3EraseAt(c.x, c.y); return; }
+  if (_v3DrawCtx.type === 'free') {
+    const last = _v3DrawCtx.points[_v3DrawCtx.points.length-1];
+    if (Math.hypot(c.x-last.x, c.y-last.y) < 3 / state.view.scale) return;
+    _v3DrawCtx.points.push({x:c.x,y:c.y});
+    _v3DrawCtx.el.setAttribute('points', _v3DrawCtx.points.map(p=>`${p.x},${p.y}`).join(' '));
+  } else if (_v3DrawCtx.type === 'line') {
+    _v3DrawCtx.b = {x:c.x,y:c.y};
+    _v3DrawCtx.el.setAttribute('x2', c.x);
+    _v3DrawCtx.el.setAttribute('y2', c.y);
+  } else if (_v3DrawCtx.type === 'ellipse') {
+    const s = _v3DrawCtx.start;
+    const cx = (s.x + c.x)/2, cy = (s.y + c.y)/2;
+    const rx = Math.abs(c.x - s.x)/2, ry = Math.abs(c.y - s.y)/2;
+    _v3DrawCtx.el.setAttribute('cx', cx); _v3DrawCtx.el.setAttribute('cy', cy);
+    _v3DrawCtx.el.setAttribute('rx', rx); _v3DrawCtx.el.setAttribute('ry', ry);
+    _v3DrawCtx.cx = cx; _v3DrawCtx.cy = cy; _v3DrawCtx.rx = rx; _v3DrawCtx.ry = ry;
+  }
+}
+function v3FinishStroke() {
+  if (!_v3DrawCtx) return;
+  const ctx = _v3DrawCtx; _v3DrawCtx = null;
+  if (ctx.type === 'erase') return;
+  if (ctx.el) ctx.el.remove();
+  let stroke = null;
+  const id = 'd_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+  if (ctx.type === 'free' && ctx.points.length >= 2) {
+    stroke = { id, type:'free', points: ctx.points, color: state.drawColor, weight: state.drawWeight };
+  } else if (ctx.type === 'line' && Math.hypot(ctx.b.x-ctx.a.x, ctx.b.y-ctx.a.y) > 4) {
+    stroke = { id, type:'line', a: ctx.a, b: ctx.b, color: state.drawColor, weight: state.drawWeight };
+  } else if (ctx.type === 'ellipse' && ctx.rx > 3 && ctx.ry > 3) {
+    stroke = { id, type:'ellipse', cx: ctx.cx, cy: ctx.cy, rx: ctx.rx, ry: ctx.ry, color: state.drawColor, weight: state.drawWeight };
+  }
+  if (stroke) {
+    snapshot('Sketch');
+    state.drawStrokes.push(stroke);
+    v3Save();
+  }
+  renderDrawStrokes();
+}
+function v3EraseAt(x, y) {
+  // Remove any stroke whose bbox contains (x,y) within tolerance
+  const tol = 12 / state.view.scale;
+  const before = state.drawStrokes.length;
+  state.drawStrokes = state.drawStrokes.filter(st => {
+    if (st.type === 'free') {
+      return !st.points.some(p => Math.hypot(p.x-x, p.y-y) < tol);
+    } else if (st.type === 'line') {
+      // distance from point to segment
+      const a = st.a, b = st.b;
+      const dx = b.x-a.x, dy = b.y-a.y;
+      const len2 = dx*dx+dy*dy || 1;
+      const t = Math.max(0, Math.min(1, ((x-a.x)*dx + (y-a.y)*dy)/len2));
+      const px = a.x + t*dx, py = a.y + t*dy;
+      return !(Math.hypot(px-x, py-y) < tol);
+    } else if (st.type === 'ellipse') {
+      const dx = (x - st.cx)/(st.rx||1), dy = (y - st.cy)/(st.ry||1);
+      const d = Math.abs(Math.hypot(dx, dy) - 1) * Math.min(st.rx, st.ry);
+      return !(d < tol);
+    }
+    return true;
+  });
+  if (state.drawStrokes.length !== before) {
+    renderDrawStrokes();
+    v3Save();
+  }
+}
+
+// Hook into existing pointer events to override behavior in draw mode.
+(function patchPointerForDraw(){
+  const wrap = document.getElementById('canvasWrap');
+  if (!wrap) return;
+  // Use capture-phase listeners that run BEFORE the original handlers.
+  wrap.addEventListener('pointerdown', (e) => {
+    if (state.mode !== 'draw') return;
+    if (!state.planImage) return;
+    // Let pin taps + handles fall through to legacy logic
+    if (e.target.closest && (e.target.closest('.pin') || e.target.closest('[data-handle]'))) return;
+    if (e.isPrimary === false) return;
+    // Two-finger pinch: fall through
+    if (ptr.pointers.size >= 1) return;
+    e.stopPropagation();
+    e.preventDefault();
+    ptr.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, v3draw: true });
+    ptr.mode = 'v3draw';
+    ptr.startX = e.clientX; ptr.startY = e.clientY;
+    v3StartStroke(e.clientX, e.clientY);
+  }, true);
+  wrap.addEventListener('pointermove', (e) => {
+    if (ptr.mode === 'v3draw' && ptr.pointers.has(e.pointerId)) {
+      e.stopPropagation();
+      v3ExtendStroke(e.clientX, e.clientY);
+    }
+  }, true);
+  const end = (e) => {
+    if (ptr.mode === 'v3draw' && ptr.pointers.has(e.pointerId)) {
+      ptr.pointers.delete(e.pointerId);
+      ptr.mode = null;
+      v3FinishStroke();
+      e.stopPropagation();
+    }
+  };
+  wrap.addEventListener('pointerup', end, true);
+  wrap.addEventListener('pointercancel', end, true);
+})();
+
+// --- Edit-pin tooltip in draw mode ---
+let _editTipPinId = null;
+function showEditPinTooltip(pin, clientX, clientY) {
+  const tip = document.getElementById('editPinTooltip');
+  if (!tip) return;
+  _editTipPinId = pin.id;
+  tip.style.left = clientX + 'px';
+  tip.style.top = clientY + 'px';
+  tip.style.display = '';
+  tip.textContent = '#' + pin.num + ' — Edit pin →';
+}
+function hideEditPinTooltip() {
+  const tip = document.getElementById('editPinTooltip');
+  if (tip) tip.style.display = 'none';
+  _editTipPinId = null;
+}
+document.getElementById('editPinTooltip').addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (!_editTipPinId) return;
+  const id = _editTipPinId;
+  hideEditPinTooltip();
+  setMode('pin');
+  selectPin(id);
+  openDetail();
+});
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.edit-pin-tooltip')) return;
+  if (e.target.closest('.pin')) return;
+  hideEditPinTooltip();
+});
+
+// Patch tap-pin behavior: in draw mode, show tooltip instead of opening detail
+(function patchTapPin(){
+  const wrap = document.getElementById('canvasWrap');
+  if (!wrap) return;
+  wrap.addEventListener('pointerup', (e) => {
+    if (state.mode !== 'draw') return;
+    const pinEl = e.target.closest && e.target.closest('.pin');
+    if (!pinEl) return;
+    const id = pinEl.dataset.pinId;
+    const pin = state.pins.find(p => p.id === id);
+    if (!pin) return;
+    e.stopPropagation();
+    showEditPinTooltip(pin, e.clientX, e.clientY);
+  }, true);
+})();
+
+// --- Init mode on load ---
+setMode(state.mode || 'pin');
+
+// Toolbar visibility on plan mount: ensure legacy toolbar stays hidden in v3
+(function ensureLegacyToolbarHidden(){
+  const tb = document.getElementById('toolBar');
+  if (tb) tb.style.display = 'none';
+})();
+
+// =====================================================================
 // ============ INIT ============
 // =====================================================================
 load();
 applyDarkMode();
 $('jobAddress').value = state.jobAddress || '';
+// Re-apply mode after load (state.mode may have been overwritten)
+setMode(state.mode || 'pin');
 renderRail();
 renderDescriptors();
 mountPlan();
@@ -4558,6 +4978,7 @@ updateActiveIndicator();
 setupPointerEvents();
 setupToolBar();
 renderToolBar();
+renderDrawStrokes();
 setSync('idle');
 window.addEventListener('resize', () => {
   if (state.planImage) fitView();
