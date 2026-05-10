@@ -4698,7 +4698,8 @@ document.body.classList.add('v3-ui');
 // --- state.mode + ui positions ---
 state.mode = state.mode || 'pin';
 state.ui = state.ui || {};
-state.drawColor = state.drawColor || '#1a1a1a';
+// Migrate legacy "general" black to drywall green; default to drywall.
+if (!state.drawColor || state.drawColor === '#1a1a1a') state.drawColor = '#4a8a4a';
 state.drawWeight = state.drawWeight || 4;
 state.drawSubTool = state.drawSubTool || 'free'; // free | line | ellipse | erase
 state.drawStrokes = state.drawStrokes || []; // [{type, color, weight, points|a|b|cx,cy,rx,ry, id}]
