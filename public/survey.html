@@ -1884,20 +1884,8 @@
 </head>
 <body>
 
-<div class="topbar v3">
-  <div class="row row1">
-    <div class="brand-mini">Distress Survey</div>
-    <button class="icon-btn" id="useLocBtn" title="Fill address from current location">📍</button>
-    <input type="text" id="jobAddress" class="addr-input" placeholder="Job address" autocomplete="off">
-    <div class="weather-inline" id="weatherInline" title="Weather at job site" style="display:none"></div>
-    <div class="sync-pill" id="syncPill" data-state="idle" title="Auto-save status">
-      <span class="sync-dot"></span><span class="sync-text">Saved</span>
-    </div>
-    <button class="icon-btn" id="overflowBtn" title="More" aria-label="More">⋯</button>
-  </div>
-</div>
-
-<!-- Floating tools toolbar (moved out of header so it can be dragged) -->
+<div class="sticky-header">
+<!-- Sticky tools bar (sits above the address row) -->
 <div class="float-toolbar" id="floatToolbar">
   <div class="ft-header" id="floatToolbarHeader">
     <span class="fp-title"><span class="fp-grip">⋮⋮</span><span>Tools</span></span>
