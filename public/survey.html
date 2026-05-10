@@ -1314,23 +1314,22 @@
     padding: 0;
     overflow: visible;
     flex-wrap: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 55;
+    background: color-mix(in oklab, var(--paper) 92%, transparent);
+    backdrop-filter: saturate(140%) blur(10px);
+    -webkit-backdrop-filter: saturate(140%) blur(10px);
+    border-bottom: 1px solid var(--rule);
   }
   .topbar.v3 .row {
     display: flex; align-items: center; gap: 8px;
     padding: 6px 10px;
-    min-height: 40px;
+    min-height: 44px;
   }
   .topbar.v3 .row.row1 {
-    border-bottom: 1px solid var(--rule-soft);
-    background: var(--paper);
+    background: transparent;
   }
-  .topbar.v3 .row.row2 {
-    background: var(--rule-soft);
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .topbar.v3 .row.row2::-webkit-scrollbar { display: none; }
   .topbar.v3 .row1 .brand-mini {
     font-family: 'Playfair Display', serif;
     font-size: 13px; font-weight: 700;
@@ -1338,7 +1337,7 @@
   }
   .topbar.v3 .addr-input {
     flex: 1; min-width: 0;
-    height: 30px; padding: 0 10px;
+    height: 32px; padding: 0 10px;
     border: 1px solid var(--rule);
     border-radius: 4px;
     background: var(--paper);
@@ -1349,21 +1348,73 @@
   }
   .topbar.v3 .addr-input:focus { outline: none; border-color: var(--ink); }
   .topbar.v3 .icon-btn {
-    width: 32px; height: 32px;
+    width: 44px; height: 44px;
     border: 1px solid var(--rule);
     background: var(--paper);
     color: var(--ink);
     border-radius: 4px;
     display: inline-flex; align-items: center; justify-content: center;
     cursor: pointer;
-    font-size: 16px; line-height: 1;
+    font-size: 18px; line-height: 1;
     flex-shrink: 0;
     padding: 0;
   }
   .topbar.v3 .icon-btn:active { background: var(--rule-soft); }
   .topbar.v3 .icon-btn.danger { color: var(--c-concrete); }
-  .topbar.v3 .row2 .top-btn { height: 28px; padding: 0 10px; font-size: 10px; flex-shrink: 0; }
-  .topbar.v3 .sync-pill { margin-left: auto; flex-shrink: 0; }
+  .topbar.v3 .sync-pill { flex-shrink: 0; }
+
+  /* Inline weather chip (lives next to the address) */
+  .weather-inline {
+    flex-shrink: 0;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+    padding: 4px 8px;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    background: var(--paper);
+    max-width: 38vw;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Floating tools toolbar (replaces row 2) */
+  .float-toolbar {
+    position: fixed;
+    top: 64px;
+    right: 12px;
+    z-index: 50;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.16);
+    min-width: 180px;
+    max-width: 92vw;
+    touch-action: none;
+    user-select: none;
+  }
+  .float-toolbar.dragging { opacity: 0.85; }
+  .float-toolbar .ft-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--rule-soft);
+    cursor: grab;
+    min-height: 32px;
+  }
+  .float-toolbar .ft-body {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 8px 10px;
+  }
+  .float-toolbar .ft-body .top-btn {
+    height: 38px;
+    min-height: 38px;
+    padding: 0 12px;
+    font-size: 11px;
+    flex: 1 1 auto;
+  }
+  .float-toolbar.fp-collapsed .ft-body { display: none; }
 
   /* Floating Pin/Draw mode switcher */
   .mode-switcher {
@@ -1740,7 +1791,8 @@
   @media (max-width: 900px) {
     .topbar.v3 .row { padding: 5px 8px; gap: 6px; }
     .topbar.v3 .row1 .brand-mini { display: none; }
-    .topbar.v3 .row2 .top-btn { padding: 0 8px; }
+    .float-toolbar { max-width: 96vw; right: 8px; top: 60px; }
+    .weather-inline { max-width: 28vw; font-size: 9px; padding: 3px 6px; }
   }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -1834,23 +1886,33 @@
     <div class="brand-mini">Distress Survey</div>
     <button class="icon-btn" id="useLocBtn" title="Fill address from current location">📍</button>
     <input type="text" id="jobAddress" class="addr-input" placeholder="Job address" autocomplete="off">
+    <div class="weather-inline" id="weatherInline" title="Weather at job site" style="display:none"></div>
+    <div class="sync-pill" id="syncPill" data-state="idle" title="Auto-save status">
+      <span class="sync-dot"></span><span class="sync-text">Saved</span>
+    </div>
     <button class="icon-btn" id="overflowBtn" title="More" aria-label="More">⋯</button>
   </div>
-  <div class="row row2">
+</div>
+
+<!-- Floating tools toolbar (moved out of header so it can be dragged) -->
+<div class="float-toolbar" id="floatToolbar">
+  <div class="ft-header" id="floatToolbarHeader">
+    <span class="fp-title"><span class="fp-grip">⋮⋮</span><span>Tools</span></span>
+    <span class="fp-actions">
+      <button class="fp-iconbtn" id="floatToolbarCollapseBtn" title="Collapse" aria-label="Collapse">▾</button>
+    </span>
+  </div>
+  <div class="ft-body">
     <button class="top-btn" id="findingsBtn">Findings <span id="pinCount">0</span></button>
-    <button class="top-btn" id="addPhotosBtn" title="Burst-import photos">+ Photos</button>
     <button class="top-btn" id="undoBtn" disabled>↶ Undo</button>
     <button class="top-btn" id="redoBtn" disabled style="display:none">↷ Redo</button>
     <label class="top-btn" id="uploadBtn">
       <span>Plan</span>
       <input type="file" id="planFile" accept="image/*">
     </label>
+    <button class="top-btn" id="addPhotosBtn" title="Burst camera">+ Photos</button>
     <button class="top-btn" id="exportBtn">Export ▾</button>
     <button class="top-btn danger" id="clearBtn" style="display:none">Clear</button>
-    <button class="top-btn" id="toolsBtn" style="display:none">More ▾</button>
-    <div class="sync-pill" id="syncPill" data-state="idle" title="Auto-save status">
-      <span class="sync-dot"></span><span class="sync-text">Saved</span>
-    </div>
   </div>
 </div>
 
@@ -1970,24 +2032,24 @@
     </div>
     <div class="dt-row">
       <span class="dt-label">Color</span>
-      <button class="dt-color" data-dt-color="#1a1a1a" data-dt-name="General" title="General" style="background:#1a1a1a"></button>
-      <button class="dt-color" data-dt-color="#c0392b" data-dt-name="Crack" title="Crack" style="background:#c0392b"></button>
-      <button class="dt-color" data-dt-color="#d97a2c" data-dt-name="Damage" title="Damage" style="background:#d97a2c"></button>
-      <button class="dt-color" data-dt-color="#d4a72c" data-dt-name="Note" title="Note" style="background:#d4a72c"></button>
-      <button class="dt-color" data-dt-color="#4a8a4a" data-dt-name="Repair" title="Repair" style="background:#4a8a4a"></button>
-      <button class="dt-color" data-dt-color="#2a6fb8" data-dt-name="Water" title="Water" style="background:#2a6fb8"></button>
+      <button class="dt-color" data-dt-color="#4a8a4a" data-dt-name="Drywall" title="Drywall" style="background:#4a8a4a"></button>
+      <button class="dt-color" data-dt-color="#2a6fb8" data-dt-name="Ceiling" title="Ceiling" style="background:#2a6fb8"></button>
+      <button class="dt-color" data-dt-color="#d4a72c" data-dt-name="Floor covering" title="Floor covering" style="background:#d4a72c"></button>
+      <button class="dt-color" data-dt-color="#c0392b" data-dt-name="Slab/concrete" title="Slab/concrete" style="background:#c0392b"></button>
+      <button class="dt-color" data-dt-color="#d97a2c" data-dt-name="Separation" title="Separation" style="background:#d97a2c"></button>
+      <button class="dt-color" data-dt-color="#6e6e6e" data-dt-name="Other" title="Other" style="background:#6e6e6e"></button>
     </div>
     <div class="dt-color-key" id="dtColorKey">
-      <span><span class="key-swatch" id="dtKeySwatch" style="background:#1a1a1a"></span><span>Active: <span class="key-name" id="dtKeyName">General</span></span></span>
+      <span><span class="key-swatch" id="dtKeySwatch" style="background:#4a8a4a"></span><span>Active: <span class="key-name" id="dtKeyName">Drywall</span></span></span>
       <button class="fp-iconbtn" id="dtColorLegendBtn" title="Show color key" aria-label="Show color key" style="width:auto;padding:0 8px;font-size:9px">Key</button>
     </div>
     <div class="dt-color-legend" id="dtColorLegend">
-      <div class="leg-row"><span class="leg-dot" style="background:#1a1a1a"></span><span>General notes / outlines</span></div>
-      <div class="leg-row"><span class="leg-dot" style="background:#c0392b"></span><span>Crack</span></div>
-      <div class="leg-row"><span class="leg-dot" style="background:#d97a2c"></span><span>Damage / spall</span></div>
-      <div class="leg-row"><span class="leg-dot" style="background:#d4a72c"></span><span>Note / callout</span></div>
-      <div class="leg-row"><span class="leg-dot" style="background:#4a8a4a"></span><span>Repair / OK</span></div>
-      <div class="leg-row"><span class="leg-dot" style="background:#2a6fb8"></span><span>Water / moisture</span></div>
+      <div class="leg-row"><span class="leg-dot" style="background:#4a8a4a"></span><span>Drywall</span></div>
+      <div class="leg-row"><span class="leg-dot" style="background:#2a6fb8"></span><span>Ceiling</span></div>
+      <div class="leg-row"><span class="leg-dot" style="background:#d4a72c"></span><span>Floor covering</span></div>
+      <div class="leg-row"><span class="leg-dot" style="background:#c0392b"></span><span>Slab / concrete</span></div>
+      <div class="leg-row"><span class="leg-dot" style="background:#d97a2c"></span><span>Separation</span></div>
+      <div class="leg-row"><span class="leg-dot" style="background:#6e6e6e"></span><span>Other</span></div>
     </div>
     <div class="dt-row">
       <span class="dt-label">Stroke</span>
@@ -2729,20 +2791,18 @@ function mountPlan() {
 }
 
 function updateActiveIndicator() {
+  // v3: the "PHOTOS GO TO …" chip was removed. Only the small × (camClearBtn)
+  // is shown when a pin is active, so the user can detach.
   const ind = $('activeIndicator');
-  const target = $('activeTarget');
   const clearBtn = $('camClearBtn');
   const activePin = state.pins.find(p => p.id === state.activePinId);
-  if (activePin) {
-    ind.classList.add('has-active');
-    target.classList.remove('unattached');
-    target.textContent = '#' + activePin.num + ' ' + (getSurface(activePin.surface)?.name || '');
-    clearBtn.disabled = false;
-  } else {
-    ind.classList.remove('has-active');
-    target.classList.add('unattached');
-    target.textContent = 'Unattached';
-    clearBtn.disabled = true;
+  if (ind) ind.style.display = 'none';
+  if (clearBtn) {
+    clearBtn.style.display = activePin ? '' : 'none';
+    clearBtn.disabled = !activePin;
+    clearBtn.title = activePin
+      ? ('Detach photos from #' + activePin.num)
+      : 'No active pin';
   }
 }
 
@@ -4234,10 +4294,12 @@ document.getElementById('exportMenu').addEventListener('click', (e) => {
   clone.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu('exportMenu'); });
 })();
 
-// ---- + Photos burst-import button ----
+// ---- + Photos: open in-app burst camera (tap = instant capture, no preview) ----
 document.getElementById('addPhotosBtn').addEventListener('click', () => {
-  document.getElementById('burstInput').click();
+  if (typeof burstCam !== 'undefined' && burstCam && burstCam.open) burstCam.open();
+  else document.getElementById('burstInput').click();
 });
+// Legacy file-import path (still works as fallback if camera blocked)
 document.getElementById('burstInput').addEventListener('change', (e) => {
   const files = Array.from(e.target.files || []);
   if (!files.length) return;
@@ -4683,10 +4745,18 @@ async function fetchWeather(force, lat, lng) {
   } catch (e) { /* silent */ }
 }
 function renderWeather() {
-  const el = document.getElementById('weatherStamp');
-  if (!state.weather) { el.style.display = 'none'; return; }
-  el.style.display = 'block';
-  el.textContent = state.weather.summary + ' · ' + new Date(state.weather.fetchedAt).toLocaleString();
+  // v3: weather lives inline in the sticky header. Keep the legacy stamp hidden.
+  const old = document.getElementById('weatherStamp');
+  if (old) old.style.display = 'none';
+  const inline = document.getElementById('weatherInline');
+  if (!inline) return;
+  if (!state.weather) { inline.style.display = 'none'; inline.textContent = ''; return; }
+  const w = state.weather;
+  // Compact format: "Clear · 82°F · 7mph"
+  const summary = (w.summary || '').replace(/\s+/g, ' ');
+  inline.style.display = '';
+  inline.textContent = summary;
+  inline.title = summary + ' · updated ' + new Date(w.fetchedAt).toLocaleString();
 }
 
 // =====================================================================
@@ -4698,7 +4768,8 @@ document.body.classList.add('v3-ui');
 // --- state.mode + ui positions ---
 state.mode = state.mode || 'pin';
 state.ui = state.ui || {};
-state.drawColor = state.drawColor || '#1a1a1a';
+// Migrate legacy "general" black to drywall green; default to drywall.
+if (!state.drawColor || state.drawColor === '#1a1a1a') state.drawColor = '#4a8a4a';
 state.drawWeight = state.drawWeight || 4;
 state.drawSubTool = state.drawSubTool || 'free'; // free | line | ellipse | erase
 state.drawStrokes = state.drawStrokes || []; // [{type, color, weight, points|a|b|cx,cy,rx,ry, id}]
@@ -4843,6 +4914,98 @@ document.getElementById('modeDrawBtn').addEventListener('click', () => setMode('
   if (pos) { sw.style.left = pos.x + 'px'; sw.style.top = pos.y + 'px'; }
   makeDraggable(sw, grip, 'modeSwitcherPos');
 })();
+
+// Floating tools toolbar (Findings/Undo/Plan/+Photos/Export)
+(function setupFloatToolbar(){
+  const ft = document.getElementById('floatToolbar');
+  const header = document.getElementById('floatToolbarHeader');
+  if (!ft || !header) return;
+  const pos = state.ui.toolsBarPos || { x: Math.max(8, window.innerWidth - 220), y: 64 };
+  ft.style.left = pos.x + 'px';
+  ft.style.top = pos.y + 'px';
+  ft.style.right = 'auto';
+  makeDraggable(ft, header, 'toolsBarPos');
+  const cb = document.getElementById('floatToolbarCollapseBtn');
+  if (state.ui.toolsBarCollapsed) ft.classList.add('fp-collapsed');
+  if (cb) {
+    cb.textContent = ft.classList.contains('fp-collapsed') ? '▸' : '▾';
+    cb.addEventListener('click', (e) => {
+      e.stopPropagation();
+      ft.classList.toggle('fp-collapsed');
+      cb.textContent = ft.classList.contains('fp-collapsed') ? '▸' : '▾';
+      state.ui.toolsBarCollapsed = ft.classList.contains('fp-collapsed');
+      v3Save();
+    });
+  }
+})();
+
+// Floating camera button — long-press to drag, tap to open burst camera
+(function setupCameraDrag(){
+  const cluster = document.getElementById('camCluster');
+  if (!cluster) return;
+  const pos = state.ui.cameraPos;
+  if (pos) {
+    cluster.style.left = pos.x + 'px';
+    cluster.style.top = pos.y + 'px';
+    cluster.style.right = 'auto';
+    cluster.style.bottom = 'auto';
+  }
+  // Drag via long-press anywhere on the cluster
+  let pressTimer = null, dragging = false, startX = 0, startY = 0, startL = 0, startT = 0;
+  const LONG_PRESS_MS = 280;
+  const apply = (l, t) => {
+    const r = cluster.getBoundingClientRect();
+    const maxL = Math.max(0, window.innerWidth - r.width - 4);
+    const maxT = Math.max(0, window.innerHeight - r.height - 4);
+    l = Math.min(Math.max(4, l), maxL);
+    t = Math.min(Math.max(4, t), maxT);
+    cluster.style.left = l + 'px';
+    cluster.style.top = t + 'px';
+    cluster.style.right = 'auto';
+    cluster.style.bottom = 'auto';
+  };
+  cluster.addEventListener('pointerdown', (e) => {
+    // Allow buttons to handle their own taps; we only kick off a drag from the cluster background
+    startX = e.clientX; startY = e.clientY;
+    const r = cluster.getBoundingClientRect();
+    startL = r.left; startT = r.top;
+    dragging = false;
+    pressTimer = setTimeout(() => {
+      dragging = true;
+      cluster.classList.add('dragging');
+      if (navigator.vibrate) navigator.vibrate(8);
+      cluster.setPointerCapture && cluster.setPointerCapture(e.pointerId);
+    }, LONG_PRESS_MS);
+  });
+  cluster.addEventListener('pointermove', (e) => {
+    if (!dragging) {
+      // cancel long-press if user moved before threshold (treat as tap/scroll)
+      if (pressTimer && (Math.abs(e.clientX - startX) > 6 || Math.abs(e.clientY - startY) > 6)) {
+        clearTimeout(pressTimer); pressTimer = null;
+      }
+      return;
+    }
+    apply(startL + (e.clientX - startX), startT + (e.clientY - startY));
+  });
+  const end = (e) => {
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    if (dragging) {
+      dragging = false;
+      cluster.classList.remove('dragging');
+      const r = cluster.getBoundingClientRect();
+      state.ui.cameraPos = { x: r.left, y: r.top };
+      v3Save();
+      // Swallow the trailing click so the camera doesn't open right after a drag
+      const swallow = (ev) => { ev.stopPropagation(); ev.preventDefault(); window.removeEventListener('click', swallow, true); };
+      window.addEventListener('click', swallow, true);
+    }
+  };
+  cluster.addEventListener('pointerup', end);
+  cluster.addEventListener('pointercancel', end);
+})();
+
+// Trigger weather fetch on load so the inline chip populates
+setTimeout(() => { try { fetchWeather(false); } catch(e){} }, 600);
 
 // --- Overflow menu wiring ---
 document.getElementById('overflowBtn').addEventListener('click', (e) => {

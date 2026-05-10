@@ -1,93 +1,76 @@
-# Survey UI Redesign — Two Modes, Floating Palettes
+# UI cleanup v2: floating-everything + sticky header
 
-Frontend-only changes in `public/survey.html`. No backend, no schema changes.
+All changes in `public/survey.html` (frontend only).
 
-## Header — two rows
+## 1. Burst camera — tap = instant capture
 
-**Row 1 (identity):**
-- Back arrow (left)
-- Job address headline, auto-filled from GPS, editable inline. Truncates with ellipsis on narrow screens; tap to expand/edit.
-- `⋯` overflow menu (upper right): Rename, Duplicate, Export, Settings, Trash, Sign out.
+- Remove the accept/use confirmation step.
+- Each shutter tap: grab frame → save to active pin (or unattached) → flash + haptic tick + increment count.
+- "Done" closes the camera; viewfinder stays live between taps.
 
-**Row 2 (project tools):**
-- Undo / Redo
-- Burst camera (site photos)
-- Site photos tray button
+## 2. Remove "PHOTOS GO TO Unattached" chip
 
-The mode switch is NOT in the header — it floats (see below).
+- Delete the chip and its show/hide logic.
+- When a pin is active, show a tiny detach `×` next to the floating camera; otherwise hidden.
 
-## Floating Pin/Draw switcher
+## 3. Floating, draggable camera button
 
-- **Top-left floating pill**, draggable, position remembered per project.
-- Two segments: **Pin** | **Draw**. Exactly one active. Active segment is filled, inactive is outlined.
-- Tapping the inactive segment swaps modes and swaps which floating palette is visible.
+- Bottom-right default, 16px inset above safe area.
+- Persist `state.ui.cameraPos` per project.
+- Tap = open burst camera; long-press 200ms = start drag (prevents accidental drag during fast snapping).
+- Clamp to viewport on resize/orientation.
 
-## Pin mode
+## 4. Draw color key = Surface colors
 
-- **Floating Surfaces palette** appears (hidden in Draw mode).
-  - Six surfaces: Wall, Ceiling, Floor, Separation/Gap, Slab crack, Other. Color dot + label.
-  - Draggable; position remembered per project.
-  - Stays visible the entire time you're in Pin mode — does not auto-close when the descriptor panel opens.
-  - Tapping a surface sets the active surface for the *next* pin (and updates the current open pin live if its descriptor panel is open).
-- **Tap canvas** → pin drops with active surface → descriptor panel opens (bottom sheet).
-- **Long-press canvas** → pin drops pre-filled with previous pin's category, material, descriptors.
-- **Drag** = pan, **pinch** = zoom.
+Re-map the 6 draw swatches to the surface palette and labels (Ceiling, Drywall, Floor covering, Other, Separation, Slab/Concrete). Active caption and expandable Key both read surface names. Colors come from the existing `SURFACES` array — single source of truth.
 
-### Descriptor panel
+## 5. Float every menu / button
 
-Order: Category (from rail) → Material → Severity slider → Voice note → Photo → Done.
+Convert remaining anchored controls into draggable floating panels using the existing `makeDraggable` helper, each with persisted per-project position and the same collapse arrow pattern:
 
-Header of panel:
-- Left: small **trash icon** — discards this pin.
-- Right: large **green checkmark "Done"** — saves and closes.
+- **Findings counter** → small floating chip (top-left default, below mode switcher).
+- **Undo / Redo** → small floating pill (top-right default, below header).
+- **Plan upload** → floating button (becomes hidden once a plan is loaded).
+- **Overflow `⋯` menu** → already a button in the header; turns into a floating round button anchored top-right by default.
+- **Site-photos tray button** → floating, sits next to the camera FAB.
+- **Mode switcher, Surfaces, Draw toolbar, Descriptors** — already floating, no change.
 
-On Done: brief haptic tick, panel slides down, pin stays on canvas. No toast.
+Persisted positions added to `state.ui`:
+`findingsPos`, `undoPos`, `planPos`, `overflowPos`, `photosTrayPos`, `cameraPos`.
 
-The panel can be dismissed only via checkmark or trash — no swipe-to-dismiss (avoids accidental discard).
+All floating elements:
+- 44pt minimum touch target.
+- Collapse arrow where the control has more than one element.
+- Drag handle = the `::` grip dots, except small single-button floats which long-press to drag.
+- Clamp to viewport; double-tap grip to snap back to default.
 
-## Draw mode
+## 6. Sticky header with weather + address
 
-- Surfaces palette is hidden.
-- **Floating Draw toolbar** appears (bottom-center, draggable, position remembered per project):
-  - Tools: Free / Line / Ellipse / Eraser
-  - Colors: 6 swatches
-  - Stroke weight: 3 sizes
-  - Clear all (with confirm)
-  - Symbols slot (disabled/"coming soon" placeholder for future arrows, hatching, doors, windows, dimensions)
-- Tap-and-drag draws on the **draw layer**.
-- **Pins remain visible** (read-only) so you can sketch context around them.
-- Tapping a pin in Draw mode → small floating tooltip near the pin: **"Edit pin →"**. Tap the tooltip to switch to Pin mode and open that pin's descriptor panel. Tap pin again or tap elsewhere to dismiss tooltip without switching.
+The Row 1 header becomes a single **sticky** bar (`position: sticky; top: 0; z-index: 50`) containing:
 
-## Layers concept (rendering)
+- Pin icon
+- Job address (editable, truncates with ellipsis)
+- Weather inline chip: `82°F · 7 mph · Clear` + small timestamp, right-aligned next to the address
+- `⋯` overflow stays at the far right (and is also draggable per #5; the header keeps a "home" slot if it hasn't been moved)
 
-- **Pin layer**: pins, severity badges, surface tags. Edited only in Pin mode.
-- **Draw layer**: freeform strokes and (later) symbols. Edited only in Draw mode.
-- Both layers always render on the canvas. Mode controls editability, not visibility.
+The current standalone weather card at the bottom of the canvas is removed — its data lives in the header now. SAVED indicator collapses into a small dot on the address bar.
 
-## State additions (frontend only, persisted in existing project record)
+Row 2 (project tools) is also sticky directly under Row 1 so the canvas scrolls beneath both. Both rows together use a translucent backdrop blur so the canvas peeks through.
 
-- `mode: 'pin' | 'draw'` (per project)
-- `ui.modeSwitcherPos: {x, y}` (per project)
-- `ui.surfacesPalettePos: {x, y}` (per project)
-- `ui.drawToolbarPos: {x, y}` (per project)
-- `drawStrokes: [...]` already exists or extends current draw data on the project
+## 7. Light cleanup
 
-## What goes away
+- Adjust default offsets so floating elements don't stack on a 390px viewport.
+- Remove now-unused CSS (photo target chip, old weather card, old anchored buttons).
 
-- The current single combined tool selector (replaced by mode-specific floating palettes).
-- The crowded single-row top bar (replaced by two rows + floating switcher).
-- "Surfaces hidden until pin drops" behavior (surfaces are always visible in Pin mode now).
+## Out of scope
 
-## Out of scope (future)
-
-- Symbols library content (slot only, disabled).
-- Layer reordering / lock UI (single fixed stacking for now).
-- Mode-switcher onboarding tooltip on first run (can add later if needed).
+- Backend / schema changes.
+- Symbols library.
+- Descriptor panel restructure.
 
 ## Technical notes
 
-- All work in `public/survey.html`. Three new draggable floating containers share a small drag helper (pointer events, clamp to viewport, persist on pointerup).
-- Mode swap is a single state setter that toggles which palette element has `hidden` and which canvas pointer handler is bound.
-- Descriptor panel header gets the trash icon (left) and an enlarged green checkmark (right). Existing close logic re-wired to checkmark; trash calls existing delete-pin path.
-- Edit-pin tooltip in Draw mode: lightweight absolutely-positioned div anchored to pin screen coords, dismissed on next tap or mode change.
-- Haptic tick uses existing `navigator.vibrate(10)` pattern if present.
+- Reuse `makeDraggable(el, handle, stateKey)`; extend to accept a `defaultPos` and a `longPressToDrag` option.
+- Surface colors via a `surfaceColor(id)` lookup shared by the surfaces palette and draw toolbar.
+- Sticky header uses `backdrop-filter: blur(12px)` with a semi-transparent paper-tone background so it works over both blank canvas and uploaded plans.
+- Weather string is built from the existing weather fetch; truncate to `82°F · 7mph · Clear` on narrow viewports.
