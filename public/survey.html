@@ -4245,7 +4245,8 @@ function toggleMenu(id) {
     else el.style.display = 'none';
   });
 }
-document.getElementById('toolsBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleMenu('toolsMenu'); });
+const _toolsBtn = document.getElementById('toolsBtn');
+if (_toolsBtn) _toolsBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu('toolsMenu'); });
 document.addEventListener('click', () => {
   document.getElementById('exportMenu').style.display = 'none';
   document.getElementById('toolsMenu').style.display = 'none';
