@@ -1304,6 +1304,333 @@
     .descriptors.open { height: 70vh; }
     .cam-cluster, .mode-toggle, .weather-stamp { bottom: 64px; }
   }
+
+  /* =================================================
+     TWO-ROW HEADER + FLOATING PALETTES (v3 redesign)
+     ================================================= */
+  .topbar.v3 {
+    display: block;
+    height: auto;
+    padding: 0;
+    overflow: visible;
+    flex-wrap: nowrap;
+  }
+  .topbar.v3 .row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px;
+    min-height: 40px;
+  }
+  .topbar.v3 .row.row1 {
+    border-bottom: 1px solid var(--rule-soft);
+    background: var(--paper);
+  }
+  .topbar.v3 .row.row2 {
+    background: var(--rule-soft);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .topbar.v3 .row.row2::-webkit-scrollbar { display: none; }
+  .topbar.v3 .row1 .brand-mini {
+    font-family: 'Playfair Display', serif;
+    font-size: 13px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .topbar.v3 .addr-input {
+    flex: 1; min-width: 0;
+    height: 30px; padding: 0 10px;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--paper);
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    color: var(--ink);
+    -webkit-user-select: text; user-select: text;
+    text-overflow: ellipsis;
+  }
+  .topbar.v3 .addr-input:focus { outline: none; border-color: var(--ink); }
+  .topbar.v3 .icon-btn {
+    width: 32px; height: 32px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 16px; line-height: 1;
+    flex-shrink: 0;
+    padding: 0;
+  }
+  .topbar.v3 .icon-btn:active { background: var(--rule-soft); }
+  .topbar.v3 .icon-btn.danger { color: var(--c-concrete); }
+  .topbar.v3 .row2 .top-btn { height: 28px; padding: 0 10px; font-size: 10px; flex-shrink: 0; }
+  .topbar.v3 .sync-pill { margin-left: auto; flex-shrink: 0; }
+
+  /* Floating Pin/Draw mode switcher */
+  .mode-switcher {
+    position: fixed;
+    top: 96px; left: 12px;
+    z-index: 60;
+    display: flex;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.18);
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+  }
+  .mode-switcher .ms-grip {
+    width: 18px;
+    background: var(--rule-soft);
+    cursor: grab;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-soft);
+    font-size: 11px;
+  }
+  .mode-switcher.dragging .ms-grip { cursor: grabbing; }
+  .mode-switcher button {
+    background: transparent;
+    border: none;
+    padding: 9px 16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    color: var(--ink-soft);
+    font-weight: 600;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .mode-switcher button.active {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .mode-switcher button + button { border-left: 1px solid var(--rule); }
+
+  /* Floating panel base (rail + draw toolbar when in v3 modes) */
+  .floating-panel {
+    position: fixed !important;
+    z-index: 55;
+    background: var(--paper) !important;
+    border: 1px solid var(--rule) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.18) !important;
+    padding: 6px !important;
+    display: flex !important;
+    overflow: visible !important;
+  }
+  .floating-panel .fp-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 2px 6px 6px;
+    border-bottom: 1px solid var(--rule-soft);
+    margin-bottom: 6px;
+    cursor: grab;
+    touch-action: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    user-select: none;
+  }
+  .floating-panel.dragging .fp-header { cursor: grabbing; }
+  .floating-panel .fp-grip { font-size: 14px; line-height: 1; }
+
+  /* Surfaces palette as floating panel */
+  body.mode-draw .rail { display: none !important; }
+  body.mode-pin .rail.floating {
+    /* Override base rail layout */
+    position: fixed !important;
+    left: auto; right: auto;
+    top: auto; bottom: auto;
+    width: auto !important;
+    height: auto !important;
+    flex-direction: column !important;
+    border: 1px solid var(--rule) !important;
+    border-radius: 8px !important;
+    background: var(--paper) !important;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.18) !important;
+    padding: 4px !important;
+    gap: 3px !important;
+    z-index: 55;
+    overflow: visible !important;
+    max-height: 70vh;
+  }
+  body.mode-pin .rail.floating .rail-fp-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 6px 6px;
+    border-bottom: 1px solid var(--rule-soft);
+    margin-bottom: 4px;
+    cursor: grab; touch-action: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    user-select: none;
+  }
+  body.mode-pin .rail.floating.dragging .rail-fp-header { cursor: grabbing; }
+  body.mode-pin .rail.floating .rail-btn {
+    width: 96px; height: 32px;
+    margin: 0 !important;
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    padding: 0 8px !important;
+    border-radius: 4px !important;
+  }
+  body.mode-pin .rail.floating .rail-btn::before {
+    content: '';
+    width: 12px; height: 12px; border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--swatch, var(--rule));
+  }
+  body.mode-pin .rail.floating .rail-label {
+    font-size: 10px;
+    text-align: left;
+  }
+  /* Plan area no longer reserves space for docked rail in v3 */
+  body.v3-ui .plan-area {
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: 0 !important;
+  }
+  body.v3-ui .descriptors {
+    /* Keep descriptor side-panel for surface picker hidden in v3 (we use the palette + detail panel) */
+    display: none !important;
+  }
+
+  /* Floating draw toolbar */
+  body.mode-pin .draw-toolbar { display: none !important; }
+  .draw-toolbar.v3 {
+    position: fixed !important;
+    z-index: 55;
+    top: auto; left: auto;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+    padding: 6px;
+    display: flex !important;
+    flex-direction: column;
+    gap: 6px;
+    width: 240px;
+  }
+  .draw-toolbar.v3 .dt-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 2px 4px 4px;
+    border-bottom: 1px solid var(--rule-soft);
+    cursor: grab; touch-action: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    user-select: none;
+  }
+  .draw-toolbar.v3.dragging .dt-header { cursor: grabbing; }
+  .draw-toolbar.v3 .dt-row {
+    display: flex; gap: 4px; align-items: center;
+  }
+  .draw-toolbar.v3 .dt-row .dt-label {
+    font-family: 'DM Mono', monospace; font-size: 9px;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink-soft); width: 44px;
+  }
+  .draw-toolbar.v3 .dt-tool {
+    width: 36px; height: 36px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    border-radius: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--ink);
+    padding: 0;
+  }
+  .draw-toolbar.v3 .dt-tool svg { width: 18px; height: 18px; }
+  .draw-toolbar.v3 .dt-tool.active {
+    background: var(--ink); color: var(--paper); border-color: var(--ink);
+  }
+  .draw-toolbar.v3 .dt-tool[disabled] { opacity: 0.35; cursor: not-allowed; }
+  .draw-toolbar.v3 .dt-color {
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 2px solid var(--paper);
+    box-shadow: 0 0 0 1px var(--rule);
+    cursor: pointer; padding: 0;
+  }
+  .draw-toolbar.v3 .dt-color.active { box-shadow: 0 0 0 2px var(--ink); }
+  .draw-toolbar.v3 .dt-stroke {
+    width: 32px; height: 28px;
+    border: 1px solid var(--rule); background: var(--paper);
+    border-radius: 4px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .draw-toolbar.v3 .dt-stroke .swatch {
+    background: var(--ink); border-radius: 999px;
+  }
+  .draw-toolbar.v3 .dt-stroke.active { background: var(--rule-soft); border-color: var(--ink); }
+
+  /* Hide legacy docked draw tool-bar in v3 */
+  body.v3-ui .tool-bar { display: none !important; }
+  /* Hide legacy bottom-left mode-toggle in v3 (we use the floating switcher) */
+  body.v3-ui .mode-toggle { display: none !important; }
+
+  /* Detail panel (per-pin) — checkmark + trash header */
+  .detail-head .detail-trash {
+    background: rgba(255,255,255,0.16);
+    border: 1px solid rgba(255,255,255,0.4);
+    color: var(--paper);
+    width: 32px; height: 32px;
+    border-radius: 4px;
+    cursor: pointer; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .detail-head .detail-trash:active { background: rgba(255,255,255,0.3); }
+  .detail-head .detail-done {
+    background: #2e9b4e;
+    border: 1px solid #27843f;
+    color: #fff;
+    width: 38px; height: 32px;
+    border-radius: 4px;
+    cursor: pointer; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  }
+  .detail-head .detail-done:active { background: #27843f; }
+
+  /* Edit-pin tooltip in draw mode */
+  .edit-pin-tooltip {
+    position: fixed;
+    z-index: 80;
+    transform: translate(-50%, calc(-100% - 14px));
+    background: var(--ink);
+    color: var(--paper);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    white-space: nowrap;
+  }
+  .edit-pin-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: -5px; left: 50%;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid var(--ink);
+  }
+
+  /* Stable v3 phone tweaks: keep address visible */
+  @media (max-width: 900px) {
+    .topbar.v3 .row { padding: 5px 8px; gap: 6px; }
+    .topbar.v3 .row1 .brand-mini { display: none; }
+    .topbar.v3 .row2 .top-btn { padding: 0 8px; }
+  }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
