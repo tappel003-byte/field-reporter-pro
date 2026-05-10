@@ -1495,9 +1495,120 @@
     bottom: 0 !important;
     top: 0 !important;
   }
+  /* v3: Descriptors becomes a floating, draggable panel that opens
+     when a surface is picked. */
   body.v3-ui .descriptors {
-    /* Keep descriptor side-panel for surface picker hidden in v3 (we use the palette + detail panel) */
-    display: none !important;
+    position: fixed !important;
+    left: auto; right: auto; top: auto; bottom: auto;
+    width: 260px !important;
+    max-height: 60vh;
+    background: var(--paper) !important;
+    border: 1px solid var(--rule) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.22) !important;
+    overflow: hidden !important;
+    transition: none !important;
+    z-index: 60;
+    display: none;
+  }
+  body.v3-ui .descriptors.open { display: block !important; width: 260px !important; }
+  body.v3-ui.mode-draw .descriptors { display: none !important; }
+  body.v3-ui .descriptors .desc-fp-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--rule-soft);
+    cursor: grab; touch-action: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    user-select: none;
+    background: var(--rule-soft);
+  }
+  body.v3-ui .descriptors.dragging .desc-fp-header { cursor: grabbing; }
+  body.v3-ui .descriptors .desc-fp-header .fp-title { display:flex; align-items:center; gap:6px; }
+  body.v3-ui .descriptors .desc-fp-header .fp-actions { display:flex; gap:6px; }
+  body.v3-ui .descriptors .descriptors-inner {
+    width: 100% !important;
+    max-height: calc(60vh - 36px);
+    padding: 12px 12px 16px !important;
+  }
+  /* Hide the old in-content close button — we use the floating-panel header X */
+  body.v3-ui .descriptors .descriptors-close { display: none !important; }
+  body.v3-ui .descriptors .descriptors-head {
+    font-size: 13px;
+    margin-bottom: 2px;
+  }
+  body.v3-ui .plan-area.shifted { left: 0 !important; }
+
+  /* Collapsed floating panels */
+  .floating-collapsed-content { display: none !important; }
+  .rail.fp-collapsed > :not(.rail-fp-header) { display: none !important; }
+  .draw-toolbar.v3.fp-collapsed > :not(.dt-header) { display: none !important; }
+  .descriptors.fp-collapsed .descriptors-inner { display: none !important; }
+  .descriptors.fp-collapsed { max-height: none !important; }
+  .fp-iconbtn {
+    width: 22px; height: 22px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; padding: 0;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px; line-height: 1;
+  }
+  .fp-iconbtn:active { background: var(--rule-soft); }
+
+  /* 44pt tap targets in v3 */
+  body.v3-ui .mode-switcher button { min-height: 44px; padding: 12px 18px; font-size: 12px; }
+  body.v3-ui .mode-switcher .ms-grip { min-height: 44px; }
+  body.mode-pin .rail.floating .rail-btn { height: 44px !important; width: 132px !important; }
+  body.mode-pin .rail.floating .rail-label { font-size: 11.5px; }
+  body.mode-pin .rail.floating .rail-btn::before { width: 14px; height: 14px; }
+  .draw-toolbar.v3 .dt-tool { width: 44px; height: 44px; }
+  .draw-toolbar.v3 .dt-tool svg { width: 22px; height: 22px; }
+  .draw-toolbar.v3 .dt-color { width: 32px; height: 32px; }
+  .draw-toolbar.v3 .dt-stroke { width: 44px; height: 36px; }
+  .draw-toolbar.v3 { width: 280px; }
+
+  /* Drawing color key (legend caption under swatches) */
+  .draw-toolbar.v3 .dt-color-key {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 6px;
+    background: var(--rule-soft);
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--ink);
+  }
+  .draw-toolbar.v3 .dt-color-key .key-swatch {
+    display: inline-block; width: 12px; height: 12px; border-radius: 50%;
+    border: 1px solid var(--rule);
+    margin-right: 6px; vertical-align: middle;
+  }
+  .draw-toolbar.v3 .dt-color-key .key-name { font-weight: 700; }
+  .draw-toolbar.v3 .dt-color-legend {
+    display: none;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--ink);
+  }
+  .draw-toolbar.v3 .dt-color-legend.open { display: flex; }
+  .draw-toolbar.v3 .dt-color-legend .leg-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .draw-toolbar.v3 .dt-color-legend .leg-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 1px solid var(--rule);
+    flex-shrink: 0;
   }
 
   /* Floating draw toolbar */
