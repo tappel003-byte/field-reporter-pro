@@ -4942,16 +4942,10 @@ document.getElementById('modeDrawBtn').addEventListener('click', () => setMode('
   makeDraggable(sw, grip, 'modeSwitcherPos');
 })();
 
-// Floating tools toolbar (Findings/Undo/Plan/+Photos/Export)
+// Sticky tools bar — collapse only (no longer draggable)
 (function setupFloatToolbar(){
   const ft = document.getElementById('floatToolbar');
-  const header = document.getElementById('floatToolbarHeader');
-  if (!ft || !header) return;
-  const pos = state.ui.toolsBarPos || { x: Math.max(8, window.innerWidth - 220), y: 64 };
-  ft.style.left = pos.x + 'px';
-  ft.style.top = pos.y + 'px';
-  ft.style.right = 'auto';
-  makeDraggable(ft, header, 'toolsBarPos');
+  if (!ft) return;
   const cb = document.getElementById('floatToolbarCollapseBtn');
   if (state.ui.toolsBarCollapsed) ft.classList.add('fp-collapsed');
   if (cb) {
