@@ -3353,6 +3353,16 @@ function renderDetail() {
     state.selectedPinId = null;
     renderPins();
     renderFindings();
+    if (navigator.vibrate) try { navigator.vibrate(10); } catch(e){}
+  });
+  const trashBtn = document.getElementById('detailTrashBtn');
+  if (trashBtn) trashBtn.addEventListener('click', () => {
+    if (!confirm('Discard this pin?')) return;
+    softDeletePin(pin.id);
+    panel.classList.remove('open');
+    state.selectedPinId = null;
+    renderPins();
+    renderFindings();
   });
 
   // (Category chips removed — the rail now is the category.)
