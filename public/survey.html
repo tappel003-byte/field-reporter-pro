@@ -2264,7 +2264,32 @@ function hasLivePins() {
 function renderRail() {
   const rail = $('rail');
   const planArea = $('planArea');
-  // Surfaces stay hidden until the first pin is dropped.
+  // v3: in pin mode, surfaces palette is ALWAYS visible (floating).
+  if (window.__V3_UI__) {
+    if (state.mode === 'draw') {
+      rail.style.display = 'none';
+      return;
+    }
+    rail.style.display = '';
+    rail.classList.add('floating');
+    planArea.classList.remove('no-rail');
+    const sorted = [...SURFACES].sort((a,b) => a.name.localeCompare(b.name));
+    rail.innerHTML = `
+      <div class="rail-fp-header" id="railFpHeader">
+        <span>Surfaces</span><span class="fp-grip">⋮⋮</span>
+      </div>
+    ` + sorted.map(s => `
+      <button class="rail-btn ${state.selectedSurface === s.key ? 'selected' : ''}" data-key="${s.key}" style="--swatch:${s.hex}">
+        <div class="rail-label">${s.name}</div>
+      </button>
+    `).join('');
+    rail.querySelectorAll('.rail-btn').forEach(btn => {
+      btn.addEventListener('click', () => selectSurface(btn.dataset.key));
+    });
+    if (window.__applyFloatingPos__) window.__applyFloatingPos__();
+    return;
+  }
+  // Legacy path (kept as fallback)
   if (!hasLivePins()) {
     rail.innerHTML = '';
     rail.classList.add('hidden');
