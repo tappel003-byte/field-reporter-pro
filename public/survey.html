@@ -4767,8 +4767,54 @@ window.__applyFloatingPos__ = function() {
       rail.dataset.dragWired = '1';
       makeDraggable(rail, railHeader, 'surfacesPos');
     }
+    if (state.ui.surfacesCollapsed) rail.classList.add('fp-collapsed');
+    const cb = document.getElementById('railCollapseBtn');
+    if (cb && !cb.dataset.wired) {
+      cb.dataset.wired = '1';
+      cb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        rail.classList.toggle('fp-collapsed');
+        cb.textContent = rail.classList.contains('fp-collapsed') ? '▸' : '▾';
+        state.ui.surfacesCollapsed = rail.classList.contains('fp-collapsed');
+        v3Save();
+      });
+      cb.textContent = rail.classList.contains('fp-collapsed') ? '▸' : '▾';
+    }
   }
 };
+
+// --- Descriptors floating panel (v3) ---
+(function setupDescriptorsFloating(){
+  const panel = document.getElementById('descriptors');
+  const header = document.getElementById('descriptorsFpHeader');
+  if (!panel || !header) return;
+  const pos = state.ui.descriptorsPos || { x: Math.max(8, window.innerWidth - 280), y: 156 };
+  panel.style.left = pos.x + 'px';
+  panel.style.top = pos.y + 'px';
+  panel.style.right = 'auto';
+  panel.style.bottom = 'auto';
+  makeDraggable(panel, header, 'descriptorsPos');
+  // Collapse
+  const cb = document.getElementById('descriptorsCollapseBtn');
+  if (state.ui.descriptorsCollapsed) panel.classList.add('fp-collapsed');
+  if (cb) {
+    cb.textContent = panel.classList.contains('fp-collapsed') ? '▸' : '▾';
+    cb.addEventListener('click', (e) => {
+      e.stopPropagation();
+      panel.classList.toggle('fp-collapsed');
+      cb.textContent = panel.classList.contains('fp-collapsed') ? '▸' : '▾';
+      state.ui.descriptorsCollapsed = panel.classList.contains('fp-collapsed');
+      v3Save();
+    });
+  }
+  // Close → behaves like deselecting surface
+  const xb = document.getElementById('descriptorsCloseBtn');
+  if (xb) xb.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (state.selectedSurface) selectSurface(state.selectedSurface);
+  });
+})();
+
 
 // --- Mode switcher ---
 function setMode(mode) {
