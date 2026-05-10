@@ -654,6 +654,55 @@
   .cam-btn svg { width: 28px; height: 28px; fill: currentColor; }
   .cam-btn input { display: none; }
 
+  /* BURST CAMERA OVERLAY */
+  .burst-cam {
+    position: fixed; inset: 0; z-index: 1000;
+    background: #000; display: none;
+    flex-direction: column;
+  }
+  .burst-cam.open { display: flex; }
+  .burst-cam video {
+    flex: 1; width: 100%; height: 100%;
+    object-fit: cover; background: #000;
+  }
+  .burst-cam-top {
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: 14px 16px; display: flex;
+    justify-content: space-between; align-items: center;
+    color: #fff; z-index: 2;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent);
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .burst-cam-top button {
+    background: rgba(255,255,255,0.15);
+    color: #fff; border: 1px solid rgba(255,255,255,0.3);
+    padding: 8px 14px; border-radius: 999px;
+    font-family: inherit; font-size: 11px;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    cursor: pointer;
+  }
+  .burst-cam-bottom {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 24px 16px 36px; display: flex;
+    align-items: center; justify-content: center;
+    z-index: 2;
+    background: linear-gradient(to top, rgba(0,0,0,0.55), transparent);
+  }
+  .burst-shutter {
+    width: 76px; height: 76px; border-radius: 50%;
+    background: #fff; border: 5px solid rgba(255,255,255,0.45);
+    box-shadow: 0 0 0 3px #fff inset, 0 4px 14px rgba(0,0,0,0.5);
+    cursor: pointer; transition: transform 0.08s;
+  }
+  .burst-shutter:active { transform: scale(0.92); }
+  .burst-flash {
+    position: absolute; inset: 0; background: #fff;
+    opacity: 0; pointer-events: none; z-index: 3;
+    transition: opacity 0.18s;
+  }
+  .burst-flash.flash { opacity: 0.85; transition: opacity 0s; }
+
   /* MODE TOGGLE */
   .mode-toggle {
     position: absolute;
