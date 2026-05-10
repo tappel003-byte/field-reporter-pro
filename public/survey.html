@@ -1495,9 +1495,120 @@
     bottom: 0 !important;
     top: 0 !important;
   }
+  /* v3: Descriptors becomes a floating, draggable panel that opens
+     when a surface is picked. */
   body.v3-ui .descriptors {
-    /* Keep descriptor side-panel for surface picker hidden in v3 (we use the palette + detail panel) */
-    display: none !important;
+    position: fixed !important;
+    left: auto; right: auto; top: auto; bottom: auto;
+    width: 260px !important;
+    max-height: 60vh;
+    background: var(--paper) !important;
+    border: 1px solid var(--rule) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.22) !important;
+    overflow: hidden !important;
+    transition: none !important;
+    z-index: 60;
+    display: none;
+  }
+  body.v3-ui .descriptors.open { display: block !important; width: 260px !important; }
+  body.v3-ui.mode-draw .descriptors { display: none !important; }
+  body.v3-ui .descriptors .desc-fp-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--rule-soft);
+    cursor: grab; touch-action: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    user-select: none;
+    background: var(--rule-soft);
+  }
+  body.v3-ui .descriptors.dragging .desc-fp-header { cursor: grabbing; }
+  body.v3-ui .descriptors .desc-fp-header .fp-title { display:flex; align-items:center; gap:6px; }
+  body.v3-ui .descriptors .desc-fp-header .fp-actions { display:flex; gap:6px; }
+  body.v3-ui .descriptors .descriptors-inner {
+    width: 100% !important;
+    max-height: calc(60vh - 36px);
+    padding: 12px 12px 16px !important;
+  }
+  /* Hide the old in-content close button — we use the floating-panel header X */
+  body.v3-ui .descriptors .descriptors-close { display: none !important; }
+  body.v3-ui .descriptors .descriptors-head {
+    font-size: 13px;
+    margin-bottom: 2px;
+  }
+  body.v3-ui .plan-area.shifted { left: 0 !important; }
+
+  /* Collapsed floating panels */
+  .floating-collapsed-content { display: none !important; }
+  .rail.fp-collapsed > :not(.rail-fp-header) { display: none !important; }
+  .draw-toolbar.v3.fp-collapsed > :not(.dt-header) { display: none !important; }
+  .descriptors.fp-collapsed .descriptors-inner { display: none !important; }
+  .descriptors.fp-collapsed { max-height: none !important; }
+  .fp-iconbtn {
+    width: 22px; height: 22px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; padding: 0;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px; line-height: 1;
+  }
+  .fp-iconbtn:active { background: var(--rule-soft); }
+
+  /* 44pt tap targets in v3 */
+  body.v3-ui .mode-switcher button { min-height: 44px; padding: 12px 18px; font-size: 12px; }
+  body.v3-ui .mode-switcher .ms-grip { min-height: 44px; }
+  body.mode-pin .rail.floating .rail-btn { height: 44px !important; width: 132px !important; }
+  body.mode-pin .rail.floating .rail-label { font-size: 11.5px; }
+  body.mode-pin .rail.floating .rail-btn::before { width: 14px; height: 14px; }
+  .draw-toolbar.v3 .dt-tool { width: 44px; height: 44px; }
+  .draw-toolbar.v3 .dt-tool svg { width: 22px; height: 22px; }
+  .draw-toolbar.v3 .dt-color { width: 32px; height: 32px; }
+  .draw-toolbar.v3 .dt-stroke { width: 44px; height: 36px; }
+  .draw-toolbar.v3 { width: 280px; }
+
+  /* Drawing color key (legend caption under swatches) */
+  .draw-toolbar.v3 .dt-color-key {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 6px;
+    background: var(--rule-soft);
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--ink);
+  }
+  .draw-toolbar.v3 .dt-color-key .key-swatch {
+    display: inline-block; width: 12px; height: 12px; border-radius: 50%;
+    border: 1px solid var(--rule);
+    margin-right: 6px; vertical-align: middle;
+  }
+  .draw-toolbar.v3 .dt-color-key .key-name { font-weight: 700; }
+  .draw-toolbar.v3 .dt-color-legend {
+    display: none;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--ink);
+  }
+  .draw-toolbar.v3 .dt-color-legend.open { display: flex; }
+  .draw-toolbar.v3 .dt-color-legend .leg-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .draw-toolbar.v3 .dt-color-legend .leg-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 1px solid var(--rule);
+    flex-shrink: 0;
   }
 
   /* Floating draw toolbar */
@@ -1785,8 +1896,15 @@
   <!-- LEFT RAIL -->
   <div class="rail" id="rail"></div>
 
-  <!-- DESCRIPTORS -->
+  <!-- DESCRIPTORS (floating in v3) -->
   <div class="descriptors" id="descriptors">
+    <div class="desc-fp-header" id="descriptorsFpHeader">
+      <span class="fp-title"><span class="fp-grip">⋮⋮</span><span id="descriptorsFpTitle">Descriptors</span></span>
+      <span class="fp-actions">
+        <button class="fp-iconbtn" id="descriptorsCollapseBtn" title="Collapse" aria-label="Collapse">▾</button>
+        <button class="fp-iconbtn" id="descriptorsCloseBtn" title="Close" aria-label="Close">✕</button>
+      </span>
+    </div>
     <div class="descriptors-inner" id="descriptorsInner"></div>
   </div>
 
@@ -1827,8 +1945,10 @@
   <!-- v3 Floating Draw Toolbar -->
   <div class="draw-toolbar v3" id="drawToolbar" style="display:none">
     <div class="dt-header" id="drawToolbarHeader">
-      <span>✏️ Draw</span>
-      <span class="fp-grip">⋮⋮</span>
+      <span class="fp-title"><span class="fp-grip">⋮⋮</span><span>✏️ Draw</span></span>
+      <span class="fp-actions">
+        <button class="fp-iconbtn" id="drawCollapseBtn" title="Collapse" aria-label="Collapse">▾</button>
+      </span>
     </div>
     <div class="dt-row">
       <span class="dt-label">Tool</span>
@@ -1850,12 +1970,24 @@
     </div>
     <div class="dt-row">
       <span class="dt-label">Color</span>
-      <button class="dt-color" data-dt-color="#1a1a1a" style="background:#1a1a1a"></button>
-      <button class="dt-color" data-dt-color="#c0392b" style="background:#c0392b"></button>
-      <button class="dt-color" data-dt-color="#d97a2c" style="background:#d97a2c"></button>
-      <button class="dt-color" data-dt-color="#d4a72c" style="background:#d4a72c"></button>
-      <button class="dt-color" data-dt-color="#4a8a4a" style="background:#4a8a4a"></button>
-      <button class="dt-color" data-dt-color="#2a6fb8" style="background:#2a6fb8"></button>
+      <button class="dt-color" data-dt-color="#1a1a1a" data-dt-name="General" title="General" style="background:#1a1a1a"></button>
+      <button class="dt-color" data-dt-color="#c0392b" data-dt-name="Crack" title="Crack" style="background:#c0392b"></button>
+      <button class="dt-color" data-dt-color="#d97a2c" data-dt-name="Damage" title="Damage" style="background:#d97a2c"></button>
+      <button class="dt-color" data-dt-color="#d4a72c" data-dt-name="Note" title="Note" style="background:#d4a72c"></button>
+      <button class="dt-color" data-dt-color="#4a8a4a" data-dt-name="Repair" title="Repair" style="background:#4a8a4a"></button>
+      <button class="dt-color" data-dt-color="#2a6fb8" data-dt-name="Water" title="Water" style="background:#2a6fb8"></button>
+    </div>
+    <div class="dt-color-key" id="dtColorKey">
+      <span><span class="key-swatch" id="dtKeySwatch" style="background:#1a1a1a"></span><span>Active: <span class="key-name" id="dtKeyName">General</span></span></span>
+      <button class="fp-iconbtn" id="dtColorLegendBtn" title="Show color key" aria-label="Show color key" style="width:auto;padding:0 8px;font-size:9px">Key</button>
+    </div>
+    <div class="dt-color-legend" id="dtColorLegend">
+      <div class="leg-row"><span class="leg-dot" style="background:#1a1a1a"></span><span>General notes / outlines</span></div>
+      <div class="leg-row"><span class="leg-dot" style="background:#c0392b"></span><span>Crack</span></div>
+      <div class="leg-row"><span class="leg-dot" style="background:#d97a2c"></span><span>Damage / spall</span></div>
+      <div class="leg-row"><span class="leg-dot" style="background:#d4a72c"></span><span>Note / callout</span></div>
+      <div class="leg-row"><span class="leg-dot" style="background:#4a8a4a"></span><span>Repair / OK</span></div>
+      <div class="leg-row"><span class="leg-dot" style="background:#2a6fb8"></span><span>Water / moisture</span></div>
     </div>
     <div class="dt-row">
       <span class="dt-label">Stroke</span>
@@ -2287,8 +2419,9 @@ function renderRail() {
     planArea.classList.remove('no-rail');
     const sorted = [...SURFACES].sort((a,b) => a.name.localeCompare(b.name));
     rail.innerHTML = `
-      <div class="rail-fp-header" id="railFpHeader">
-        <span>Surfaces</span><span class="fp-grip">⋮⋮</span>
+      <div class="rail-fp-header" id="railFpHeader" style="display:flex;align-items:center;justify-content:space-between;width:100%">
+        <span class="fp-title" style="display:flex;align-items:center;gap:6px"><span class="fp-grip">⋮⋮</span><span>Surfaces</span></span>
+        <span class="fp-actions" style="display:flex;gap:4px"><button class="fp-iconbtn" id="railCollapseBtn" title="Collapse" aria-label="Collapse">▾</button></span>
       </div>
     ` + sorted.map(s => `
       <button class="rail-btn ${state.selectedSurface === s.key ? 'selected' : ''}" data-key="${s.key}" style="--swatch:${s.hex}">
@@ -2348,6 +2481,8 @@ function renderDescriptors() {
   const s = getSurface(state.selectedSurface);
   panel.classList.add('open');
   planArea.classList.add('shifted');
+  const titleEl = document.getElementById('descriptorsFpTitle');
+  if (titleEl) titleEl.textContent = s.name;
 
   if (s.custom) {
     // Custom-label surface (Other): show a text input instead of chip groups
@@ -4634,8 +4769,54 @@ window.__applyFloatingPos__ = function() {
       rail.dataset.dragWired = '1';
       makeDraggable(rail, railHeader, 'surfacesPos');
     }
+    if (state.ui.surfacesCollapsed) rail.classList.add('fp-collapsed');
+    const cb = document.getElementById('railCollapseBtn');
+    if (cb && !cb.dataset.wired) {
+      cb.dataset.wired = '1';
+      cb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        rail.classList.toggle('fp-collapsed');
+        cb.textContent = rail.classList.contains('fp-collapsed') ? '▸' : '▾';
+        state.ui.surfacesCollapsed = rail.classList.contains('fp-collapsed');
+        v3Save();
+      });
+      cb.textContent = rail.classList.contains('fp-collapsed') ? '▸' : '▾';
+    }
   }
 };
+
+// --- Descriptors floating panel (v3) ---
+(function setupDescriptorsFloating(){
+  const panel = document.getElementById('descriptors');
+  const header = document.getElementById('descriptorsFpHeader');
+  if (!panel || !header) return;
+  const pos = state.ui.descriptorsPos || { x: Math.max(8, window.innerWidth - 280), y: 156 };
+  panel.style.left = pos.x + 'px';
+  panel.style.top = pos.y + 'px';
+  panel.style.right = 'auto';
+  panel.style.bottom = 'auto';
+  makeDraggable(panel, header, 'descriptorsPos');
+  // Collapse
+  const cb = document.getElementById('descriptorsCollapseBtn');
+  if (state.ui.descriptorsCollapsed) panel.classList.add('fp-collapsed');
+  if (cb) {
+    cb.textContent = panel.classList.contains('fp-collapsed') ? '▸' : '▾';
+    cb.addEventListener('click', (e) => {
+      e.stopPropagation();
+      panel.classList.toggle('fp-collapsed');
+      cb.textContent = panel.classList.contains('fp-collapsed') ? '▸' : '▾';
+      state.ui.descriptorsCollapsed = panel.classList.contains('fp-collapsed');
+      v3Save();
+    });
+  }
+  // Close → behaves like deselecting surface
+  const xb = document.getElementById('descriptorsCloseBtn');
+  if (xb) xb.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (state.selectedSurface) selectSurface(state.selectedSurface);
+  });
+})();
+
 
 // --- Mode switcher ---
 function setMode(mode) {
@@ -4695,6 +4876,36 @@ document.getElementById('overflowBtn').addEventListener('click', (e) => {
     });
     dt.querySelectorAll('[data-dt-stroke]').forEach(b => {
       b.classList.toggle('active', String(state.drawWeight) === b.dataset.dtStroke);
+    });
+    // Color key caption
+    const sw = document.getElementById('dtKeySwatch');
+    const nm = document.getElementById('dtKeyName');
+    const active = dt.querySelector('[data-dt-color].active');
+    if (sw && nm && active) {
+      sw.style.background = active.dataset.dtColor;
+      nm.textContent = active.dataset.dtName || '—';
+    }
+  }
+  // Collapse
+  const collapseBtn = document.getElementById('drawCollapseBtn');
+  if (state.ui.drawCollapsed) dt.classList.add('fp-collapsed');
+  if (collapseBtn) {
+    collapseBtn.textContent = dt.classList.contains('fp-collapsed') ? '▸' : '▾';
+    collapseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dt.classList.toggle('fp-collapsed');
+      collapseBtn.textContent = dt.classList.contains('fp-collapsed') ? '▸' : '▾';
+      state.ui.drawCollapsed = dt.classList.contains('fp-collapsed');
+      v3Save();
+    });
+  }
+  // Legend toggle
+  const legendBtn = document.getElementById('dtColorLegendBtn');
+  const legend = document.getElementById('dtColorLegend');
+  if (legendBtn && legend) {
+    legendBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      legend.classList.toggle('open');
     });
   }
   dt.querySelectorAll('[data-dt-tool]').forEach(b => {
