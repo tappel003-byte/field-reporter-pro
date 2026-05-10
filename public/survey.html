@@ -4234,10 +4234,12 @@ document.getElementById('exportMenu').addEventListener('click', (e) => {
   clone.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu('exportMenu'); });
 })();
 
-// ---- + Photos burst-import button ----
+// ---- + Photos: open in-app burst camera (tap = instant capture, no preview) ----
 document.getElementById('addPhotosBtn').addEventListener('click', () => {
-  document.getElementById('burstInput').click();
+  if (typeof burstCam !== 'undefined' && burstCam && burstCam.open) burstCam.open();
+  else document.getElementById('burstInput').click();
 });
+// Legacy file-import path (still works as fallback if camera blocked)
 document.getElementById('burstInput').addEventListener('change', (e) => {
   const files = Array.from(e.target.files || []);
   if (!files.length) return;
