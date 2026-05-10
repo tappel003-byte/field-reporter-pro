@@ -1252,8 +1252,11 @@
     .job-addr-wrap input { display: none; }
     .job-addr-wrap.expanded { max-width: 240px; flex: 1 1 240px; }
     .job-addr-wrap.expanded input { display: block; }
-    /* Hide secondary buttons (accessible via More ▾) */
+    /* Hide secondary buttons in legacy positions; floating toolbar overrides below */
     #addPhotosBtn, #exportBtn, #clearBtn { display: none; }
+    .float-toolbar #addPhotosBtn,
+    .float-toolbar #exportBtn,
+    .float-toolbar #clearBtn { display: inline-flex; }
 
     /* --- Material rail → bottom horizontal strip --- */
     .rail {
