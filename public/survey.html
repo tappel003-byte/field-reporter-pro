@@ -2481,6 +2481,8 @@ function renderDescriptors() {
   const s = getSurface(state.selectedSurface);
   panel.classList.add('open');
   planArea.classList.add('shifted');
+  const titleEl = document.getElementById('descriptorsFpTitle');
+  if (titleEl) titleEl.textContent = s.name;
 
   if (s.custom) {
     // Custom-label surface (Other): show a text input instead of chip groups
