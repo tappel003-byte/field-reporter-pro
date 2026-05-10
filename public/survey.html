@@ -1989,8 +1989,10 @@
     <div class="desc-fp-header" id="descriptorsFpHeader">
       <span class="fp-title"><span class="fp-grip">⋮⋮</span><span id="descriptorsFpTitle">Descriptors</span></span>
       <span class="fp-actions">
+        <button class="fp-iconbtn" id="descriptorsCameraBtn" title="Take photo" aria-label="Take photo">📷</button>
+        <button class="fp-iconbtn" id="descriptorsTrashBtn" title="Clear selections" aria-label="Clear selections">🗑</button>
         <button class="fp-iconbtn" id="descriptorsCollapseBtn" title="Collapse" aria-label="Collapse">▾</button>
-        <button class="fp-iconbtn" id="descriptorsCloseBtn" title="Close" aria-label="Close">✕</button>
+        <button class="fp-iconbtn" id="descriptorsCloseBtn" title="Done" aria-label="Done">✓</button>
       </span>
     </div>
     <div class="descriptors-inner" id="descriptorsInner"></div>
@@ -4863,8 +4865,9 @@ window.__applyFloatingPos__ = function() {
     rail.style.top = pos.y + 'px';
     rail.style.right = 'auto';
     rail.style.bottom = 'auto';
-    if (!rail.dataset.dragWired) {
-      rail.dataset.dragWired = '1';
+    // Rewire on every call — renderRail replaces innerHTML, destroying old handlers
+    if (!railHeader.dataset.dragWired) {
+      railHeader.dataset.dragWired = '1';
       makeDraggable(rail, railHeader, 'surfacesPos');
     }
     if (state.ui.surfacesCollapsed) rail.classList.add('fp-collapsed');
@@ -4907,11 +4910,30 @@ window.__applyFloatingPos__ = function() {
       v3Save();
     });
   }
-  // Close → behaves like deselecting surface
+  // Done (✓) → deselect surface and close panel
   const xb = document.getElementById('descriptorsCloseBtn');
   if (xb) xb.addEventListener('click', (e) => {
     e.stopPropagation();
     if (state.selectedSurface) selectSurface(state.selectedSurface);
+  });
+  // Trash → clear descriptors for this surface (keep surface selected)
+  const tb = document.getElementById('descriptorsTrashBtn');
+  if (tb) tb.addEventListener('click', (e) => {
+    e.stopPropagation();
+    state.selectedDescriptors = { size:'', pattern:'', location:'', offset:'', custom:'' };
+    save();
+    renderDescriptors();
+    updateHint();
+    if (typeof toast === 'function') toast('Selections cleared');
+  });
+  // Camera → open burst camera
+  const camB = document.getElementById('descriptorsCameraBtn');
+  if (camB) camB.addEventListener('click', (e) => {
+    e.stopPropagation();
+    try { burstCam.open(); } catch (_) {
+      const ci = document.getElementById('camInput');
+      if (ci) ci.click();
+    }
   });
 })();
 
