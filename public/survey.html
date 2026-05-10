@@ -2112,7 +2112,13 @@ function save() {
       northArrow: state.northArrow,
       weather: state.weather,
       darkMode: state.darkMode,
-      drawTool: state.drawTool
+      drawTool: state.drawTool,
+      mode: state.mode,
+      ui: state.ui,
+      drawColor: state.drawColor,
+      drawWeight: state.drawWeight,
+      drawSubTool: state.drawSubTool,
+      drawStrokes: state.drawStrokes
     }));
     setSync('saved');
   } catch (e) {
