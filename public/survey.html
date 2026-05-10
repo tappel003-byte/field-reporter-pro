@@ -4875,6 +4875,36 @@ document.getElementById('overflowBtn').addEventListener('click', (e) => {
     dt.querySelectorAll('[data-dt-stroke]').forEach(b => {
       b.classList.toggle('active', String(state.drawWeight) === b.dataset.dtStroke);
     });
+    // Color key caption
+    const sw = document.getElementById('dtKeySwatch');
+    const nm = document.getElementById('dtKeyName');
+    const active = dt.querySelector('[data-dt-color].active');
+    if (sw && nm && active) {
+      sw.style.background = active.dataset.dtColor;
+      nm.textContent = active.dataset.dtName || '—';
+    }
+  }
+  // Collapse
+  const collapseBtn = document.getElementById('drawCollapseBtn');
+  if (state.ui.drawCollapsed) dt.classList.add('fp-collapsed');
+  if (collapseBtn) {
+    collapseBtn.textContent = dt.classList.contains('fp-collapsed') ? '▸' : '▾';
+    collapseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dt.classList.toggle('fp-collapsed');
+      collapseBtn.textContent = dt.classList.contains('fp-collapsed') ? '▸' : '▾';
+      state.ui.drawCollapsed = dt.classList.contains('fp-collapsed');
+      v3Save();
+    });
+  }
+  // Legend toggle
+  const legendBtn = document.getElementById('dtColorLegendBtn');
+  const legend = document.getElementById('dtColorLegend');
+  if (legendBtn && legend) {
+    legendBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      legend.classList.toggle('open');
+    });
   }
   dt.querySelectorAll('[data-dt-tool]').forEach(b => {
     if (b.disabled) return;
