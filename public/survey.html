@@ -3270,11 +3270,10 @@ function renderDetail() {
   const sev = pin.severity || 0;
   panel.innerHTML = `
     <div class="detail-head" style="background:${pinCategoryHex(pin)}">
+      <button class="detail-trash" id="detailTrashBtn" title="Discard pin" aria-label="Discard pin">🗑</button>
       <div class="detail-num">${pin.num}${pinIsHazard(pin) ? ' ⚠' : ''}</div>
       <div class="detail-title">${escapeHtml(s.name)}</div>
-      <button class="detail-close" id="detailClose">×</button>
-    </div>
-      <button class="detail-close" id="detailClose">×</button>
+      <button class="detail-done" id="detailClose" title="Done — save and close" aria-label="Done">✓</button>
     </div>
     <div class="detail-body">
       <div class="detail-photos">
