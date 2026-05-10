@@ -2729,20 +2729,18 @@ function mountPlan() {
 }
 
 function updateActiveIndicator() {
+  // v3: the "PHOTOS GO TO …" chip was removed. Only the small × (camClearBtn)
+  // is shown when a pin is active, so the user can detach.
   const ind = $('activeIndicator');
-  const target = $('activeTarget');
   const clearBtn = $('camClearBtn');
   const activePin = state.pins.find(p => p.id === state.activePinId);
-  if (activePin) {
-    ind.classList.add('has-active');
-    target.classList.remove('unattached');
-    target.textContent = '#' + activePin.num + ' ' + (getSurface(activePin.surface)?.name || '');
-    clearBtn.disabled = false;
-  } else {
-    ind.classList.remove('has-active');
-    target.classList.add('unattached');
-    target.textContent = 'Unattached';
-    clearBtn.disabled = true;
+  if (ind) ind.style.display = 'none';
+  if (clearBtn) {
+    clearBtn.style.display = activePin ? '' : 'none';
+    clearBtn.disabled = !activePin;
+    clearBtn.title = activePin
+      ? ('Detach photos from #' + activePin.num)
+      : 'No active pin';
   }
 }
 
