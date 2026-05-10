@@ -1945,8 +1945,10 @@
   <!-- v3 Floating Draw Toolbar -->
   <div class="draw-toolbar v3" id="drawToolbar" style="display:none">
     <div class="dt-header" id="drawToolbarHeader">
-      <span>✏️ Draw</span>
-      <span class="fp-grip">⋮⋮</span>
+      <span class="fp-title"><span class="fp-grip">⋮⋮</span><span>✏️ Draw</span></span>
+      <span class="fp-actions">
+        <button class="fp-iconbtn" id="drawCollapseBtn" title="Collapse" aria-label="Collapse">▾</button>
+      </span>
     </div>
     <div class="dt-row">
       <span class="dt-label">Tool</span>
@@ -1968,12 +1970,24 @@
     </div>
     <div class="dt-row">
       <span class="dt-label">Color</span>
-      <button class="dt-color" data-dt-color="#1a1a1a" style="background:#1a1a1a"></button>
-      <button class="dt-color" data-dt-color="#c0392b" style="background:#c0392b"></button>
-      <button class="dt-color" data-dt-color="#d97a2c" style="background:#d97a2c"></button>
-      <button class="dt-color" data-dt-color="#d4a72c" style="background:#d4a72c"></button>
-      <button class="dt-color" data-dt-color="#4a8a4a" style="background:#4a8a4a"></button>
-      <button class="dt-color" data-dt-color="#2a6fb8" style="background:#2a6fb8"></button>
+      <button class="dt-color" data-dt-color="#1a1a1a" data-dt-name="General" title="General" style="background:#1a1a1a"></button>
+      <button class="dt-color" data-dt-color="#c0392b" data-dt-name="Crack" title="Crack" style="background:#c0392b"></button>
+      <button class="dt-color" data-dt-color="#d97a2c" data-dt-name="Damage" title="Damage" style="background:#d97a2c"></button>
+      <button class="dt-color" data-dt-color="#d4a72c" data-dt-name="Note" title="Note" style="background:#d4a72c"></button>
+      <button class="dt-color" data-dt-color="#4a8a4a" data-dt-name="Repair" title="Repair" style="background:#4a8a4a"></button>
+      <button class="dt-color" data-dt-color="#2a6fb8" data-dt-name="Water" title="Water" style="background:#2a6fb8"></button>
+    </div>
+    <div class="dt-color-key" id="dtColorKey">
+      <span><span class="key-swatch" id="dtKeySwatch" style="background:#1a1a1a"></span><span>Active: <span class="key-name" id="dtKeyName">General</span></span></span>
+      <button class="fp-iconbtn" id="dtColorLegendBtn" title="Show color key" aria-label="Show color key" style="width:auto;padding:0 8px;font-size:9px">Key</button>
+    </div>
+    <div class="dt-color-legend" id="dtColorLegend">
+      <div class="leg-row"><span class="leg-dot" style="background:#1a1a1a"></span><span>General notes / outlines</span></div>
+      <div class="leg-row"><span class="leg-dot" style="background:#c0392b"></span><span>Crack</span></div>
+      <div class="leg-row"><span class="leg-dot" style="background:#d97a2c"></span><span>Damage / spall</span></div>
+      <div class="leg-row"><span class="leg-dot" style="background:#d4a72c"></span><span>Note / callout</span></div>
+      <div class="leg-row"><span class="leg-dot" style="background:#4a8a4a"></span><span>Repair / OK</span></div>
+      <div class="leg-row"><span class="leg-dot" style="background:#2a6fb8"></span><span>Water / moisture</span></div>
     </div>
     <div class="dt-row">
       <span class="dt-label">Stroke</span>
