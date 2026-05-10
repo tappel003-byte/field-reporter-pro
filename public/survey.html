@@ -654,6 +654,55 @@
   .cam-btn svg { width: 28px; height: 28px; fill: currentColor; }
   .cam-btn input { display: none; }
 
+  /* BURST CAMERA OVERLAY */
+  .burst-cam {
+    position: fixed; inset: 0; z-index: 1000;
+    background: #000; display: none;
+    flex-direction: column;
+  }
+  .burst-cam.open { display: flex; }
+  .burst-cam video {
+    flex: 1; width: 100%; height: 100%;
+    object-fit: cover; background: #000;
+  }
+  .burst-cam-top {
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: 14px 16px; display: flex;
+    justify-content: space-between; align-items: center;
+    color: #fff; z-index: 2;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent);
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .burst-cam-top button {
+    background: rgba(255,255,255,0.15);
+    color: #fff; border: 1px solid rgba(255,255,255,0.3);
+    padding: 8px 14px; border-radius: 999px;
+    font-family: inherit; font-size: 11px;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    cursor: pointer;
+  }
+  .burst-cam-bottom {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 24px 16px 36px; display: flex;
+    align-items: center; justify-content: center;
+    z-index: 2;
+    background: linear-gradient(to top, rgba(0,0,0,0.55), transparent);
+  }
+  .burst-shutter {
+    width: 76px; height: 76px; border-radius: 50%;
+    background: #fff; border: 5px solid rgba(255,255,255,0.45);
+    box-shadow: 0 0 0 3px #fff inset, 0 4px 14px rgba(0,0,0,0.5);
+    cursor: pointer; transition: transform 0.08s;
+  }
+  .burst-shutter:active { transform: scale(0.92); }
+  .burst-flash {
+    position: absolute; inset: 0; background: #fff;
+    opacity: 0; pointer-events: none; z-index: 3;
+    transition: opacity 0.18s;
+  }
+  .burst-flash.flash { opacity: 0.85; transition: opacity 0s; }
+
   /* MODE TOGGLE */
   .mode-toggle {
     position: absolute;
@@ -1457,13 +1506,24 @@
     <button class="cam-clear-btn" id="camClearBtn" title="Clear active pin">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
     </button>
-    <label class="cam-btn" id="camBtn" title="Camera">
+    <button class="cam-btn" id="camBtn" title="Burst camera">
       <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm9-9.5h-3.17l-1.84-2H8.01L6.17 6H3a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2zM12 18a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z"/></svg>
-      <input type="file" id="camInput" accept="image/*" capture="environment" multiple>
-    </label>
+    </button>
+    <input type="file" id="camInput" accept="image/*" capture="environment" multiple style="display:none">
   </div>
 
-  <!-- FINDINGS PANEL -->
+  <!-- BURST CAMERA OVERLAY -->
+  <div class="burst-cam" id="burstCam" aria-hidden="true">
+    <video id="burstVideo" autoplay playsinline muted></video>
+    <div class="burst-flash" id="burstFlash"></div>
+    <div class="burst-cam-top">
+      <span id="burstCount">0 photos</span>
+      <button id="burstDone">Done</button>
+    </div>
+    <div class="burst-cam-bottom">
+      <button class="burst-shutter" id="burstShutter" aria-label="Capture"></button>
+    </div>
+  </div>
   <div class="findings" id="findingsPanel">
     <div class="findings-head">
       <div class="findings-title">Findings</div>
@@ -3150,6 +3210,80 @@ $('camInput').addEventListener('change', (e) => {
   burstImportPhotos(files);
   e.target.value = '';
 });
+
+// ---- Burst camera (in-app, no "Use Photo" confirmation) ----
+const burstCam = {
+  stream: null,
+  count: 0,
+  busy: false,
+  async open() {
+    const overlay = $('burstCam');
+    const video = $('burstVideo');
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      // Fallback: native picker
+      $('camInput').click();
+      return;
+    }
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } },
+        audio: false
+      });
+    } catch (err) {
+      console.warn('getUserMedia failed', err);
+      toast('Camera unavailable — using photo picker');
+      $('camInput').click();
+      return;
+    }
+    video.srcObject = this.stream;
+    this.count = 0;
+    $('burstCount').textContent = '0 photos';
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+  },
+  close() {
+    const overlay = $('burstCam');
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+    if (this.stream) {
+      this.stream.getTracks().forEach(t => t.stop());
+      this.stream = null;
+    }
+    $('burstVideo').srcObject = null;
+    if (this.count > 0) toast('Captured ' + this.count + ' photo' + (this.count > 1 ? 's' : ''));
+    this.count = 0;
+  },
+  snap() {
+    if (this.busy) return;
+    const video = $('burstVideo');
+    if (!video.videoWidth) return;
+    this.busy = true;
+    // flash
+    const flash = $('burstFlash');
+    flash.classList.add('flash');
+    setTimeout(() => flash.classList.remove('flash'), 90);
+    // haptic
+    if (navigator.vibrate) navigator.vibrate(10);
+    // capture frame to canvas
+    const maxW = 1600;
+    const sw = video.videoWidth, sh = video.videoHeight;
+    const scale = Math.min(1, maxW / sw);
+    const w = Math.round(sw * scale), h = Math.round(sh * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    const meta = (window.capturePinMeta && window.capturePinMeta()) || { timestamp: Date.now() };
+    addPhotoToState(dataUrl, { takenAt: Date.now(), gps: meta.gps || null, silent: true });
+    this.count++;
+    $('burstCount').textContent = this.count + ' photo' + (this.count > 1 ? 's' : '');
+    this.busy = false;
+  }
+};
+
+$('camBtn').addEventListener('click', () => burstCam.open());
+$('burstShutter').addEventListener('click', () => burstCam.snap());
+$('burstDone').addEventListener('click', () => burstCam.close());
 
 // Burst import — handles 1 or many files; metadata captured per file.
 function burstImportPhotos(files) {
