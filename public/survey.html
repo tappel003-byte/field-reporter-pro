@@ -4745,10 +4745,18 @@ async function fetchWeather(force, lat, lng) {
   } catch (e) { /* silent */ }
 }
 function renderWeather() {
-  const el = document.getElementById('weatherStamp');
-  if (!state.weather) { el.style.display = 'none'; return; }
-  el.style.display = 'block';
-  el.textContent = state.weather.summary + ' · ' + new Date(state.weather.fetchedAt).toLocaleString();
+  // v3: weather lives inline in the sticky header. Keep the legacy stamp hidden.
+  const old = document.getElementById('weatherStamp');
+  if (old) old.style.display = 'none';
+  const inline = document.getElementById('weatherInline');
+  if (!inline) return;
+  if (!state.weather) { inline.style.display = 'none'; inline.textContent = ''; return; }
+  const w = state.weather;
+  // Compact format: "Clear · 82°F · 7mph"
+  const summary = (w.summary || '').replace(/\s+/g, ' ');
+  inline.style.display = '';
+  inline.textContent = summary;
+  inline.title = summary + ' · updated ' + new Date(w.fetchedAt).toLocaleString();
 }
 
 // =====================================================================
