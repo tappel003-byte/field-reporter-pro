@@ -1817,17 +1817,54 @@
     <div class="hint" id="hint" style="display:none"></div>
   </div>
 
-  <!-- DRAW TOOLS -->
+  <!-- DRAW TOOLS (legacy, hidden in v3) -->
   <div class="tool-bar" id="toolBar" style="display:none">
-    <button data-tool="free" title="Freehand">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c2-3 4-5 7-5s5 2 7 5"/><path d="M14 4l3 3-9 9-4 1 1-4z"/></svg>
-    </button>
-    <button data-tool="line" title="Straight line">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="20" x2="20" y2="4"/><circle cx="4" cy="20" r="2" fill="currentColor"/><circle cx="20" cy="4" r="2" fill="currentColor"/></svg>
-    </button>
-    <button data-tool="ellipse" title="Ellipse">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="9" ry="6"/></svg>
-    </button>
+    <button data-tool="free" title="Freehand"></button>
+    <button data-tool="line" title="Straight line"></button>
+    <button data-tool="ellipse" title="Ellipse"></button>
+  </div>
+
+  <!-- v3 Floating Draw Toolbar -->
+  <div class="draw-toolbar v3" id="drawToolbar" style="display:none">
+    <div class="dt-header" id="drawToolbarHeader">
+      <span>✏️ Draw</span>
+      <span class="fp-grip">⋮⋮</span>
+    </div>
+    <div class="dt-row">
+      <span class="dt-label">Tool</span>
+      <button class="dt-tool" data-dt-tool="free" title="Freehand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c2-3 4-5 7-5s5 2 7 5"/><path d="M14 4l3 3-9 9-4 1 1-4z"/></svg>
+      </button>
+      <button class="dt-tool" data-dt-tool="line" title="Straight line">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="20" x2="20" y2="4"/></svg>
+      </button>
+      <button class="dt-tool" data-dt-tool="ellipse" title="Ellipse">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="9" ry="6"/></svg>
+      </button>
+      <button class="dt-tool" data-dt-tool="erase" title="Eraser">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6 6 12-12-6-6L3 17z"/><path d="M9 11l6 6"/></svg>
+      </button>
+      <button class="dt-tool" data-dt-tool="symbols" disabled title="Symbols (coming soon)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l3 6 6 .9-4.5 4.4 1 6.2L12 17.8 6.5 20.5l1-6.2L3 9.9 9 9z"/></svg>
+      </button>
+    </div>
+    <div class="dt-row">
+      <span class="dt-label">Color</span>
+      <button class="dt-color" data-dt-color="#1a1a1a" style="background:#1a1a1a"></button>
+      <button class="dt-color" data-dt-color="#c0392b" style="background:#c0392b"></button>
+      <button class="dt-color" data-dt-color="#d97a2c" style="background:#d97a2c"></button>
+      <button class="dt-color" data-dt-color="#d4a72c" style="background:#d4a72c"></button>
+      <button class="dt-color" data-dt-color="#4a8a4a" style="background:#4a8a4a"></button>
+      <button class="dt-color" data-dt-color="#2a6fb8" style="background:#2a6fb8"></button>
+    </div>
+    <div class="dt-row">
+      <span class="dt-label">Stroke</span>
+      <button class="dt-stroke" data-dt-stroke="2"><span class="swatch" style="width:14px;height:2px"></span></button>
+      <button class="dt-stroke" data-dt-stroke="4"><span class="swatch" style="width:14px;height:4px"></span></button>
+      <button class="dt-stroke" data-dt-stroke="7"><span class="swatch" style="width:14px;height:7px"></span></button>
+      <span style="flex:1"></span>
+      <button class="dt-tool" id="drawClearAllBtn" title="Clear all sketches" style="width:auto;padding:0 8px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:0.1em;text-transform:uppercase">Clear</button>
+    </div>
   </div>
 
   <!-- ZOOM -->
