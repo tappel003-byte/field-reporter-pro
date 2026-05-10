@@ -2196,6 +2196,12 @@ function load() {
     state.darkMode = !!d.darkMode;
     state.drawTool = d.drawTool || null;
     if (state.drawTool && !['free','line','ellipse'].includes(state.drawTool)) state.drawTool = null;
+    if (d.mode === 'pin' || d.mode === 'draw') state.mode = d.mode;
+    if (d.ui && typeof d.ui === 'object') state.ui = d.ui;
+    if (d.drawColor) state.drawColor = d.drawColor;
+    if (d.drawWeight) state.drawWeight = d.drawWeight;
+    if (d.drawSubTool) state.drawSubTool = d.drawSubTool;
+    if (Array.isArray(d.drawStrokes)) state.drawStrokes = d.drawStrokes;
   } catch(e) { console.warn(e); }
 }
 
