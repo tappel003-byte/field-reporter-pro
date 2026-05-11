@@ -555,6 +555,7 @@ function useGpsForAddress() {
   hint.textContent = 'Getting your location…';
   navigator.geolocation.getCurrentPosition(async (pos) => {
     const { latitude: lat, longitude: lon } = pos.coords;
+    _lastFix = { lat, lon };
     hint.textContent = 'Looking up address…';
     try {
       const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
