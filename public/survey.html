@@ -70,7 +70,7 @@
   .back-btn{background:transparent;border:none;font-size:22px;color:var(--ink);
     width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center}
   .back-btn:active{background:var(--line)}
-  .setup-body{padding:18px 18px 100px;flex:1}
+  .setup-body{padding:18px 18px 24px;flex:1}
   .field{margin-bottom:20px}
   .field label{display:block;font-size:11px;color:var(--muted);font-weight:600;
     letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
@@ -90,8 +90,8 @@
   .plan-preview .change{position:absolute;top:8px;right:8px;background:var(--ink);color:var(--paper);
     border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600}
 
-  .setup-foot{position:fixed;bottom:0;left:0;right:0;padding:14px 18px 22px;
-    background:linear-gradient(to top,var(--bg) 60%,transparent);z-index:2}
+  .setup-foot{position:sticky;bottom:0;left:0;right:0;padding:14px 18px calc(22px + env(safe-area-inset-bottom,0px));
+    background:linear-gradient(to top,var(--bg) 60%,var(--bg) 80%,transparent);z-index:2}
   .primary-btn{width:100%;background:var(--ink);color:var(--paper);border:none;padding:15px;
     border-radius:12px;font-size:16px;font-weight:600;box-shadow:var(--shadow)}
   .primary-btn:disabled{opacity:.4}
@@ -543,27 +543,51 @@ function resizeImage(dataUrl, maxDim, cb) {
 // ---------- Address autocomplete (Nominatim search) ----------
 let _lastFix = null; // {lat, lon} from GPS — saved with the project
 
+function _gpsBlockedMsg() {
+  if (!window.isSecureContext) return 'GPS requires HTTPS — type the address instead.';
+  if (window.self !== window.top) return 'Location blocked in this preview — open the app in a new tab or type the address.';
+  return 'Could not get location — type the address instead.';
+}
+
+function _getPositionWithWatchdog(onOk, onFail, opts) {
+  let done = false;
+  const finish = (fn, arg) => { if (done) return; done = true; fn(arg); };
+  const watchdog = setTimeout(() => finish(onFail, { code: 3, message: 'timeout' }), (opts && opts.timeout ? opts.timeout : 15000) + 1000);
+  try {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { clearTimeout(watchdog); finish(onOk, pos); },
+      (err) => { clearTimeout(watchdog); finish(onFail, err); },
+      opts
+    );
+  } catch (e) {
+    clearTimeout(watchdog);
+    finish(onFail, { code: 2, message: String(e) });
+  }
+}
+
 function useGpsForAddress() {
   const btn = document.getElementById('addrBtn');
   const hint = document.getElementById('gpsHint');
   const input = document.getElementById('fAddress');
+  hint.style.display = 'block';
   if (!navigator.geolocation) {
-    hint.style.display = 'block';
-    hint.textContent = 'GPS not available on this device.';
+    hint.textContent = 'GPS not available on this device — type the address instead.';
     return;
   }
   btn.disabled = true;
   const orig = btn.textContent;
   btn.textContent = '… locating';
-  hint.style.display = 'block';
   hint.textContent = 'Getting your location…';
-  navigator.geolocation.getCurrentPosition(async (pos) => {
+  const restore = () => { btn.disabled = false; btn.textContent = orig; };
+  _getPositionWithWatchdog(async (pos) => {
     const { latitude: lat, longitude: lon } = pos.coords;
     _lastFix = { lat, lon };
     hint.textContent = 'Looking up address…';
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10000);
     try {
       const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json' }, signal: ctrl.signal
       });
       if (!r.ok) throw new Error('lookup failed');
       const j = await r.json();
@@ -581,22 +605,22 @@ function useGpsForAddress() {
       input.value = addr;
       input.dispatchEvent(new Event('input', { bubbles: true }));
       hint.textContent = `Located: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    } catch (err) {
+      input.value = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      hint.textContent = 'No signal for address lookup — used coordinates.';
+    } finally {
+      clearTimeout(t);
       validateSetup && validateSetup();
       const startBtn = document.getElementById('startBtn');
       if (startBtn) startBtn.disabled = !(input.value.trim() && _setupPlan);
-    } catch (err) {
-      input.value = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
-      hint.textContent = 'No signal for address — used coordinates.';
-      const startBtn = document.getElementById('startBtn');
-      if (startBtn) startBtn.disabled = !(input.value.trim() && _setupPlan);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = orig;
+      restore();
     }
   }, (err) => {
-    btn.disabled = false;
-    btn.textContent = orig;
-    hint.textContent = err.code === 1 ? 'Location permission denied.' : 'Could not get location.';
+    restore();
+    hint.textContent = err && err.code === 1 ? 'Location permission denied — type the address instead.'
+      : err && err.code === 3 ? 'Location timed out — type the address instead.'
+      : _gpsBlockedMsg();
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
 }
 
@@ -604,17 +628,17 @@ function useGpsCoordsOnly() {
   const btn = document.getElementById('coordsBtn');
   const hint = document.getElementById('gpsHint');
   const input = document.getElementById('fAddress');
+  hint.style.display = 'block';
   if (!navigator.geolocation) {
-    hint.style.display = 'block';
-    hint.textContent = 'GPS not available on this device.';
+    hint.textContent = 'GPS not available on this device — type the address instead.';
     return;
   }
   btn.disabled = true;
   const orig = btn.textContent;
   btn.textContent = '… locating';
-  hint.style.display = 'block';
   hint.textContent = 'Getting your location…';
-  navigator.geolocation.getCurrentPosition((pos) => {
+  const restore = () => { btn.disabled = false; btn.textContent = orig; };
+  _getPositionWithWatchdog((pos) => {
     const { latitude: lat, longitude: lon } = pos.coords;
     _lastFix = { lat, lon };
     input.value = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
@@ -623,12 +647,12 @@ function useGpsCoordsOnly() {
     validateSetup && validateSetup();
     const startBtn = document.getElementById('startBtn');
     if (startBtn) startBtn.disabled = !(input.value.trim() && _setupPlan);
-    btn.disabled = false;
-    btn.textContent = orig;
+    restore();
   }, (err) => {
-    btn.disabled = false;
-    btn.textContent = orig;
-    hint.textContent = err.code === 1 ? 'Location permission denied.' : 'Could not get location.';
+    restore();
+    hint.textContent = err && err.code === 1 ? 'Location permission denied — type the address instead.'
+      : err && err.code === 3 ? 'Location timed out — type the address instead.'
+      : _gpsBlockedMsg();
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
 }
 function commitNewProject() {
