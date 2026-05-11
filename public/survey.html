@@ -433,7 +433,12 @@ function toast(msg) {
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  updateAppHeight();
   closeSheets();
+}
+function updateAppHeight() {
+  const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight || document.documentElement.clientHeight;
+  if (h) document.documentElement.style.setProperty('--app-height', `${Math.round(h)}px`);
 }
 function goHome() {
   if (project) { saveProject(); }
@@ -507,9 +512,12 @@ function startNewProject(mode) {
   setTimeout(()=>document.getElementById('fAddress').focus(), 200);
 }
 document.getElementById('fAddress').addEventListener('input', refreshStartBtn);
+function validateSetup() { refreshStartBtn(); }
 function refreshStartBtn() {
   const addr = document.getElementById('fAddress').value.trim();
-  document.getElementById('startBtn').disabled = !(addr && _setupPlan);
+  const disabled = !(addr && _setupPlan);
+  document.getElementById('startBtn').disabled = disabled;
+  document.getElementById('startBtnTop').disabled = disabled;
 }
 function onPlanFileChange(e) {
   const f = e.target.files && e.target.files[0];
@@ -1481,7 +1489,8 @@ function escapeHtml(s) {
 }
 
 // ---------- Resize / clamp ----------
-window.addEventListener('resize', () => { if (project) applyTransform(); });
+window.addEventListener('resize', () => { updateAppHeight(); if (project) applyTransform(); });
+if (window.visualViewport) window.visualViewport.addEventListener('resize', updateAppHeight);
 
 // ---------- Boot ----------
 load();
