@@ -537,80 +537,7 @@ function resizeImage(dataUrl, maxDim, cb) {
 
 // ---------- GPS → Address ----------
 // ---------- Address autocomplete (Nominatim search) ----------
-let _addrTimer = null;
-let _addrSeq = 0;
-let _lastFix = null; // {lat, lon} from GPS, used to bias results
-function onAddressInput(e) {
-  const q = (e.target.value || '').trim();
-  // Keep Start Survey button in sync
-  const startBtn = document.getElementById('startBtn');
-  if (startBtn) startBtn.disabled = !(q && _setupPlan);
-  if (_addrTimer) clearTimeout(_addrTimer);
-  if (q.length < 3) { hideAddrSuggest(); return; }
-  _addrTimer = setTimeout(() => fetchAddrSuggest(q), 300);
-}
-function hideAddrSuggest() {
-  const box = document.getElementById('addrSuggest');
-  if (box) box.style.display = 'none';
-}
-async function fetchAddrSuggest(q) {
-  const seq = ++_addrSeq;
-  let url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&q=${encodeURIComponent(q)}`;
-  if (_lastFix) {
-    // Bias toward last known GPS location (~50km box)
-    const d = 0.5;
-    const { lat, lon } = _lastFix;
-    url += `&viewbox=${lon-d},${lat+d},${lon+d},${lat-d}&bounded=0`;
-  }
-  try {
-    const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
-    if (!r.ok) return;
-    const list = await r.json();
-    if (seq !== _addrSeq) return; // stale
-    renderAddrSuggest(list);
-  } catch (_) { /* offline — silently ignore */ }
-}
-function formatAddr(item) {
-  const a = item.address || {};
-  const house = a.house_number || '';
-  const road = a.road || a.pedestrian || a.footway || '';
-  const city = a.city || a.town || a.village || a.hamlet || a.suburb || '';
-  const state = a.state || '';
-  const line1 = [house, road].filter(Boolean).join(' ').trim();
-  const parts = [];
-  if (line1) parts.push(line1);
-  if (city) parts.push(city);
-  if (state) parts.push(state);
-  return parts.length ? parts.join(', ') : item.display_name;
-}
-function renderAddrSuggest(list) {
-  const box = document.getElementById('addrSuggest');
-  if (!box) return;
-  box.innerHTML = '';
-  if (!list || !list.length) { box.style.display = 'none'; return; }
-  list.forEach(item => {
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.style.cssText = 'display:block;width:100%;text-align:left;padding:10px 12px;background:transparent;border:0;border-bottom:1px solid var(--line);color:var(--text);font-size:14px;cursor:pointer';
-    const main = document.createElement('div');
-    main.style.cssText = 'font-weight:600';
-    main.textContent = formatAddr(item);
-    const sub = document.createElement('div');
-    sub.style.cssText = 'font-size:12px;opacity:.65;margin-top:2px';
-    sub.textContent = item.display_name;
-    row.appendChild(main); row.appendChild(sub);
-    row.onmousedown = (ev) => ev.preventDefault(); // keep focus, prevent blur-hide
-    row.onclick = () => {
-      const input = document.getElementById('fAddress');
-      input.value = formatAddr(item);
-      hideAddrSuggest();
-      const startBtn = document.getElementById('startBtn');
-      if (startBtn) startBtn.disabled = !(input.value.trim() && _setupPlan);
-    };
-    box.appendChild(row);
-  });
-  box.style.display = 'block';
-}
+let _lastFix = null; // {lat, lon} from GPS — saved with the project
 
 function useGpsForAddress() {
   const btn = document.getElementById('gpsBtn');
@@ -628,6 +555,7 @@ function useGpsForAddress() {
   hint.textContent = 'Getting your location…';
   navigator.geolocation.getCurrentPosition(async (pos) => {
     const { latitude: lat, longitude: lon } = pos.coords;
+    _lastFix = { lat, lon };
     hint.textContent = 'Looking up address…';
     try {
       const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
