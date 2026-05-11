@@ -242,7 +242,14 @@
   <div class="setup-body">
     <div class="field">
       <label>Address</label>
-      <input type="text" id="fAddress" placeholder="e.g. 123 Main Street" autocomplete="off" />
+      <div style="display:flex;gap:8px;align-items:stretch">
+        <input type="text" id="fAddress" placeholder="e.g. 123 Main Street" autocomplete="off" style="flex:1" />
+        <button type="button" id="gpsBtn" onclick="useGpsForAddress()"
+          style="padding:0 14px;border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:10px;font-size:14px;cursor:pointer;white-space:nowrap">
+          📍 GPS
+        </button>
+      </div>
+      <div class="hint" id="gpsHint" style="display:none"></div>
     </div>
 
     <div class="field">
@@ -525,6 +532,64 @@ function resizeImage(dataUrl, maxDim, cb) {
   };
   img.onerror = () => toast('Could not load that image.');
   img.src = dataUrl;
+}
+
+// ---------- GPS → Address ----------
+function useGpsForAddress() {
+  const btn = document.getElementById('gpsBtn');
+  const hint = document.getElementById('gpsHint');
+  const input = document.getElementById('fAddress');
+  if (!navigator.geolocation) {
+    hint.style.display = 'block';
+    hint.textContent = 'GPS not available on this device.';
+    return;
+  }
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '… locating';
+  hint.style.display = 'block';
+  hint.textContent = 'Getting your location…';
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    hint.textContent = 'Looking up address…';
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!r.ok) throw new Error('lookup failed');
+      const j = await r.json();
+      const a = j.address || {};
+      const house = a.house_number || '';
+      const road = a.road || a.pedestrian || a.footway || '';
+      const city = a.city || a.town || a.village || a.hamlet || a.suburb || '';
+      const state = a.state || '';
+      const parts = [];
+      const line1 = [house, road].filter(Boolean).join(' ').trim();
+      if (line1) parts.push(line1);
+      if (city) parts.push(city);
+      if (state) parts.push(state);
+      const addr = parts.length ? parts.join(', ') : (j.display_name || `${lat.toFixed(5)}, ${lon.toFixed(5)}`);
+      input.value = addr;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      hint.textContent = `Located: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+      validateSetup && validateSetup();
+      // Trigger start button enable
+      const startBtn = document.getElementById('startBtn');
+      if (startBtn) startBtn.disabled = !(input.value.trim() && _setupPlan);
+    } catch (err) {
+      input.value = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+      hint.textContent = 'Used coordinates (address lookup failed).';
+      const startBtn = document.getElementById('startBtn');
+      if (startBtn) startBtn.disabled = !(input.value.trim() && _setupPlan);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = orig;
+    }
+  }, (err) => {
+    btn.disabled = false;
+    btn.textContent = orig;
+    hint.textContent = err.code === 1 ? 'Location permission denied.' : 'Could not get location.';
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
 }
 function commitNewProject() {
   const addr = document.getElementById('fAddress').value.trim();
@@ -898,10 +963,15 @@ function onPointerUp(e) {
         selectPin(_maybeTap.pinId);
         openPinSheet();
       } else if (_maybeTap.kind === 'plan' && ui.tool === 'pin') {
-        // Drop a new pin
+        // Drop a new pin and immediately launch camera
         const p = createPin(_maybeTap.imgPt.x, _maybeTap.imgPt.y);
         selectPin(p.id);
         openPinSheet();
+        // Auto-launch camera so each new pin captures a photo numbered by pin
+        setTimeout(() => {
+          const inp = document.getElementById('pinPhotoFile');
+          if (inp) inp.click();
+        }, 150);
       }
     }
     _maybeTap = null;
