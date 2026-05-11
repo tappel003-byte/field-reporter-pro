@@ -591,6 +591,7 @@ function useGpsForAddress() {
     hint.textContent = err.code === 1 ? 'Location permission denied.' : 'Could not get location.';
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
 }
+function commitNewProject() {
   const addr = document.getElementById('fAddress').value.trim();
   const startNum = Math.max(1, parseInt(document.getElementById('fStartNum').value,10) || 1);
   if (!addr || !_setupPlan) return;
