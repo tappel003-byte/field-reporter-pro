@@ -1031,12 +1031,22 @@ function hitTestPin(x, y) {
 }
 
 // ---------- Pins ----------
+function recomputeNumbering() {
+  // Each pin reserves max(1, photos.length) numbers. Pins keep creation order.
+  const start = project.startNum || 1;
+  let n = start;
+  project.pins.forEach(p => {
+    p.num = n;
+    n += Math.max(1, (p.photos || []).length);
+  });
+  project.nextNum = n;
+}
 function createPin(x, y) {
   snapshot('new pin');
-  const num = project.nextNum || 1;
+  const num = project.nextNum || project.startNum || 1;
   const p = { id: uid(), num, x, y, photos: [], description: '' };
   project.pins.push(p);
-  project.nextNum = num + 1;
+  project.nextNum = num + 1; // reserves 1 until a photo is taken
   saveProject();
   renderPins();
   refreshSubtitle();
@@ -1052,6 +1062,7 @@ function deleteCurrentPin() {
   snapshot('delete pin');
   project.pins = project.pins.filter(p => p.id !== ui.selectedPinId);
   ui.selectedPinId = null;
+  recomputeNumbering();
   saveProject();
   closeSheets();
   renderPins();
@@ -1115,8 +1126,11 @@ function onPinPhotoFile(e) {
         p.photos = p.photos || [];
         p.photos.push(dataUrl);
         if (--remaining === 0) {
+          recomputeNumbering();
           saveProject();
           renderPhotoStrip();
+          renderPins();
+          refreshSubtitle();
         }
       });
     };
@@ -1129,8 +1143,11 @@ function removePhoto(i) {
   if (!p) return;
   snapshot('remove photo');
   p.photos.splice(i,1);
+  recomputeNumbering();
   saveProject();
   renderPhotoStrip();
+  renderPins();
+  refreshSubtitle();
 }
 
 // ---------- Sheets ----------
