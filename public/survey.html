@@ -1062,6 +1062,7 @@ function deleteCurrentPin() {
   snapshot('delete pin');
   project.pins = project.pins.filter(p => p.id !== ui.selectedPinId);
   ui.selectedPinId = null;
+  recomputeNumbering();
   saveProject();
   closeSheets();
   renderPins();
