@@ -898,10 +898,15 @@ function onPointerUp(e) {
         selectPin(_maybeTap.pinId);
         openPinSheet();
       } else if (_maybeTap.kind === 'plan' && ui.tool === 'pin') {
-        // Drop a new pin
+        // Drop a new pin and immediately launch camera
         const p = createPin(_maybeTap.imgPt.x, _maybeTap.imgPt.y);
         selectPin(p.id);
         openPinSheet();
+        // Auto-launch camera so each new pin captures a photo numbered by pin
+        setTimeout(() => {
+          const inp = document.getElementById('pinPhotoFile');
+          if (inp) inp.click();
+        }, 150);
       }
     }
     _maybeTap = null;
