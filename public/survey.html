@@ -242,12 +242,16 @@
   <div class="setup-body">
     <div class="field">
       <label>Address</label>
-      <div style="display:flex;gap:8px;align-items:stretch">
-        <input type="text" id="fAddress" placeholder="Street, City, State" autocomplete="off"
-          style="flex:1" oninput="validateSetup()" />
-        <button type="button" id="gpsBtn" onclick="useGpsForAddress()"
-          style="padding:0 14px;border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:10px;font-size:14px;cursor:pointer;white-space:nowrap">
-          📍 GPS
+      <input type="text" id="fAddress" placeholder="Street, City, State — or tap a button below" autocomplete="off"
+        style="width:100%" oninput="validateSetup()" />
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button type="button" id="addrBtn" onclick="useGpsForAddress()"
+          style="flex:1;padding:10px 12px;border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:10px;font-size:14px;cursor:pointer">
+          📍 Auto-fill address
+        </button>
+        <button type="button" id="coordsBtn" onclick="useGpsCoordsOnly()"
+          style="flex:1;padding:10px 12px;border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:10px;font-size:14px;cursor:pointer">
+          📐 Use coordinates
         </button>
       </div>
       <div class="hint" id="gpsHint" style="display:none"></div>
@@ -540,7 +544,7 @@ function resizeImage(dataUrl, maxDim, cb) {
 let _lastFix = null; // {lat, lon} from GPS — saved with the project
 
 function useGpsForAddress() {
-  const btn = document.getElementById('gpsBtn');
+  const btn = document.getElementById('addrBtn');
   const hint = document.getElementById('gpsHint');
   const input = document.getElementById('fAddress');
   if (!navigator.geolocation) {
@@ -578,18 +582,49 @@ function useGpsForAddress() {
       input.dispatchEvent(new Event('input', { bubbles: true }));
       hint.textContent = `Located: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
       validateSetup && validateSetup();
-      // Trigger start button enable
       const startBtn = document.getElementById('startBtn');
       if (startBtn) startBtn.disabled = !(input.value.trim() && _setupPlan);
     } catch (err) {
       input.value = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
-      hint.textContent = 'Used coordinates (address lookup failed).';
+      hint.textContent = 'No signal for address — used coordinates.';
       const startBtn = document.getElementById('startBtn');
       if (startBtn) startBtn.disabled = !(input.value.trim() && _setupPlan);
     } finally {
       btn.disabled = false;
       btn.textContent = orig;
     }
+  }, (err) => {
+    btn.disabled = false;
+    btn.textContent = orig;
+    hint.textContent = err.code === 1 ? 'Location permission denied.' : 'Could not get location.';
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+}
+
+function useGpsCoordsOnly() {
+  const btn = document.getElementById('coordsBtn');
+  const hint = document.getElementById('gpsHint');
+  const input = document.getElementById('fAddress');
+  if (!navigator.geolocation) {
+    hint.style.display = 'block';
+    hint.textContent = 'GPS not available on this device.';
+    return;
+  }
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '… locating';
+  hint.style.display = 'block';
+  hint.textContent = 'Getting your location…';
+  navigator.geolocation.getCurrentPosition((pos) => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    _lastFix = { lat, lon };
+    input.value = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    hint.textContent = `Coordinates captured (±${Math.round(pos.coords.accuracy || 0)}m).`;
+    validateSetup && validateSetup();
+    const startBtn = document.getElementById('startBtn');
+    if (startBtn) startBtn.disabled = !(input.value.trim() && _setupPlan);
+    btn.disabled = false;
+    btn.textContent = orig;
   }, (err) => {
     btn.disabled = false;
     btn.textContent = orig;
