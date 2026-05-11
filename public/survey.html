@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Distress Survey</title>
+<title>PGG Distress Survey – Field Reporter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -1956,7 +1956,7 @@
 
 <div class="topbar v3">
   <div class="row row1">
-    <div class="brand-mini">Distress Survey</div>
+    <div class="brand-mini">PGG Distress Survey</div>
     <button class="icon-btn" id="useLocBtn" title="Fill address from current location">📍</button>
     <input type="text" id="jobAddress" class="addr-input" placeholder="Job address" autocomplete="off">
     <div class="sync-pill" id="syncPill" data-state="idle" title="Auto-save status">
@@ -4016,7 +4016,7 @@ $('exportBtn').addEventListener('click', () => {
 
   const lines = [];
   // Header block
-  lines.push('Distress Survey Export');
+  lines.push('PGG Distress Survey Export');
   lines.push('Job Address,' + csvEsc(state.jobAddress || '(no address)'));
   lines.push('Date Exported,' + csvEsc(new Date().toLocaleString()));
   lines.push('Total Pins,' + state.pins.length);
@@ -4369,7 +4369,7 @@ document.getElementById('burstInput').addEventListener('change', (e) => {
 function runCsvExport() {
   if (!visiblePins().length && !visibleUnattached().length) { toast('Nothing to export'); return; }
   const lines = [];
-  lines.push('Distress Survey Export');
+  lines.push('PGG Distress Survey Export');
   lines.push('Job Address,' + csvEsc(state.jobAddress || '(no address)'));
   lines.push('Date Exported,' + csvEsc(new Date().toLocaleString()));
   if (state.weather) lines.push('Weather,' + csvEsc(state.weather.summary + ' @ ' + new Date(state.weather.fetchedAt).toLocaleString()));
