@@ -1125,8 +1125,11 @@ function onPinPhotoFile(e) {
         p.photos = p.photos || [];
         p.photos.push(dataUrl);
         if (--remaining === 0) {
+          recomputeNumbering();
           saveProject();
           renderPhotoStrip();
+          renderPins();
+          refreshSubtitle();
         }
       });
     };
@@ -1139,8 +1142,11 @@ function removePhoto(i) {
   if (!p) return;
   snapshot('remove photo');
   p.photos.splice(i,1);
+  recomputeNumbering();
   saveProject();
   renderPhotoStrip();
+  renderPins();
+  refreshSubtitle();
 }
 
 // ---------- Sheets ----------
