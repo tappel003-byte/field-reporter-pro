@@ -24,7 +24,7 @@ function Index() {
   return (
     <iframe
       src="/survey.html"
-      title="Distress Survey"
+      title="PGG Distress Survey – Field Reporter"
       style={{
         position: "fixed",
         inset: 0,
