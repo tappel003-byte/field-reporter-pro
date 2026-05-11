@@ -34,7 +34,7 @@ function Index() {
         margin: 0,
         padding: 0,
       }}
-      allow="camera; clipboard-read; clipboard-write"
+      allow="camera; geolocation; clipboard-read; clipboard-write"
     />
   );
 }
