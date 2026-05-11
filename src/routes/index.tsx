@@ -3,11 +3,11 @@ import { createFileRoute } from "@tanstack/react-router";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Distress Survey – Field Tool" },
+      { title: "PGG Distress Survey – Field Reporter" },
       {
         name: "description",
         content:
-          "Mobile-first distress survey app: floor plan pins, photos, descriptors, and CSV export.",
+          "PGG Distress Survey field reporter: floor plan pins, photos, descriptions, drawing, and PDF export.",
       },
       { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" },
       { name: "theme-color", content: "#f4f0e8" },
