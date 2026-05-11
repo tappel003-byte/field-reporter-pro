@@ -44,14 +44,18 @@ chosen on the home screen and doesn't change mid-job.
 
 ### 4. Export
 
-The only thing that differs between Internal and External:
+**Picture map** (both modes get this) — a single document containing:
+- Header: address.
+- The floor plan image with numbered pins burned in and the north arrow.
+- A keyed list of descriptions: `1. <description>`, `2. <description>`, …
+  one row per pin, in pin-number order.
+
+Likely format: PDF (plan on first page, description list following). One file.
 
 | Mode | Export |
 |---|---|
-| **Internal Camera** | Photo folder (all images) **+** picture map (annotated plan with numbered pins) |
+| **Internal Camera** | Picture map **+** folder of all photo files |
 | **External Camera** | Picture map only |
-
-Both exports include the address and north arrow on the rendered plan.
 
 ## Explicitly NOT in this version
 
