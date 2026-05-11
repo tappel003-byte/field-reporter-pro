@@ -533,7 +533,64 @@ function resizeImage(dataUrl, maxDim, cb) {
   img.onerror = () => toast('Could not load that image.');
   img.src = dataUrl;
 }
-function commitNewProject() {
+
+// ---------- GPS → Address ----------
+function useGpsForAddress() {
+  const btn = document.getElementById('gpsBtn');
+  const hint = document.getElementById('gpsHint');
+  const input = document.getElementById('fAddress');
+  if (!navigator.geolocation) {
+    hint.style.display = 'block';
+    hint.textContent = 'GPS not available on this device.';
+    return;
+  }
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '… locating';
+  hint.style.display = 'block';
+  hint.textContent = 'Getting your location…';
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    hint.textContent = 'Looking up address…';
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!r.ok) throw new Error('lookup failed');
+      const j = await r.json();
+      const a = j.address || {};
+      const house = a.house_number || '';
+      const road = a.road || a.pedestrian || a.footway || '';
+      const city = a.city || a.town || a.village || a.hamlet || a.suburb || '';
+      const state = a.state || '';
+      const parts = [];
+      const line1 = [house, road].filter(Boolean).join(' ').trim();
+      if (line1) parts.push(line1);
+      if (city) parts.push(city);
+      if (state) parts.push(state);
+      const addr = parts.length ? parts.join(', ') : (j.display_name || `${lat.toFixed(5)}, ${lon.toFixed(5)}`);
+      input.value = addr;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      hint.textContent = `Located: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+      validateSetup && validateSetup();
+      // Trigger start button enable
+      const startBtn = document.getElementById('startBtn');
+      if (startBtn) startBtn.disabled = !(input.value.trim() && _setupPlan);
+    } catch (err) {
+      input.value = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+      hint.textContent = 'Used coordinates (address lookup failed).';
+      const startBtn = document.getElementById('startBtn');
+      if (startBtn) startBtn.disabled = !(input.value.trim() && _setupPlan);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = orig;
+    }
+  }, (err) => {
+    btn.disabled = false;
+    btn.textContent = orig;
+    hint.textContent = err.code === 1 ? 'Location permission denied.' : 'Could not get location.';
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+}
   const addr = document.getElementById('fAddress').value.trim();
   const startNum = Math.max(1, parseInt(document.getElementById('fStartNum').value,10) || 1);
   if (!addr || !_setupPlan) return;
