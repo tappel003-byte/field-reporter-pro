@@ -1,37 +1,8 @@
-# Fullscreen toggle
+I found the likely cause: the work screen listens to pointer events on the whole map/stage, and toolbar/menu touches can fall through into the map tap handler. That map tap handler currently drops a new pin and auto-clicks the hidden camera input, so unrelated controls can appear to open the camera.
 
-All work in `public/survey.html` (frontend only).
-
-## 1. Floating fullscreen button
-
-- New small round floating button, top-right corner by default, 16px inset from edges, 44pt touch target.
-- Icon swaps based on state: `⛶` when normal, `⛶` (or `⤡`/`⤢`) when in fullscreen — final icon TBD during build; keep it iconographic so it reads on a tablet.
-- Tap toggles fullscreen on `document.documentElement`.
-- Long-press 200ms = drag (same pattern as the camera FAB); persists position per project in `state.ui.fullscreenPos`.
-- Hidden automatically if the Fullscreen API is unavailable (e.g. iOS Safari on iPhone — iPad supports it).
-
-## 2. Overflow `⋯` menu entry
-
-- Add a `Fullscreen` / `Exit fullscreen` row at the top of the existing `toolsMenu` popup.
-- Label updates live based on `document.fullscreenElement`.
-
-## 3. Wiring
-
-- Single helper `toggleFullscreen()` used by both entry points.
-- Listen to `fullscreenchange` (+ webkit prefix) to:
-  - Update both button icon and menu label.
-  - Reclamp all floating panels to the new viewport (fullscreen on a tablet changes available height).
-- Exit on Esc handled by the browser; no extra code.
-
-## 4. Out of scope
-
-- No in-app immersive mode (header/tools stay where they are — true browser fullscreen only, per your choice).
-- No keyboard shortcut.
-- No persistence of fullscreen state across reloads (browsers require a user gesture, so we can't auto-enter).
-
-## Technical notes
-
-- Use `el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.()` and matching exit calls for Safari compatibility.
-- Feature-detect with `document.fullscreenEnabled || document.webkitFullscreenEnabled` to decide whether to render the button / menu row.
-- Reuse `makeDraggable(el, handle, 'fullscreenPos')` with the long-press-to-drag option already used by the camera FAB.
-- On `fullscreenchange`, call the existing clamp logic (the same one `makeDraggable` uses on resize) so floating panels don't end up off-screen after entering/exiting fullscreen.
+Plan:
+1. Stop map pointer handling when the tap starts on a real UI control, menu, sheet, toolbar, fullscreen button, or export controls.
+2. Remove the automatic camera launch after dropping a new pin. Dropping a pin should open the pin sheet only; the camera should open only when the user taps Add photo.
+3. Make Export and Draw tool buttons only perform their intended action and prevent their tap from being interpreted as a map tap.
+4. Keep the three location options exactly as intended: type address manually, Auto-fill address, or Use coordinates.
+5. Verify by checking the code paths: only the hidden photo input/Add photo button should trigger the camera file picker.
