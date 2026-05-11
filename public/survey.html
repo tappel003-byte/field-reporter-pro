@@ -916,7 +916,7 @@ function onPointerDown(e) {
   const n = project.north;
   const dx = imgPt.x - n.x, dy = imgPt.y - n.y;
   const dist = Math.hypot(dx, dy);
-  const arrowR = Math.min(project.plan.width, project.plan.height) * 0.03;
+  const arrowR = Math.max(project.plan.width, project.plan.height) * 0.03;
   // Rotation handle is at angle (n.rotation - 90deg) at distance arrowR*1.9
   const rotHandleDist = arrowR * 1.9;
   const rotHandleR = arrowR * 0.4;
