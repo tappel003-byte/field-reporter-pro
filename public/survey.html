@@ -1133,15 +1133,22 @@ function onPointerUp(e) {
   ui.panning = null;
 }
 
-function hitTestPin(x, y) {
+function hitTestPin(x, y, cx, cy) {
   if (!project || !project.pins) return null;
-  const r = Math.max(project.plan.width, project.plan.height) * 0.018;
-  // iterate reverse so topmost wins
+  const visualR = Math.max(project.plan.width, project.plan.height) * 0.018;
+  // Generous finger-friendly tap target (~48px on screen, no smaller than the visual)
+  let touchR = visualR;
+  if (cx != null && cy != null) {
+    try { touchR = Math.max(visualR, screenPixelsToImage(28, cx, cy)); } catch(_) {}
+  }
+  // iterate reverse so topmost wins; pick the closest within range
+  let best = null, bestD = Infinity;
   for (let i = project.pins.length-1; i>=0; i--) {
     const p = project.pins[i];
-    if (Math.hypot(x-p.x, y-p.y) <= r) return p;
+    const d = Math.hypot(x-p.x, y-p.y);
+    if (d <= touchR && d < bestD) { best = p; bestD = d; }
   }
-  return null;
+  return best;
 }
 
 // ---------- Pins ----------
