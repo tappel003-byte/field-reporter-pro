@@ -912,20 +912,39 @@ function resetNorthArrow() {
   renderNorth();
 }
 
-// ---------- Undo ----------
-function snapshot(label) {
-  if (!project) return;
-  ui.undo.push(JSON.stringify({ pins: project.pins, drawings: project.drawings, north: project.north, nextNum: project.nextNum }));
-  if (ui.undo.length > UNDO_LIMIT) ui.undo.shift();
-  updateUndoButton();
+// ---------- Undo / Redo ----------
+function _snapState() {
+  return JSON.stringify({ pins: project.pins, drawings: project.drawings, north: project.north, nextNum: project.nextNum });
 }
-function undo() {
-  if (!ui.undo.length) return;
-  const prev = JSON.parse(ui.undo.pop());
+function _applyState(s) {
+  const prev = JSON.parse(s);
   project.pins = prev.pins || [];
   project.drawings = prev.drawings || [];
   project.north = prev.north || project.north;
   project.nextNum = prev.nextNum || project.nextNum;
+}
+function snapshot(label) {
+  if (!project) return;
+  ui.undo.push(_snapState());
+  if (ui.undo.length > UNDO_LIMIT) ui.undo.shift();
+  ui.redo = []; // new edit invalidates redo
+  updateUndoButton();
+}
+function undo() {
+  if (!ui.undo.length) return;
+  ui.redo.push(_snapState());
+  if (ui.redo.length > UNDO_LIMIT) ui.redo.shift();
+  _applyState(ui.undo.pop());
+  saveProject();
+  renderAll();
+  refreshSubtitle();
+  updateUndoButton();
+}
+function redo() {
+  if (!ui.redo.length) return;
+  ui.undo.push(_snapState());
+  if (ui.undo.length > UNDO_LIMIT) ui.undo.shift();
+  _applyState(ui.redo.pop());
   saveProject();
   renderAll();
   refreshSubtitle();
@@ -933,6 +952,8 @@ function undo() {
 }
 function updateUndoButton() {
   document.getElementById('wUndo').disabled = !ui.undo.length;
+  const r = document.getElementById('wRedo');
+  if (r) r.disabled = !ui.redo.length;
 }
 
 // ---------- Plan / SVG ----------
