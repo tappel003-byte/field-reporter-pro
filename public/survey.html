@@ -134,11 +134,36 @@
   .work-toolbar{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
     display:flex;gap:6px;background:var(--paper);padding:6px;border-radius:14px;
     box-shadow:var(--shadow-lg);border:1px solid var(--line);z-index:5}
-  .tool{width:46px;height:46px;border-radius:10px;border:none;background:transparent;
+  .tool{width:46px;height:46px;min-width:46px;flex-shrink:0;border-radius:10px;border:none;background:transparent;
     font-size:20px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
   .tool.active{background:var(--ink);color:var(--paper)}
   .tool:active{transform:scale(.95)}
   .tool .label{display:none}
+
+  /* Pin picker pill — sits above the tool toolbar */
+  .pin-picker-btn{position:absolute;bottom:74px;left:50%;transform:translateX(-50%);
+    display:flex;align-items:center;gap:8px;background:var(--paper);
+    padding:9px 16px;border-radius:999px;box-shadow:var(--shadow-lg);
+    border:1px solid var(--line);font-size:14px;font-weight:600;color:var(--ink);
+    z-index:5;white-space:nowrap;max-width:calc(100% - 32px)}
+  .pin-picker-btn:disabled{opacity:.55}
+  .pin-picker-btn:active:not(:disabled){transform:translateX(-50%) scale(.97)}
+  .pin-picker-btn .ppc{font-size:12px;color:var(--muted);font-weight:500}
+
+  .pin-list{display:flex;flex-direction:column;gap:4px;max-height:60vh;overflow-y:auto;
+    margin:4px -4px 4px;padding:0 4px}
+  .pin-list-item{display:flex;align-items:center;gap:12px;background:var(--bg);
+    border:1px solid var(--line);border-radius:10px;padding:12px 14px;text-align:left;
+    width:100%;font-family:inherit;color:var(--ink)}
+  .pin-list-item:active{background:var(--accent-soft)}
+  .pin-list-item .pli-num{flex-shrink:0;width:32px;height:32px;border-radius:50%;
+    background:var(--accent);color:#fff;font-weight:700;font-size:13px;
+    display:flex;align-items:center;justify-content:center}
+  .pin-list-item .pli-body{flex:1;min-width:0}
+  .pin-list-item .pli-title{font-size:14px;font-weight:600}
+  .pin-list-item .pli-sub{font-size:12px;color:var(--muted);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+  .pin-list-empty{padding:30px 10px;text-align:center;color:var(--muted);font-size:13px}
 
   .fullscreen-btn{position:absolute;top:8px;right:8px;width:38px;height:38px;border-radius:50%;
     background:rgba(255,250,240,.92);border:1px solid var(--line);font-size:16px;z-index:6;
