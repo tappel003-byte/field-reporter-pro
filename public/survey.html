@@ -985,37 +985,8 @@ function onPointerDown(e) {
     return;
   }
 
-  // Hit-test north arrow first with large finger-friendly zones.
+  // (north arrow lives in floating widget, not on canvas)
   const imgPt = clientToImage(e.clientX, e.clientY);
-  const n = project.north;
-  const dx = imgPt.x - n.x, dy = imgPt.y - n.y;
-  const dist = Math.hypot(dx, dy);
-  const arrowR = Math.max(project.plan.width, project.plan.height) * 0.03;
-  const minTouchImg = screenPixelsToImage(48, e.clientX, e.clientY);
-  const rotHandleDist = arrowR * 1.85;
-  const rotHandleR = Math.max(arrowR * 1.45, minTouchImg);
-  const bodyR = Math.max(arrowR * 1.1, minTouchImg);
-  const rotateZoneR = Math.max(arrowR * 2.6, minTouchImg * 1.65);
-  const rad = (n.rotation - 90) * Math.PI / 180;
-  const hx = n.x + Math.cos(rad)*rotHandleDist;
-  const hy = n.y + Math.sin(rad)*rotHandleDist;
-  const distHandle = Math.hypot(imgPt.x-hx, imgPt.y-hy);
-  const inNorthZone = distHandle <= rotHandleR || dist <= rotateZoneR;
-  if (inNorthZone) {
-    e.preventDefault();
-    e.stopPropagation();
-    _maybeTap = null;
-    ui.panning = null;
-    // Center of the disc moves; the rest of the enlarged target rotates.
-    if (dist > bodyR * 0.72 || distHandle <= rotHandleR) {
-      _rotateNorth = { startRot: n.rotation, startAngle: Math.atan2(imgPt.y-n.y, imgPt.x-n.x) };
-      snapshot('rotate north');
-      return;
-    }
-    _dragNorth = { offsetX: dx, offsetY: dy };
-    snapshot('move north');
-    return;
-  }
 
   // Hit-test pins (in image space)
   const pin = hitTestPin(imgPt.x, imgPt.y, e.clientX, e.clientY);
