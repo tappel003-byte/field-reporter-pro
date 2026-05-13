@@ -1101,15 +1101,25 @@ function onPointerMove(e) {
   if (_pointers.size >= 2 && _pinchInitial) {
     const pts = Array.from(_pointers.values());
     const d = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+    // Guard against degenerate pinch (fingers touching → dist≈0 → NaN/Infinity → blank SVG)
+    if (!isFinite(d) || d < 8 || !_pinchInitial.dist || _pinchInitial.dist < 8) return;
     const factor = d / _pinchInitial.dist;
+    if (!isFinite(factor) || factor <= 0) return;
     const newScale = Math.max(0.5, Math.min(8, _pinchInitial.scale * factor));
+    if (!isFinite(newScale)) return;
     // Zoom about midpoint
     const stage = stageEl.getBoundingClientRect();
     const cx = _pinchInitial.cx, cy = _pinchInitial.cy;
     const imgPt = clientToImage(cx, cy);
+    if (!imgPt || !isFinite(imgPt.x) || !isFinite(imgPt.y)) return;
+    const prevScale = ui.view.scale, prevTx = ui.view.tx, prevTy = ui.view.ty;
     ui.view.scale = newScale;
     ui.view.tx = ((cx - stage.left)/stage.width)*project.plan.width - imgPt.x*newScale;
     ui.view.ty = ((cy - stage.top)/stage.height)*project.plan.height - imgPt.y*newScale;
+    if (!isFinite(ui.view.tx) || !isFinite(ui.view.ty)) {
+      ui.view.scale = prevScale; ui.view.tx = prevTx; ui.view.ty = prevTy;
+      return;
+    }
     applyTransform();
     return;
   }
