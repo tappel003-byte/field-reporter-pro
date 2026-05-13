@@ -1764,7 +1764,7 @@ async function exportPdf() {
 
     // ---- Page 1: header + map ----
     pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
-    pdf.text('PGG Distress Survey – Field Reporter', MARGIN, MARGIN + 6);
+    pdf.text('Distress Survey – Field Reporter', MARGIN, MARGIN + 6);
     pdf.setFont('helvetica','normal'); pdf.setFontSize(11);
     pdf.text(project.address, MARGIN, MARGIN + 24);
     const meta = (project.mode === 'internal' ? 'Internal' : 'External') + '  ·  ' +
