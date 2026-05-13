@@ -416,7 +416,7 @@
 </div>
 
 <!-- ============ PIN SHEET ============ -->
-<div class="scrim" id="scrim" onclick="closeSheets()"></div>
+<div class="scrim" id="scrim" onclick="closeSheets(event)"></div>
 <div class="sheet" id="pinSheet">
   <div class="grab"></div>
   <div class="sheet-head">
@@ -1060,6 +1060,7 @@ const stageEl = document.getElementById('stage');
 let _pointers = new Map();
 let _pinchInitial = null;
 let _maybeTap = null;
+let _sheetOpenedAt = 0;
 let _dragNorth = null;
 let _rotateNorth = null;
 let _dragPin = null;
@@ -1084,7 +1085,7 @@ function onPointerDown(e) {
       e.target.closest('.mode-pill, .pin-picker-btn, .north-widget, .draw-toolbar, .menu, .sheet, .scrim, button, input, textarea, a')) {
     return;
   }
-  stageEl.setPointerCapture(e.pointerId);
+  try { stageEl.setPointerCapture(e.pointerId); } catch (_) {}
   _pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
   // Two-finger pinch
@@ -1249,7 +1250,10 @@ function onPointerUp(e) {
   if (_maybeTap) {
     const tap = _maybeTap;
     _maybeTap = null;
-    commitTapAction(tap);
+    if (commitTapAction(tap)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
   }
   ui.panning = null;
 }
@@ -1331,6 +1335,7 @@ function deleteCurrentPin() {
 function openPinSheet() {
   const p = currentPin();
   if (!p) return;
+  _sheetOpenedAt = performance.now();
   document.getElementById('pinTitle').textContent = 'Pin #' + p.num;
   document.getElementById('pinDesc').value = p.description || '';
   renderPhotoStrip();
@@ -1410,7 +1415,12 @@ function removePhoto(i) {
 }
 
 // ---------- Sheets ----------
-function closeSheets() {
+function closeSheets(ev) {
+  if (ev && ev.currentTarget && ev.currentTarget.id === 'scrim' && performance.now() - _sheetOpenedAt < 350) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    return;
+  }
   document.getElementById('pinSheet').classList.remove('open');
   document.getElementById('exportSheet').classList.remove('open');
   document.getElementById('pinPickerSheet').classList.remove('open');
@@ -1422,6 +1432,7 @@ function closeSheets() {
 // ---------- Pin picker (slide-up list) ----------
 function openPinPicker() {
   if (!project || !(project.pins||[]).length) return;
+  _sheetOpenedAt = performance.now();
   const list = document.getElementById('pinList');
   list.innerHTML = '';
   // Show pins in numbering order (creation order, since recomputeNumbering preserves it)
@@ -1615,6 +1626,7 @@ function openExport() {
   if (!project.pins || !project.pins.length) {
     if (!confirm('No pins yet — export anyway?')) return;
   }
+  _sheetOpenedAt = performance.now();
   const isInternal = project.mode === 'internal';
   document.getElementById('exportZipBtn').style.display = isInternal ? '' : 'none';
   document.getElementById('exportZipNote').style.display = isInternal ? '' : 'none';
