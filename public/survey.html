@@ -828,7 +828,7 @@ function resetNorthArrow() {
   closeMenu();
   if (!project) return;
   snapshot('reset north');
-  project.north = { x: project.plan.width * 0.92, y: project.plan.height * 0.08, rotation: 0 };
+  project.north = { rotation: 0 };
   saveProject();
   renderNorth();
 }
