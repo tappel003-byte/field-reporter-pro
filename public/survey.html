@@ -1204,14 +1204,11 @@ function onPointerUp(e) {
         selectPin(_maybeTap.pinId);
         openPinSheet();
       } else if (_maybeTap.kind === 'plan' && ui.tool === 'pin') {
-        // Drop a new pin and open its sheet. Camera only opens when the
-        // user taps "Add photo" — never automatically.
+        // Drop a new pin, open its sheet, then immediately open camera/photo chooser.
         const p = createPin(_maybeTap.imgPt.x, _maybeTap.imgPt.y);
         selectPin(p.id);
         openPinSheet();
-        // Auto-open photo picker / camera right after drop (must stay in
-        // the user-gesture stack — call .click() synchronously here).
-        try { document.getElementById('pinPhotoFile').click(); } catch(_) {}
+        triggerPinCamera();
       }
     }
     _maybeTap = null;
@@ -1316,7 +1313,7 @@ function renderPhotoStrip() {
   const add = document.createElement('button');
   add.className = 'add-photo';
   add.innerHTML = '<span class="ic">📷</span><span>Add</span>';
-  add.onclick = () => document.getElementById('pinPhotoFile').click();
+  add.onclick = triggerPinCamera;
   strip.appendChild(add);
 }
 function onPinPhotoFile(e) {
