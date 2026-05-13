@@ -1085,7 +1085,7 @@ function onPointerDown(e) {
       e.target.closest('.mode-pill, .pin-picker-btn, .north-widget, .draw-toolbar, .menu, .sheet, .scrim, button, input, textarea, a')) {
     return;
   }
-  stageEl.setPointerCapture(e.pointerId);
+  try { stageEl.setPointerCapture(e.pointerId); } catch (_) {}
   _pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
   // Two-finger pinch
