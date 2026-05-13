@@ -771,7 +771,7 @@ function refreshSubtitle() {
   if (btn && cnt) {
     btn.disabled = n === 0;
     cnt.textContent = '(' + n + ' pin' + (n===1?'':'s') + ')';
-    btn.classList.toggle('hidden', ui.tool !== 'pin' || n === 0);
+    btn.classList.toggle('hidden', n === 0);
   }
 }
 
