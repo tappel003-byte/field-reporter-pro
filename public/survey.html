@@ -134,11 +134,36 @@
   .work-toolbar{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
     display:flex;gap:6px;background:var(--paper);padding:6px;border-radius:14px;
     box-shadow:var(--shadow-lg);border:1px solid var(--line);z-index:5}
-  .tool{width:46px;height:46px;border-radius:10px;border:none;background:transparent;
+  .tool{width:46px;height:46px;min-width:46px;flex-shrink:0;border-radius:10px;border:none;background:transparent;
     font-size:20px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
   .tool.active{background:var(--ink);color:var(--paper)}
   .tool:active{transform:scale(.95)}
   .tool .label{display:none}
+
+  /* Pin picker pill — sits above the tool toolbar */
+  .pin-picker-btn{position:absolute;bottom:74px;left:50%;transform:translateX(-50%);
+    display:flex;align-items:center;gap:8px;background:var(--paper);
+    padding:9px 16px;border-radius:999px;box-shadow:var(--shadow-lg);
+    border:1px solid var(--line);font-size:14px;font-weight:600;color:var(--ink);
+    z-index:5;white-space:nowrap;max-width:calc(100% - 32px)}
+  .pin-picker-btn:disabled{opacity:.55}
+  .pin-picker-btn:active:not(:disabled){transform:translateX(-50%) scale(.97)}
+  .pin-picker-btn .ppc{font-size:12px;color:var(--muted);font-weight:500}
+
+  .pin-list{display:flex;flex-direction:column;gap:4px;max-height:60vh;overflow-y:auto;
+    margin:4px -4px 4px;padding:0 4px}
+  .pin-list-item{display:flex;align-items:center;gap:12px;background:var(--bg);
+    border:1px solid var(--line);border-radius:10px;padding:12px 14px;text-align:left;
+    width:100%;font-family:inherit;color:var(--ink)}
+  .pin-list-item:active{background:var(--accent-soft)}
+  .pin-list-item .pli-num{flex-shrink:0;width:32px;height:32px;border-radius:50%;
+    background:var(--accent);color:#fff;font-weight:700;font-size:13px;
+    display:flex;align-items:center;justify-content:center}
+  .pin-list-item .pli-body{flex:1;min-width:0}
+  .pin-list-item .pli-title{font-size:14px;font-weight:600}
+  .pin-list-item .pli-sub{font-size:12px;color:var(--muted);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+  .pin-list-empty{padding:30px 10px;text-align:center;color:var(--muted);font-size:13px}
 
   .fullscreen-btn{position:absolute;top:8px;right:8px;width:38px;height:38px;border-radius:50%;
     background:rgba(255,250,240,.92);border:1px solid var(--line);font-size:16px;z-index:6;
@@ -320,12 +345,29 @@
   <div class="stage" id="stage">
     <svg id="planSvg" xmlns="http://www.w3.org/2000/svg"></svg>
     <button class="fullscreen-btn" onclick="toggleFullscreen()" id="fsBtn" title="Fullscreen">⛶</button>
+    <button class="pin-picker-btn" id="pinPickerBtn" onclick="openPinPicker()" disabled>
+      <span>📍 Edit pin ▾</span>
+      <span class="ppc" id="pinPickerCount">(0 pins)</span>
+    </button>
     <div class="work-toolbar">
       <button class="tool active" id="toolPin" onclick="setTool('pin')" title="Pin">📍</button>
       <button class="tool" id="toolDraw" onclick="setTool('draw')" title="Draw">✏️</button>
       <button class="tool" id="toolExport" onclick="openExport()" title="Export">📤</button>
     </div>
   </div>
+</div>
+
+<!-- ============ PIN PICKER SHEET ============ -->
+<div class="sheet" id="pinPickerSheet">
+  <div class="grab"></div>
+  <div class="sheet-head">
+    <div>
+      <div class="sheet-title">Select a pin</div>
+      <div class="sheet-sub">Tap any pin to edit</div>
+    </div>
+    <button class="ghost" onclick="closeSheets()">Cancel</button>
+  </div>
+  <div class="pin-list" id="pinList"></div>
 </div>
 
 <!-- ============ PIN SHEET ============ -->
@@ -699,7 +741,7 @@ function enterWork() {
   ui.undo = [];
   ui.tool = 'pin';
   document.getElementById('wTitle').textContent = project.address;
-  document.getElementById('wSub').textContent = project.mode + ' · ' + (project.pins||[]).length + ' pins';
+  refreshSubtitle();
   setTool('pin');
   showScreen('screenWork');
   // Render after layout
@@ -712,7 +754,14 @@ function saveProject() {
 }
 function refreshSubtitle() {
   if (!project) return;
-  document.getElementById('wSub').textContent = project.mode + ' · ' + (project.pins||[]).length + ' pins';
+  const n = (project.pins||[]).length;
+  document.getElementById('wSub').textContent = project.mode + ' · ' + n + ' pins';
+  const btn = document.getElementById('pinPickerBtn');
+  const cnt = document.getElementById('pinPickerCount');
+  if (btn && cnt) {
+    btn.disabled = n === 0;
+    cnt.textContent = '(' + n + ' pin' + (n===1?'':'s') + ')';
+  }
 }
 
 // ---------- Tool ----------
@@ -960,7 +1009,7 @@ function onPointerDown(e) {
   }
 
   // Hit-test pins (in image space)
-  const pin = hitTestPin(imgPt.x, imgPt.y);
+  const pin = hitTestPin(imgPt.x, imgPt.y, e.clientX, e.clientY);
   if (pin) {
     _maybeTap = { kind: 'pin', pinId: pin.id, startX: e.clientX, startY: e.clientY };
     return;
@@ -1084,15 +1133,22 @@ function onPointerUp(e) {
   ui.panning = null;
 }
 
-function hitTestPin(x, y) {
+function hitTestPin(x, y, cx, cy) {
   if (!project || !project.pins) return null;
-  const r = Math.max(project.plan.width, project.plan.height) * 0.018;
-  // iterate reverse so topmost wins
+  const visualR = Math.max(project.plan.width, project.plan.height) * 0.018;
+  // Generous finger-friendly tap target (~48px on screen, no smaller than the visual)
+  let touchR = visualR;
+  if (cx != null && cy != null) {
+    try { touchR = Math.max(visualR, screenPixelsToImage(28, cx, cy)); } catch(_) {}
+  }
+  // iterate reverse so topmost wins; pick the closest within range
+  let best = null, bestD = Infinity;
   for (let i = project.pins.length-1; i>=0; i--) {
     const p = project.pins[i];
-    if (Math.hypot(x-p.x, y-p.y) <= r) return p;
+    const d = Math.hypot(x-p.x, y-p.y);
+    if (d <= touchR && d < bestD) { best = p; bestD = d; }
   }
-  return null;
+  return best;
 }
 
 // ---------- Pins ----------
@@ -1219,9 +1275,56 @@ function removePhoto(i) {
 function closeSheets() {
   document.getElementById('pinSheet').classList.remove('open');
   document.getElementById('exportSheet').classList.remove('open');
+  document.getElementById('pinPickerSheet').classList.remove('open');
   document.getElementById('scrim').classList.remove('active');
   ui.selectedPinId = null;
   renderPins();
+}
+
+// ---------- Pin picker (slide-up list) ----------
+function openPinPicker() {
+  if (!project || !(project.pins||[]).length) return;
+  const list = document.getElementById('pinList');
+  list.innerHTML = '';
+  // Show pins in numbering order (creation order, since recomputeNumbering preserves it)
+  const pins = (project.pins||[]).slice().sort((a,b)=>(a.num||0)-(b.num||0));
+  pins.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'pin-list-item';
+    btn.type = 'button';
+    const desc = (p.description||'').trim();
+    const photoCount = (p.photos||[]).length;
+    const sub = desc
+      ? (desc.length > 40 ? desc.slice(0,40) + '…' : desc)
+      : (photoCount ? photoCount + ' photo' + (photoCount===1?'':'s') : 'No description');
+    btn.innerHTML = '<span class="pli-num">'+p.num+'</span>' +
+      '<span class="pli-body"><div class="pli-title">Pin #'+p.num+'</div>' +
+      '<div class="pli-sub">'+escapeHtml(sub)+'</div></span>';
+    btn.onclick = () => {
+      document.getElementById('pinPickerSheet').classList.remove('open');
+      selectPin(p.id);
+      centerOnPin(p);
+      openPinSheet();
+    };
+    list.appendChild(btn);
+  });
+  document.getElementById('scrim').classList.add('active');
+  document.getElementById('pinPickerSheet').classList.add('open');
+}
+function centerOnPin(p) {
+  if (!project || !p) return;
+  const stage = document.getElementById('stage');
+  const r = stage.getBoundingClientRect();
+  const W = project.plan.width, H = project.plan.height;
+  const s = Math.max(ui.view.scale, 1.4);
+  ui.view.scale = s;
+  ui.view.tx = r.width/2  * (W/r.width)  - p.x*s; // center pin in viewBox
+  // Simpler: place pin at viewBox center
+  // viewBox = (-tx/s, -ty/s, W/s, H/s); pin at (p.x,p.y) should be at (W/(2s), H/(2s)) inside viewBox
+  // => p.x = -tx/s + W/(2s)  => tx = W/2 - p.x*s
+  ui.view.tx = W/2 - p.x*s;
+  ui.view.ty = H/2 - p.y*s;
+  applyTransform();
 }
 
 // ---------- Lightbox ----------

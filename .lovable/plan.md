@@ -1,25 +1,35 @@
-Fix the north-arrow interaction so it works reliably on a phone preview and never creates a pin when the user is trying to touch the arrow.
+All work in `public/survey.html`.
 
-Plan:
-1. Increase the north-arrow touch zone on mobile-scale screens.
-   - Treat taps near the arrow disc and rotation handle as north-arrow interaction, not plan taps.
-   - Use a larger invisible hit area than the visible handle so it is finger-friendly.
+## 1. Bottom "Edit pin ▾" button + slide-up list
+- Add a full-width button above the existing tool toolbar: `📍 Edit pin ▾  (N pins)`.
+- Tap → bottom sheet slides up titled "Select a pin", listing every pin as `Pin #N — <first ~30 chars of description>`.
+- Tap a row → list closes, that pin's existing edit sheet opens, plan centers on that pin.
+- Tap outside or "Cancel" → closes without selecting.
+- 0 pins → button disabled, label `(0 pins)`.
 
-2. Add a safe “north interaction guard.”
-   - If the touch starts anywhere close to the north arrow, block the pin-drop path.
-   - This prevents accidental pins when the user barely misses the handle.
+## 2. Reliable pin tap on the plan
+- Keep current behavior. Increase invisible tap target so off-center pins are easier to hit on mobile.
 
-3. Make rotation start from the whole outer ring/handle area.
-   - Touching the visible handle or near the outside of the arrow starts rotation.
-   - Touching the center disc still moves the arrow.
+## 3. Delete pin + auto-renumber
+- Delete in the pin edit sheet removes the pin.
+- Remaining pins renumber sequentially by creation order (delete #4 → old #5 becomes #4, #6→#5, …).
+- `nextNum` resets to `pins.length + 1`.
+- SVG labels and the Edit-pin list update immediately.
 
-4. Keep existing behavior unchanged elsewhere.
-   - Pins still drop when tapping normal plan space.
-   - Existing pin dragging/selection and pan behavior remain unchanged.
-   - The north arrow still exports with its saved rotation.
+## 4. Delete individual photos inside a pin
+- Each thumbnail gets a small ✕ in the corner.
+- Tap ✕ → confirm → photo removed, strip re-renders.
 
-Technical details:
-- Update only `public/survey.html`.
-- Adjust the `onPointerDown` hit-test before the pin hit-test/drop-pin logic.
-- Use screen-space minimum touch sizing, converted through the current zoom scale, so the target remains usable on phones.
-- Clear `_maybeTap` and `ui.panning` when a north-arrow zone is touched, so `onPointerUp` cannot create a pin from the same gesture.
+## 5. Restore the draw icon ✏️
+- Toolbar markup still has it but it's hidden at 440px. Fix the CSS so 📍 ✏️ 📤 all render without clipping.
+
+## Out of scope
+- No changes to drawing behavior, North arrow, export format, or storage shape beyond what renumber/photo-delete require.
+
+## Verification before reporting done
+- 440×798 preview, project with multiple pins.
+- Tap pin on plan → edit sheet opens.
+- Tap "Edit pin ▾" → list opens → tap Pin #2 → its sheet opens.
+- Delete Pin #2 of 4 → numbers become 1, 2, 3 on plan and in list.
+- Delete one photo inside a pin → strip updates, others remain.
+- 📍 ✏️ 📤 all visible in toolbar.
