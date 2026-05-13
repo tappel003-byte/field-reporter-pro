@@ -1030,22 +1030,8 @@ function onPointerMove(e) {
     return;
   }
 
-  if (_rotateNorth) {
-    const imgPt = clientToImage(e.clientX, e.clientY);
-    const n = project.north;
-    const a = Math.atan2(imgPt.y-n.y, imgPt.x-n.x);
-    const da = (a - _rotateNorth.startAngle) * 180 / Math.PI;
-    n.rotation = _rotateNorth.startRot + da;
-    renderNorth();
-    return;
-  }
-  if (_dragNorth) {
-    const imgPt = clientToImage(e.clientX, e.clientY);
-    project.north.x = imgPt.x - _dragNorth.offsetX;
-    project.north.y = imgPt.y - _dragNorth.offsetY;
-    renderNorth();
-    return;
-  }
+  // (north arrow rotation handled by floating widget, not stage pointers)
+
 
   if (ui.drawing) {
     const imgPt = clientToImage(e.clientX, e.clientY);
