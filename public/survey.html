@@ -481,9 +481,12 @@ let store = { projects: [] };     // persisted
 let project = null;               // active project ref
 let ui = {
   tool: 'pin',                    // 'pin' | 'draw'
+  drawTool: 'pencil',             // 'pencil' | 'rect' | 'circle' | 'eraser'
+  drawColor: '#c14a2b',
+  drawThick: 1,                   // 1 | 2 | 3
   selectedPinId: null,
   view: { tx: 0, ty: 0, scale: 1 },
-  drawing: null,                  // active stroke
+  drawing: null,                  // active stroke/shape
   undo: [],
   panning: null,
 };
