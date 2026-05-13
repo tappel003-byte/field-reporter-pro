@@ -741,7 +741,7 @@ function enterWork() {
   ui.undo = [];
   ui.tool = 'pin';
   document.getElementById('wTitle').textContent = project.address;
-  document.getElementById('wSub').textContent = project.mode + ' · ' + (project.pins||[]).length + ' pins';
+  refreshSubtitle();
   setTool('pin');
   showScreen('screenWork');
   // Render after layout
