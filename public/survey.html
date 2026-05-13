@@ -754,7 +754,14 @@ function saveProject() {
 }
 function refreshSubtitle() {
   if (!project) return;
-  document.getElementById('wSub').textContent = project.mode + ' · ' + (project.pins||[]).length + ' pins';
+  const n = (project.pins||[]).length;
+  document.getElementById('wSub').textContent = project.mode + ' · ' + n + ' pins';
+  const btn = document.getElementById('pinPickerBtn');
+  const cnt = document.getElementById('pinPickerCount');
+  if (btn && cnt) {
+    btn.disabled = n === 0;
+    cnt.textContent = '(' + n + ' pin' + (n===1?'':'s') + ')';
+  }
 }
 
 // ---------- Tool ----------
