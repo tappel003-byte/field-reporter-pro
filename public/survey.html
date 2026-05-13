@@ -1188,6 +1188,9 @@ function onPointerUp(e) {
         const p = createPin(_maybeTap.imgPt.x, _maybeTap.imgPt.y);
         selectPin(p.id);
         openPinSheet();
+        // Auto-open photo picker / camera right after drop (must stay in
+        // the user-gesture stack — call .click() synchronously here).
+        try { document.getElementById('pinPhotoFile').click(); } catch(_) {}
       }
     }
     _maybeTap = null;
