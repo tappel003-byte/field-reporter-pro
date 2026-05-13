@@ -968,7 +968,7 @@ function onPointerDown(e) {
   // Ignore taps that originate on UI controls layered over the stage
   // (toolbar buttons, fullscreen, menus, sheets, etc.)
   if (e.target && e.target.closest &&
-      e.target.closest('.mode-pill, .pin-picker-btn, .menu, .sheet, .scrim, button, input, textarea, a')) {
+      e.target.closest('.mode-pill, .pin-picker-btn, .north-widget, .menu, .sheet, .scrim, button, input, textarea, a')) {
     return;
   }
   stageEl.setPointerCapture(e.pointerId);
