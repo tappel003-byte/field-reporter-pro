@@ -155,6 +155,26 @@
   .pin-picker-btn.hidden{display:none}
   .pin-picker-btn .ppc{font-size:12px;color:var(--muted);font-weight:500}
 
+  /* Draw toolbar — left edge, vertically centered, only in draw mode */
+  .draw-toolbar{position:absolute;left:8px;top:50%;transform:translateY(-50%);
+    display:none;flex-direction:column;gap:6px;background:rgba(255,250,240,.95);
+    padding:6px;border-radius:14px;box-shadow:var(--shadow-lg);
+    border:1px solid var(--line);z-index:6;align-items:center}
+  .draw-toolbar.show{display:flex}
+  .draw-toolbar .dt-row{display:flex;flex-direction:column;gap:4px;align-items:center}
+  .draw-toolbar .dt-sep{width:28px;height:1px;background:var(--line);margin:2px 0}
+  .draw-toolbar .dt-btn{width:36px;height:36px;border-radius:8px;border:none;
+    background:transparent;display:flex;align-items:center;justify-content:center;
+    color:var(--ink);font-size:17px;padding:0}
+  .draw-toolbar .dt-btn.active{background:var(--ink);color:var(--paper)}
+  .draw-toolbar .dt-btn:active{transform:scale(.92)}
+  .draw-toolbar .dt-thick{width:28px;height:24px;display:flex;align-items:center;justify-content:center}
+  .draw-toolbar .dt-thick .bar{width:22px;background:var(--ink);border-radius:2px}
+  .draw-toolbar .dt-btn.active .dt-thick .bar{background:var(--paper)}
+  .draw-toolbar .dt-color{width:26px;height:26px;border-radius:50%;border:2px solid var(--paper);
+    box-shadow:0 0 0 1px var(--line);padding:0}
+  .draw-toolbar .dt-color.active{box-shadow:0 0 0 2px var(--ink)}
+
   .pin-list{display:flex;flex-direction:column;gap:4px;max-height:60vh;overflow-y:auto;
     margin:4px -4px 4px;padding:0 4px}
   .pin-list-item{display:flex;align-items:center;gap:12px;background:var(--bg);
@@ -362,6 +382,22 @@
         </g>
       </svg>
     </div>
+    <div class="draw-toolbar" id="drawToolbar">
+      <button class="dt-btn active" data-dtool="pencil" title="Pencil">✏️</button>
+      <button class="dt-btn" data-dtool="rect" title="Rectangle">▭</button>
+      <button class="dt-btn" data-dtool="circle" title="Circle">◯</button>
+      <button class="dt-btn" data-dtool="eraser" title="Eraser (tap shape)">🩹</button>
+      <div class="dt-sep"></div>
+      <button class="dt-btn active" data-dthick="1" title="Thin"><span class="dt-thick"><span class="bar" style="height:2px"></span></span></button>
+      <button class="dt-btn" data-dthick="2" title="Medium"><span class="dt-thick"><span class="bar" style="height:4px"></span></span></button>
+      <button class="dt-btn" data-dthick="3" title="Thick"><span class="dt-thick"><span class="bar" style="height:7px"></span></span></button>
+      <div class="dt-sep"></div>
+      <button class="dt-btn dt-color active" data-dcolor="#c14a2b" style="background:#c14a2b" title="Red"></button>
+      <button class="dt-btn dt-color" data-dcolor="#111111" style="background:#111111" title="Black"></button>
+      <button class="dt-btn dt-color" data-dcolor="#1d4ed8" style="background:#1d4ed8" title="Blue"></button>
+      <button class="dt-btn dt-color" data-dcolor="#16a34a" style="background:#16a34a" title="Green"></button>
+      <button class="dt-btn dt-color" data-dcolor="#eab308" style="background:#eab308" title="Yellow"></button>
+    </div>
   </div>
 </div>
 
@@ -445,9 +481,12 @@ let store = { projects: [] };     // persisted
 let project = null;               // active project ref
 let ui = {
   tool: 'pin',                    // 'pin' | 'draw'
+  drawTool: 'pencil',             // 'pencil' | 'rect' | 'circle' | 'eraser'
+  drawColor: '#c14a2b',
+  drawThick: 1,                   // 1 | 2 | 3
   selectedPinId: null,
   view: { tx: 0, ty: 0, scale: 1 },
-  drawing: null,                  // active stroke
+  drawing: null,                  // active stroke/shape
   undo: [],
   panning: null,
 };
@@ -753,6 +792,8 @@ function enterWork() {
   setTool('pin');
   if (!project.north) project.north = { rotation: 0 };
   setupNorthWidget();
+  setupDrawToolbar();
+  document.getElementById('drawToolbar').classList.toggle('show', ui.tool === 'draw');
   showScreen('screenWork');
   // Render after layout
   requestAnimationFrame(() => { mountPlan(); fitView(); renderAll(); updateUndoButton(); });
@@ -780,8 +821,27 @@ function setTool(t) {
   ui.tool = t;
   document.getElementById('toolPin').classList.toggle('active', t === 'pin');
   document.getElementById('toolDraw').classList.toggle('active', t === 'draw');
+  document.getElementById('drawToolbar').classList.toggle('show', t === 'draw');
   refreshSubtitle();
   closeMenu();
+}
+function setupDrawToolbar() {
+  const tb = document.getElementById('drawToolbar');
+  if (!tb || tb._wired) return;
+  tb._wired = true;
+  tb.addEventListener('click', (e) => {
+    const b = e.target.closest('button.dt-btn'); if (!b) return;
+    if (b.dataset.dtool) {
+      ui.drawTool = b.dataset.dtool;
+      tb.querySelectorAll('[data-dtool]').forEach(x => x.classList.toggle('active', x === b));
+    } else if (b.dataset.dthick) {
+      ui.drawThick = parseInt(b.dataset.dthick, 10);
+      tb.querySelectorAll('[data-dthick]').forEach(x => x.classList.toggle('active', x === b));
+    } else if (b.dataset.dcolor) {
+      ui.drawColor = b.dataset.dcolor;
+      tb.querySelectorAll('[data-dcolor]').forEach(x => x.classList.toggle('active', x === b));
+    }
+  });
 }
 
 // ---------- Menu ----------
@@ -969,7 +1029,7 @@ function onPointerDown(e) {
   // Ignore taps that originate on UI controls layered over the stage
   // (toolbar buttons, fullscreen, menus, sheets, etc.)
   if (e.target && e.target.closest &&
-      e.target.closest('.mode-pill, .pin-picker-btn, .north-widget, .menu, .sheet, .scrim, button, input, textarea, a')) {
+      e.target.closest('.mode-pill, .pin-picker-btn, .north-widget, .draw-toolbar, .menu, .sheet, .scrim, button, input, textarea, a')) {
     return;
   }
   stageEl.setPointerCapture(e.pointerId);
@@ -999,8 +1059,26 @@ function onPointerDown(e) {
 
   // Draw mode start
   if (ui.tool === 'draw') {
+    if (ui.drawTool === 'eraser') {
+      const idx = hitTestDrawing(imgPt.x, imgPt.y);
+      if (idx >= 0) {
+        snapshot('erase');
+        project.drawings.splice(idx, 1);
+        saveProject();
+        renderDrawings();
+      }
+      _maybeTap = null;
+      return;
+    }
     snapshot('draw');
-    ui.drawing = { id: uid(), points: [[imgPt.x, imgPt.y]] };
+    const base = { id: uid(), color: ui.drawColor, thick: ui.drawThick };
+    if (ui.drawTool === 'pencil') {
+      ui.drawing = { ...base, kind: 'path', points: [[imgPt.x, imgPt.y]] };
+    } else if (ui.drawTool === 'rect') {
+      ui.drawing = { ...base, kind: 'rect', x0: imgPt.x, y0: imgPt.y, x1: imgPt.x, y1: imgPt.y };
+    } else if (ui.drawTool === 'circle') {
+      ui.drawing = { ...base, kind: 'circle', x0: imgPt.x, y0: imgPt.y, x1: imgPt.x, y1: imgPt.y };
+    }
     project.drawings = project.drawings || [];
     project.drawings.push(ui.drawing);
     renderDrawings();
@@ -1037,10 +1115,16 @@ function onPointerMove(e) {
 
   if (ui.drawing) {
     const imgPt = clientToImage(e.clientX, e.clientY);
-    const pts = ui.drawing.points;
-    const last = pts[pts.length-1];
-    if (Math.hypot(imgPt.x-last[0], imgPt.y-last[1]) > 2) {
-      pts.push([imgPt.x, imgPt.y]);
+    const d = ui.drawing;
+    if (d.kind === 'path') {
+      const pts = d.points;
+      const last = pts[pts.length-1];
+      if (Math.hypot(imgPt.x-last[0], imgPt.y-last[1]) > 2) {
+        pts.push([imgPt.x, imgPt.y]);
+        renderDrawings();
+      }
+    } else {
+      d.x1 = imgPt.x; d.y1 = imgPt.y;
       renderDrawings();
     }
     return;
@@ -1071,10 +1155,11 @@ function onPointerUp(e) {
   if (_pointers.size < 2) _pinchInitial = null;
 
   if (ui.drawing) {
-    if (ui.drawing.points.length < 2) {
-      // remove zero-length
-      project.drawings.pop();
-    }
+    const d = ui.drawing;
+    let tooSmall = false;
+    if (d.kind === 'path') tooSmall = d.points.length < 2;
+    else tooSmall = Math.hypot(d.x1-d.x0, d.y1-d.y0) < 4;
+    if (tooSmall) project.drawings.pop();
     ui.drawing = null;
     saveProject();
     renderDrawings();
@@ -1325,24 +1410,71 @@ function renderPins() {
     g.appendChild(grp);
   });
 }
+function drawingStrokeWidth(d) {
+  const base = Math.max(project.plan.width, project.plan.height) * 0.004;
+  const mult = d.thick === 3 ? 2.2 : d.thick === 2 ? 1.4 : 0.8;
+  return base * mult;
+}
 function renderDrawings() {
   const g = document.getElementById('gDrawings');
   if (!g) return;
   g.innerHTML = '';
   if (!project) return;
-  const sw = Math.max(project.plan.width, project.plan.height) * 0.004;
   (project.drawings||[]).forEach(d => {
-    if (!d.points || d.points.length < 2) return;
-    const dStr = 'M ' + d.points.map(pt => pt[0].toFixed(1) + ' ' + pt[1].toFixed(1)).join(' L ');
-    g.appendChild(svgEl('path', {
-      d: dStr,
-      fill: 'none',
-      stroke: '#c14a2b',
-      'stroke-width': sw,
-      'stroke-linecap': 'round',
-      'stroke-linejoin': 'round',
-    }));
+    const stroke = d.color || '#c14a2b';
+    const sw = drawingStrokeWidth(d);
+    const common = { fill:'none', stroke, 'stroke-width':sw, 'stroke-linecap':'round', 'stroke-linejoin':'round' };
+    const kind = d.kind || 'path';
+    if (kind === 'path') {
+      if (!d.points || d.points.length < 2) return;
+      const dStr = 'M ' + d.points.map(pt => pt[0].toFixed(1) + ' ' + pt[1].toFixed(1)).join(' L ');
+      g.appendChild(svgEl('path', { ...common, d: dStr }));
+    } else if (kind === 'rect') {
+      const x = Math.min(d.x0, d.x1), y = Math.min(d.y0, d.y1);
+      const w = Math.abs(d.x1 - d.x0), h = Math.abs(d.y1 - d.y0);
+      g.appendChild(svgEl('rect', { ...common, x, y, width: w, height: h }));
+    } else if (kind === 'circle') {
+      const cx = (d.x0 + d.x1)/2, cy = (d.y0 + d.y1)/2;
+      const rx = Math.abs(d.x1 - d.x0)/2, ry = Math.abs(d.y1 - d.y0)/2;
+      g.appendChild(svgEl('ellipse', { ...common, cx, cy, rx, ry }));
+    }
   });
+}
+function hitTestDrawing(x, y) {
+  if (!project || !project.drawings) return -1;
+  const tol = Math.max(project.plan.width, project.plan.height) * 0.015;
+  for (let i = project.drawings.length - 1; i >= 0; i--) {
+    const d = project.drawings[i];
+    const t = Math.max(tol, drawingStrokeWidth(d));
+    const kind = d.kind || 'path';
+    if (kind === 'path') {
+      for (const p of (d.points||[])) {
+        if (Math.hypot(p[0]-x, p[1]-y) <= t) return i;
+      }
+    } else if (kind === 'rect') {
+      const xa = Math.min(d.x0,d.x1), ya = Math.min(d.y0,d.y1);
+      const xb = Math.max(d.x0,d.x1), yb = Math.max(d.y0,d.y1);
+      // near edge
+      const insideX = x >= xa - t && x <= xb + t;
+      const insideY = y >= ya - t && y <= yb + t;
+      if (insideX && insideY) {
+        const nearLeft = Math.abs(x - xa) <= t;
+        const nearRight = Math.abs(x - xb) <= t;
+        const nearTop = Math.abs(y - ya) <= t;
+        const nearBot = Math.abs(y - yb) <= t;
+        if (((nearLeft||nearRight) && y>=ya-t && y<=yb+t) ||
+            ((nearTop||nearBot) && x>=xa-t && x<=xb+t)) return i;
+      }
+    } else if (kind === 'circle') {
+      const cx = (d.x0+d.x1)/2, cy = (d.y0+d.y1)/2;
+      const rx = Math.abs(d.x1-d.x0)/2, ry = Math.abs(d.y1-d.y0)/2;
+      if (rx < 1 || ry < 1) continue;
+      const nx = (x - cx)/rx, ny = (y - cy)/ry;
+      const dist = Math.abs(Math.hypot(nx, ny) - 1) * Math.min(rx, ry);
+      if (dist <= t) return i;
+    }
+  }
+  return -1;
 }
 function renderNorth() {
   const rot = document.getElementById('northWidgetRot');
@@ -1418,16 +1550,30 @@ async function composeMapImage() {
       ctx.drawImage(img, 0, 0, W, H);
 
       // drawings
-      const sw = Math.max(W, H) * 0.004;
-      ctx.strokeStyle = '#c14a2b';
-      ctx.lineWidth = sw;
+      const baseSw = Math.max(W, H) * 0.004;
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       (project.drawings||[]).forEach(d => {
-        if (!d.points || d.points.length<2) return;
-        ctx.beginPath();
-        ctx.moveTo(d.points[0][0], d.points[0][1]);
-        for (let i=1;i<d.points.length;i++) ctx.lineTo(d.points[i][0], d.points[i][1]);
-        ctx.stroke();
+        const mult = d.thick === 3 ? 2.2 : d.thick === 2 ? 1.4 : d.thick === 1 ? 0.8 : 1;
+        ctx.lineWidth = baseSw * mult;
+        ctx.strokeStyle = d.color || '#c14a2b';
+        const kind = d.kind || 'path';
+        if (kind === 'path') {
+          if (!d.points || d.points.length < 2) return;
+          ctx.beginPath();
+          ctx.moveTo(d.points[0][0], d.points[0][1]);
+          for (let i=1;i<d.points.length;i++) ctx.lineTo(d.points[i][0], d.points[i][1]);
+          ctx.stroke();
+        } else if (kind === 'rect') {
+          const x = Math.min(d.x0,d.x1), y = Math.min(d.y0,d.y1);
+          const w = Math.abs(d.x1-d.x0), h = Math.abs(d.y1-d.y0);
+          ctx.strokeRect(x, y, w, h);
+        } else if (kind === 'circle') {
+          const cx = (d.x0+d.x1)/2, cy = (d.y0+d.y1)/2;
+          const rx = Math.abs(d.x1-d.x0)/2, ry = Math.abs(d.y1-d.y0)/2;
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI*2);
+          ctx.stroke();
+        }
       });
 
       // pins
