@@ -374,12 +374,12 @@
     <div class="mode-pill">
       <button class="tool active" id="toolPin" onclick="setTool('pin')" title="Pin mode">📍</button>
       <button class="tool" id="toolDraw" onclick="setTool('draw')" title="Draw mode">✏️</button>
+      <button class="tool" id="toolRecenter" onclick="fitView()" title="Recenter floor plan">⛶</button>
     </div>
     <button class="pin-picker-btn" id="pinPickerBtn" onclick="openPinPicker()" disabled>
       <span>📍 Edit pin ▾</span>
       <span class="ppc" id="pinPickerCount">(0 pins)</span>
     </button>
-    <button class="recenter-btn" id="recenterBtn" onclick="fitView()" title="Recenter floor plan">⛶ Recenter</button>
     <div class="north-widget" id="northWidget" title="Drag to rotate north">
       <svg viewBox="-30 -30 60 60" xmlns="http://www.w3.org/2000/svg">
         <g id="northWidgetRot">
