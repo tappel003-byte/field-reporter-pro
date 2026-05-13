@@ -1273,6 +1273,7 @@ function onPointerMove(e) {
     const dx = e.clientX - _maybeTap.startX;
     const dy = e.clientY - _maybeTap.startY;
     if (Math.hypot(dx, dy) > 8) {
+      if (_maybeTap.longPressTimer) { clearTimeout(_maybeTap.longPressTimer); _maybeTap.longPressTimer = null; }
       // Promote to pan (only from 'plan' kind)
       if (_maybeTap.kind === 'plan' && ui.panning) {
         ui.view.tx = ui.panning.tx + dx;
