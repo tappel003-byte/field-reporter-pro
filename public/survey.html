@@ -541,6 +541,7 @@ function goHome() {
   project = null;
   ui.selectedPinId = null;
   ui.undo = [];
+  ui.redo = [];
   renderHome();
   showScreen('screenHome');
 }
@@ -793,6 +794,7 @@ function commitNewProject() {
 function enterWork() {
   ui.selectedPinId = null;
   ui.undo = [];
+  ui.redo = [];
   ui.tool = 'pin';
   document.getElementById('wTitle').textContent = project.address;
   refreshSubtitle();
