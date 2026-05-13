@@ -1115,10 +1115,16 @@ function onPointerMove(e) {
 
   if (ui.drawing) {
     const imgPt = clientToImage(e.clientX, e.clientY);
-    const pts = ui.drawing.points;
-    const last = pts[pts.length-1];
-    if (Math.hypot(imgPt.x-last[0], imgPt.y-last[1]) > 2) {
-      pts.push([imgPt.x, imgPt.y]);
+    const d = ui.drawing;
+    if (d.kind === 'path') {
+      const pts = d.points;
+      const last = pts[pts.length-1];
+      if (Math.hypot(imgPt.x-last[0], imgPt.y-last[1]) > 2) {
+        pts.push([imgPt.x, imgPt.y]);
+        renderDrawings();
+      }
+    } else {
+      d.x1 = imgPt.x; d.y1 = imgPt.y;
       renderDrawings();
     }
     return;
