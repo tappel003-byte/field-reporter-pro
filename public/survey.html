@@ -1182,6 +1182,9 @@ function onPointerMove(e) {
   }
 
   if (_maybeTap) {
+    // Only count movement when there is a single active pointer.
+    // Pinch midpoint jitter must not poison a tap-to-drop-pin.
+    if (_pointers.size !== 1) return;
     const dx = e.clientX - _maybeTap.startX;
     const dy = e.clientY - _maybeTap.startY;
     if (Math.hypot(dx, dy) > 8) {
@@ -1189,7 +1192,7 @@ function onPointerMove(e) {
       if (_maybeTap.kind === 'plan' && ui.panning) {
         ui.view.tx = ui.panning.tx + dx;
         ui.view.ty = ui.panning.ty + dy;
-        applyTransform();
+        try { applyTransform(); } catch (_) {}
       }
       _maybeTap.moved = true;
     }
