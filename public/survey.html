@@ -751,6 +751,7 @@ function enterWork() {
   document.getElementById('wTitle').textContent = project.address;
   refreshSubtitle();
   setTool('pin');
+  setupNorthWidget();
   showScreen('screenWork');
   // Render after layout
   requestAnimationFrame(() => { mountPlan(); fitView(); renderAll(); updateUndoButton(); });
