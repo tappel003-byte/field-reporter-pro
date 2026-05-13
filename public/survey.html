@@ -131,23 +131,24 @@
   .north .nN{fill:var(--ink);font-size:11px;font-weight:700;text-anchor:middle;dominant-baseline:central}
   .north .nrot{fill:var(--ink);opacity:.5}
 
-  .work-toolbar{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
-    display:flex;gap:6px;background:var(--paper);padding:6px;border-radius:14px;
-    box-shadow:var(--shadow-lg);border:1px solid var(--line);z-index:5}
-  .tool{width:46px;height:46px;min-width:46px;flex-shrink:0;border-radius:10px;border:none;background:transparent;
-    font-size:20px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
-  .tool.active{background:var(--ink);color:var(--paper)}
-  .tool:active{transform:scale(.95)}
-  .tool .label{display:none}
+  /* Mode pill — top-left segmented control */
+  .mode-pill{position:absolute;top:8px;left:8px;display:flex;gap:2px;
+    background:rgba(255,250,240,.92);padding:4px;border-radius:12px;
+    box-shadow:var(--shadow);border:1px solid var(--line);z-index:6}
+  .mode-pill .tool{width:42px;height:38px;min-width:42px;flex-shrink:0;border-radius:8px;border:none;
+    background:transparent;font-size:18px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+  .mode-pill .tool.active{background:var(--ink);color:var(--paper)}
+  .mode-pill .tool:active{transform:scale(.95)}
 
-  /* Pin picker pill — sits above the tool toolbar */
-  .pin-picker-btn{position:absolute;bottom:74px;left:50%;transform:translateX(-50%);
+  /* Pin picker pill — bottom-left */
+  .pin-picker-btn{position:absolute;bottom:14px;left:12px;
     display:flex;align-items:center;gap:8px;background:var(--paper);
     padding:9px 16px;border-radius:999px;box-shadow:var(--shadow-lg);
     border:1px solid var(--line);font-size:14px;font-weight:600;color:var(--ink);
     z-index:5;white-space:nowrap;max-width:calc(100% - 32px)}
   .pin-picker-btn:disabled{opacity:.55}
-  .pin-picker-btn:active:not(:disabled){transform:translateX(-50%) scale(.97)}
+  .pin-picker-btn:active:not(:disabled){transform:scale(.97)}
+  .pin-picker-btn.hidden{display:none}
   .pin-picker-btn .ppc{font-size:12px;color:var(--muted);font-weight:500}
 
   .pin-list{display:flex;flex-direction:column;gap:4px;max-height:60vh;overflow-y:auto;
@@ -164,10 +165,6 @@
   .pin-list-item .pli-sub{font-size:12px;color:var(--muted);white-space:nowrap;
     overflow:hidden;text-overflow:ellipsis;margin-top:2px}
   .pin-list-empty{padding:30px 10px;text-align:center;color:var(--muted);font-size:13px}
-
-  .fullscreen-btn{position:absolute;top:8px;right:8px;width:38px;height:38px;border-radius:50%;
-    background:rgba(255,250,240,.92);border:1px solid var(--line);font-size:16px;z-index:6;
-    box-shadow:var(--shadow);color:var(--ink);display:flex;align-items:center;justify-content:center}
 
   /* ---------- SHEET / DIALOGS ---------- */
   .scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:40;display:none}
@@ -344,16 +341,14 @@
 
   <div class="stage" id="stage">
     <svg id="planSvg" xmlns="http://www.w3.org/2000/svg"></svg>
-    <button class="fullscreen-btn" onclick="toggleFullscreen()" id="fsBtn" title="Fullscreen">⛶</button>
+    <div class="mode-pill">
+      <button class="tool active" id="toolPin" onclick="setTool('pin')" title="Pin mode">📍</button>
+      <button class="tool" id="toolDraw" onclick="setTool('draw')" title="Draw mode">✏️</button>
+    </div>
     <button class="pin-picker-btn" id="pinPickerBtn" onclick="openPinPicker()" disabled>
       <span>📍 Edit pin ▾</span>
       <span class="ppc" id="pinPickerCount">(0 pins)</span>
     </button>
-    <div class="work-toolbar">
-      <button class="tool active" id="toolPin" onclick="setTool('pin')" title="Pin">📍</button>
-      <button class="tool" id="toolDraw" onclick="setTool('draw')" title="Draw">✏️</button>
-      <button class="tool" id="toolExport" onclick="openExport()" title="Export">📤</button>
-    </div>
   </div>
 </div>
 
@@ -761,6 +756,7 @@ function refreshSubtitle() {
   if (btn && cnt) {
     btn.disabled = n === 0;
     cnt.textContent = '(' + n + ' pin' + (n===1?'':'s') + ')';
+    btn.classList.toggle('hidden', ui.tool !== 'pin' || n === 0);
   }
 }
 
@@ -769,6 +765,7 @@ function setTool(t) {
   ui.tool = t;
   document.getElementById('toolPin').classList.toggle('active', t === 'pin');
   document.getElementById('toolDraw').classList.toggle('active', t === 'draw');
+  refreshSubtitle();
   closeMenu();
 }
 
@@ -794,7 +791,6 @@ function toggleFullscreen() {
   }
 }
 document.addEventListener('fullscreenchange', () => {
-  document.getElementById('fsBtn').textContent = document.fullscreenElement ? '⤡' : '⛶';
   setTimeout(fitView, 100);
 });
 
@@ -958,7 +954,7 @@ function onPointerDown(e) {
   // Ignore taps that originate on UI controls layered over the stage
   // (toolbar buttons, fullscreen, menus, sheets, etc.)
   if (e.target && e.target.closest &&
-      e.target.closest('.work-toolbar, .fullscreen-btn, .menu, .sheet, .scrim, button, input, textarea, a')) {
+      e.target.closest('.mode-pill, .pin-picker-btn, .menu, .sheet, .scrim, button, input, textarea, a')) {
     return;
   }
   stageEl.setPointerCapture(e.pointerId);
