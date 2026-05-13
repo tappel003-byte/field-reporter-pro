@@ -859,6 +859,16 @@ function zoomBy(factor, cx, cy) {
   applyTransform();
 }
 function clientToImage(cx, cy) {
+  const svg = document.getElementById('planSvg');
+  const ctm = svg && svg.getScreenCTM ? svg.getScreenCTM() : null;
+  if (svg && ctm) {
+    try {
+      const pt = svg.createSVGPoint ? svg.createSVGPoint() : new DOMPoint(cx, cy);
+      pt.x = cx; pt.y = cy;
+      const p = pt.matrixTransform(ctm.inverse());
+      return { x: p.x, y: p.y };
+    } catch (_) {}
+  }
   const stage = document.getElementById('stage');
   const r = stage.getBoundingClientRect();
   const px = cx - r.left, py = cy - r.top;
@@ -867,6 +877,12 @@ function clientToImage(cx, cy) {
   const vw = W/s, vh = H/s;
   const vx = -ui.view.tx/s, vy = -ui.view.ty/s;
   return { x: vx + (px / r.width) * vw, y: vy + (py / r.height) * vh };
+}
+function screenPixelsToImage(px, cx, cy) {
+  const a = clientToImage(cx, cy);
+  const bx = clientToImage(cx + px, cy);
+  const by = clientToImage(cx, cy + px);
+  return Math.max(Math.hypot(bx.x-a.x, bx.y-a.y), Math.hypot(by.x-a.x, by.y-a.y));
 }
 
 // ---------- Pointer events ----------
