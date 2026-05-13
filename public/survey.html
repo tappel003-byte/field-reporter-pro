@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>PGG Distress Survey – Field Reporter</title>
+<title>Distress Survey – Field Reporter</title>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
@@ -256,7 +256,7 @@
 <!-- ============ HOME ============ -->
 <div id="screenHome" class="screen active">
   <div class="home-head">
-    <div class="brand">PGG Distress Survey</div>
+    <div class="brand">Distress Survey</div>
     <h1>Field Reporter</h1>
     
   </div>
@@ -468,7 +468,7 @@
 
 <script>
 // =====================================================================
-// PGG Distress Survey – Field Reporter
+// Distress Survey – Field Reporter
 // Pen-and-paper version
 // =====================================================================
 const STORAGE_KEY = 'pgg_survey_v1';
@@ -1639,7 +1639,7 @@ async function exportPdf() {
 
     // ---- Page 1: header + map ----
     pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
-    pdf.text('PGG Distress Survey – Field Reporter', MARGIN, MARGIN + 6);
+    pdf.text('Distress Survey – Field Reporter', MARGIN, MARGIN + 6);
     pdf.setFont('helvetica','normal'); pdf.setFontSize(11);
     pdf.text(project.address, MARGIN, MARGIN + 24);
     const meta = (project.mode === 'internal' ? 'Internal' : 'External') + '  ·  ' +
