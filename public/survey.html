@@ -1076,6 +1076,7 @@ stageEl.addEventListener('wheel', (e) => {
 
 function onPointerDown(e) {
   if (!project) return;
+  closeMenu();
   // Ignore taps that originate on UI controls layered over the stage
   // (toolbar buttons, fullscreen, menus, sheets, etc.)
   if (e.target && e.target.closest &&
@@ -1141,6 +1142,21 @@ function onPointerDown(e) {
   // Otherwise: prepare pan / possible tap to drop pin
   _maybeTap = { kind: 'plan', startX: e.clientX, startY: e.clientY, imgPt, moved: false };
   ui.panning = { x: e.clientX, y: e.clientY, tx: ui.view.tx, ty: ui.view.ty };
+}
+function commitTapAction(tap) {
+  if (!tap || tap.moved || !project) return false;
+  if (tap.kind === 'pin') {
+    selectPin(tap.pinId);
+    openPinSheet();
+    return true;
+  }
+  if (tap.kind === 'plan' && ui.tool === 'pin' && tap.imgPt) {
+    const p = createPin(tap.imgPt.x, tap.imgPt.y);
+    selectPin(p.id);
+    openPinSheet();
+    return true;
+  }
+  return false;
 }
 function onPointerMove(e) {
   if (!_pointers.has(e.pointerId)) return;
@@ -1230,19 +1246,9 @@ function onPointerUp(e) {
   }
 
   if (_maybeTap) {
-    if (!_maybeTap.moved) {
-      if (_maybeTap.kind === 'pin') {
-        selectPin(_maybeTap.pinId);
-        openPinSheet();
-      } else if (_maybeTap.kind === 'plan' && ui.tool === 'pin') {
-        // Drop a new pin and open its sheet. Camera only opens when the
-        // user taps "Add photo" — never automatically.
-        const p = createPin(_maybeTap.imgPt.x, _maybeTap.imgPt.y);
-        selectPin(p.id);
-        openPinSheet();
-      }
-    }
+    const tap = _maybeTap;
     _maybeTap = null;
+    commitTapAction(tap);
   }
   ui.panning = null;
 }
