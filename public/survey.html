@@ -1134,7 +1134,7 @@ function onPointerDown(e) {
   }
 
   // Otherwise: prepare pan / possible tap to drop pin
-  _maybeTap = { kind: 'plan', startX: e.clientX, startY: e.clientY, imgPt };
+  _maybeTap = { kind: 'plan', startX: e.clientX, startY: e.clientY, imgPt, moved: false };
   ui.panning = { x: e.clientX, y: e.clientY, tx: ui.view.tx, ty: ui.view.ty };
 }
 function onPointerMove(e) {
