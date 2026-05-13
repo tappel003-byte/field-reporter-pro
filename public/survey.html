@@ -1268,9 +1268,56 @@ function removePhoto(i) {
 function closeSheets() {
   document.getElementById('pinSheet').classList.remove('open');
   document.getElementById('exportSheet').classList.remove('open');
+  document.getElementById('pinPickerSheet').classList.remove('open');
   document.getElementById('scrim').classList.remove('active');
   ui.selectedPinId = null;
   renderPins();
+}
+
+// ---------- Pin picker (slide-up list) ----------
+function openPinPicker() {
+  if (!project || !(project.pins||[]).length) return;
+  const list = document.getElementById('pinList');
+  list.innerHTML = '';
+  // Show pins in numbering order (creation order, since recomputeNumbering preserves it)
+  const pins = (project.pins||[]).slice().sort((a,b)=>(a.num||0)-(b.num||0));
+  pins.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'pin-list-item';
+    btn.type = 'button';
+    const desc = (p.description||'').trim();
+    const photoCount = (p.photos||[]).length;
+    const sub = desc
+      ? (desc.length > 40 ? desc.slice(0,40) + '…' : desc)
+      : (photoCount ? photoCount + ' photo' + (photoCount===1?'':'s') : 'No description');
+    btn.innerHTML = '<span class="pli-num">'+p.num+'</span>' +
+      '<span class="pli-body"><div class="pli-title">Pin #'+p.num+'</div>' +
+      '<div class="pli-sub">'+escapeHtml(sub)+'</div></span>';
+    btn.onclick = () => {
+      document.getElementById('pinPickerSheet').classList.remove('open');
+      selectPin(p.id);
+      centerOnPin(p);
+      openPinSheet();
+    };
+    list.appendChild(btn);
+  });
+  document.getElementById('scrim').classList.add('active');
+  document.getElementById('pinPickerSheet').classList.add('open');
+}
+function centerOnPin(p) {
+  if (!project || !p) return;
+  const stage = document.getElementById('stage');
+  const r = stage.getBoundingClientRect();
+  const W = project.plan.width, H = project.plan.height;
+  const s = Math.max(ui.view.scale, 1.4);
+  ui.view.scale = s;
+  ui.view.tx = r.width/2  * (W/r.width)  - p.x*s; // center pin in viewBox
+  // Simpler: place pin at viewBox center
+  // viewBox = (-tx/s, -ty/s, W/s, H/s); pin at (p.x,p.y) should be at (W/(2s), H/(2s)) inside viewBox
+  // => p.x = -tx/s + W/(2s)  => tx = W/2 - p.x*s
+  ui.view.tx = W/2 - p.x*s;
+  ui.view.ty = H/2 - p.y*s;
+  applyTransform();
 }
 
 // ---------- Lightbox ----------
