@@ -819,8 +819,27 @@ function setTool(t) {
   ui.tool = t;
   document.getElementById('toolPin').classList.toggle('active', t === 'pin');
   document.getElementById('toolDraw').classList.toggle('active', t === 'draw');
+  document.getElementById('drawToolbar').classList.toggle('show', t === 'draw');
   refreshSubtitle();
   closeMenu();
+}
+function setupDrawToolbar() {
+  const tb = document.getElementById('drawToolbar');
+  if (!tb || tb._wired) return;
+  tb._wired = true;
+  tb.addEventListener('click', (e) => {
+    const b = e.target.closest('button.dt-btn'); if (!b) return;
+    if (b.dataset.dtool) {
+      ui.drawTool = b.dataset.dtool;
+      tb.querySelectorAll('[data-dtool]').forEach(x => x.classList.toggle('active', x === b));
+    } else if (b.dataset.dthick) {
+      ui.drawThick = parseInt(b.dataset.dthick, 10);
+      tb.querySelectorAll('[data-dthick]').forEach(x => x.classList.toggle('active', x === b));
+    } else if (b.dataset.dcolor) {
+      ui.drawColor = b.dataset.dcolor;
+      tb.querySelectorAll('[data-dcolor]').forEach(x => x.classList.toggle('active', x === b));
+    }
+  });
 }
 
 // ---------- Menu ----------
