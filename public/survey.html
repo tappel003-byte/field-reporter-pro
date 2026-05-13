@@ -1444,9 +1444,12 @@ async function composeMapImage() {
       // north arrow
       const n = project.north;
       if (n) {
-        const NR = Math.max(W, H) * 0.03;
+        const NR = Math.max(W, H) * 0.04;
+        const NX = W - NR * 1.6;
+        const NY = NR * 1.6;
         ctx.save();
-        ctx.translate(n.x, n.y);
+        ctx.translate(NX, NY);
+        ctx.rotate((n.rotation || 0) * Math.PI/180);
         ctx.rotate(n.rotation * Math.PI/180);
         ctx.beginPath(); ctx.arc(0,0,NR,0,Math.PI*2);
         ctx.fillStyle = '#fffaf0'; ctx.fill();
