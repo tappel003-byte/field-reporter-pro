@@ -805,14 +805,18 @@ function saveProject() {
 }
 function refreshSubtitle() {
   if (!project) return;
-  const n = (project.pins||[]).length;
-  document.getElementById('wSub').textContent = project.mode + ' · ' + n + ' pins';
+  const pins = project.pins || [];
+  const n = pins.length;
+  const pics = pins.reduce((a,p) => a + ((p.photos||[]).length), 0);
+  const pinLabel = n + ' pin' + (n===1?'':'s');
+  const picLabel = pics + ' pic' + (pics===1?'':'s');
+  document.getElementById('wSub').textContent = project.mode + ' · ' + pinLabel + ' · ' + picLabel;
   const btn = document.getElementById('pinPickerBtn');
   const cnt = document.getElementById('pinPickerCount');
   if (btn && cnt) {
     btn.disabled = n === 0;
-    cnt.textContent = '(' + n + ' pin' + (n===1?'':'s') + ')';
-    btn.classList.toggle('hidden', n === 0);
+    cnt.textContent = '(' + pinLabel + ' · ' + picLabel + ')';
+    btn.classList.remove('hidden');
   }
 }
 
@@ -1319,6 +1323,7 @@ function removePhoto(i) {
   saveProject();
   renderPhotoStrip();
   renderPins();
+  refreshSubtitle();
   refreshSubtitle();
 }
 
