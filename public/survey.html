@@ -792,6 +792,8 @@ function enterWork() {
   setTool('pin');
   if (!project.north) project.north = { rotation: 0 };
   setupNorthWidget();
+  setupDrawToolbar();
+  document.getElementById('drawToolbar').classList.toggle('show', ui.tool === 'draw');
   showScreen('screenWork');
   // Render after layout
   requestAnimationFrame(() => { mountPlan(); fitView(); renderAll(); updateUndoButton(); });
