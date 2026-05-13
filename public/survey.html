@@ -1058,10 +1058,12 @@ function onPointerDown(e) {
   // Two-finger pinch
   if (_pointers.size === 2) {
     const pts = Array.from(_pointers.values());
+    const cx = (pts[0].x+pts[1].x)/2, cy = (pts[0].y+pts[1].y)/2;
     _pinchInitial = {
       dist: Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y),
       scale: ui.view.scale,
-      cx: (pts[0].x+pts[1].x)/2, cy: (pts[0].y+pts[1].y)/2,
+      cx, cy,
+      imgPt: clientToImage(cx, cy),  // cached once; avoids drift from clamping
     };
     _maybeTap = null;
     return;
@@ -1119,10 +1121,11 @@ function onPointerMove(e) {
     const d = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
     const factor = d / _pinchInitial.dist;
     const newScale = Math.max(0.5, Math.min(8, _pinchInitial.scale * factor));
-    // Zoom about midpoint
+    // Zoom about midpoint — use the imgPt cached at pinch start so the
+    // anchor point doesn't drift if applyTransform clamps the view.
     const stage = stageEl.getBoundingClientRect();
     const cx = _pinchInitial.cx, cy = _pinchInitial.cy;
-    const imgPt = clientToImage(cx, cy);
+    const imgPt = _pinchInitial.imgPt;
     ui.view.scale = newScale;
     ui.view.tx = ((cx - stage.left)/stage.width)*project.plan.width - imgPt.x*newScale;
     ui.view.ty = ((cy - stage.top)/stage.height)*project.plan.height - imgPt.y*newScale;
