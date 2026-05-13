@@ -145,14 +145,14 @@
   .mode-pill .tool:active{transform:scale(.95)}
 
   /* Pin picker pill — bottom-left */
-  .pin-picker-btn{position:absolute;bottom:14px;left:12px;
-    display:flex;align-items:center;gap:8px;background:var(--paper);
+  .pin-picker-btn{position:absolute !important;bottom:14px;left:12px;
+    display:flex !important;align-items:center;gap:8px;background:var(--paper);
     padding:9px 16px;border-radius:999px;box-shadow:var(--shadow-lg);
     border:1px solid var(--line);font-size:14px;font-weight:600;color:var(--ink);
-    z-index:5;white-space:nowrap;max-width:calc(100% - 32px)}
+    z-index:7;white-space:nowrap;max-width:calc(100% - 32px);visibility:visible;opacity:1}
   .pin-picker-btn:disabled{opacity:.55}
   .pin-picker-btn:active:not(:disabled){transform:scale(.97)}
-  .pin-picker-btn.hidden{display:none}
+  .pin-picker-btn.hidden{display:none !important}
   .pin-picker-btn .ppc{font-size:12px;color:var(--muted);font-weight:500}
 
   /* Draw toolbar — left edge, vertically centered, only in draw mode */
@@ -1100,7 +1100,7 @@ function onPointerDown(e) {
   // Hit-test pins (in image space)
   const pin = hitTestPin(imgPt.x, imgPt.y, e.clientX, e.clientY);
   if (pin) {
-    _maybeTap = { kind: 'pin', pinId: pin.id, startX: e.clientX, startY: e.clientY };
+    _maybeTap = { kind: 'pin', pinId: pin.id, startX: e.clientX, startY: e.clientY, moved: false };
     return;
   }
 
@@ -1134,7 +1134,7 @@ function onPointerDown(e) {
   }
 
   // Otherwise: prepare pan / possible tap to drop pin
-  _maybeTap = { kind: 'plan', startX: e.clientX, startY: e.clientY, imgPt };
+  _maybeTap = { kind: 'plan', startX: e.clientX, startY: e.clientY, imgPt, moved: false };
   ui.panning = { x: e.clientX, y: e.clientY, tx: ui.view.tx, ty: ui.view.ty };
 }
 function onPointerMove(e) {
@@ -1142,9 +1142,10 @@ function onPointerMove(e) {
   _pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
   if (_pointers.size >= 2 && _pinchInitial) {
+    // While pinching, never let an in-flight tap survive.
+    _maybeTap = null;
     const pts = Array.from(_pointers.values());
     const d = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
-    // Guard against degenerate pinch (fingers touching → dist≈0 → NaN/Infinity → blank SVG)
     if (!isFinite(d) || d < 8 || !_pinchInitial.dist || _pinchInitial.dist < 8) return;
     const factor = d / _pinchInitial.dist;
     if (!isFinite(factor) || factor <= 0) return;
@@ -1154,9 +1155,12 @@ function onPointerMove(e) {
     const imgPt = _pinchInitial.imgPt;
     if (!imgPt || !isFinite(imgPt.x) || !isFinite(imgPt.y)) return;
     const prevScale = ui.view.scale, prevTx = ui.view.tx, prevTy = ui.view.ty;
-    if (!setViewAnchored(newScale, cx, cy, imgPt)) {
+    try {
+      if (!setViewAnchored(newScale, cx, cy, imgPt)) {
+        ui.view.scale = prevScale; ui.view.tx = prevTx; ui.view.ty = prevTy;
+      }
+    } catch (_) {
       ui.view.scale = prevScale; ui.view.tx = prevTx; ui.view.ty = prevTy;
-      return;
     }
     return;
   }
@@ -1182,6 +1186,9 @@ function onPointerMove(e) {
   }
 
   if (_maybeTap) {
+    // Only count movement when there is a single active pointer.
+    // Pinch midpoint jitter must not poison a tap-to-drop-pin.
+    if (_pointers.size !== 1) return;
     const dx = e.clientX - _maybeTap.startX;
     const dy = e.clientY - _maybeTap.startY;
     if (Math.hypot(dx, dy) > 8) {
@@ -1189,7 +1196,7 @@ function onPointerMove(e) {
       if (_maybeTap.kind === 'plan' && ui.panning) {
         ui.view.tx = ui.panning.tx + dx;
         ui.view.ty = ui.panning.ty + dy;
-        applyTransform();
+        try { applyTransform(); } catch (_) {}
       }
       _maybeTap.moved = true;
     }

@@ -1,57 +1,47 @@
-## Goal
+## Problems
 
-Reorganize the plan workspace so primary controls anchor to the **left edge** instead of competing for the bottom-center. Free up the right side for the plan content and reduce the number of floating bars.
+1. The "📍 Edit pin ▾ (4 pins · 8 pics)" pill is not visible in the lower-left of the floor plan, even though the header subtitle correctly reads `INTERNAL · 4 PINS · 8 PICS` (so `refreshSubtitle()` did run).
+2. Tapping the floor plan to drop a pin no longer opens the pin description / photo sheet.
 
-## Layout changes
+Both regressed during the recent pinch-zoom rewrite. I want to fix them deterministically — not patch and hope.
 
-```text
-Before                              After
-┌──────────────────── ⛶ ┐          ┌──[📍 Pin|✏️ Draw]──────── ⋯ ┐
-│                       │          │                            │
-│       PLAN CANVAS     │          │       PLAN CANVAS          │
-│                       │          │                            │
-│   [Edit pin (3) ▾]    │          │ [Edit pin (3) ▾]           │
-│  ┌─📍─✏️─↶─📤─┐        │          │ ┌─📍─┐                     │
-│  └────────────┘       │          │ │ ✏️ │                     │
-└───────────────────────┘          │ │ ↶ │                     │
-                                    │ └────┘                     │
-                                    └────────────────────────────┘
-```
+## Investigation
 
-### Top
-- **Mode pill** `[📍 Pin | ✏️ Draw]` — top-left, segmented control. Tells you what tap-on-plan does.
-- **⋯ overflow menu** — top-right. Contains: Fullscreen, Export, (room to grow: Rotate north, Project info, Delete).
-- **Remove floating ⛶ button** — it's already duplicated inside the existing menu (`fsMenuItem`), so the floating one is redundant. One less thing covering the plan.
+### Pin pill (#pinPickerBtn)
 
-### Bottom-left (vertical "tool rail")
-- **Edit pin (N) ▾** chip — only visible in Pin mode with ≥1 pin.
-- Below it, a small vertical stack of context tools:
-  - **↶ Undo** (always)
-  - **✏️ stroke / ⬛ thickness** (Draw mode only)
-  - **🗑️ clear last** (optional)
-- Anchored bottom-left, ~12px from edges. Vertical orientation keeps the plan's horizontal width clean.
+The button exists in markup at line 372 with `position:absolute; bottom:14px; left:12px; z-index:5` inside `#stage` (`overflow:hidden`). `refreshSubtitle()` enables it and removes `.hidden` whenever pins exist. The most likely real causes (to verify in the live DOM via browser tools, with a project loaded):
 
-### What goes away
-- Floating top-right ⛶ (lives in ⋯ menu).
-- Bottom-center horizontal toolbar (replaced by left rail + top mode pill).
-- Bottom-center "Edit pin ▾" pill (moves to bottom-left).
+- The button is rendered but obscured / clipped because `applyTransform()` or `setViewAnchored()` is now mutating something on the stage (e.g., a stray `transform` on `#stage` itself instead of `#planSvg`) that pushes children offscreen.
+- Or the button's CSS `var(--paper)` background resolves to a color matching the dark stage background under some condition (it shouldn't — paper is the cream).
+- Or `_pointers` capture / pointer-events from the new pinch handler is putting an invisible overlay on top.
 
-## Why left, not right
-- User holds device with left hand while sketching/pointing with right → left rail is out of the drawing hand's way.
-- Eyes scan left-first; mode indicator at top-left answers "what am I about to do?" before any tap.
-- Right edge stays clean for the plan and for any future right-side affordances (scale bar, north arrow legend).
+### Pin sheet on drop
 
-## Tradeoffs / open
-- Android gesture nav lives bottom-edge; bottom-left rail sits ~12px up so it doesn't conflict, but worth testing.
-- ⋯ menu hides Export one tap deeper — acceptable since export is terminal (once per session).
+In `onPointerUp` (line 1220), `_maybeTap.moved` blocks the sheet. With the new pinch math, any small movement during a single-finger tap could be flagging `moved=true`. Two suspects:
 
-## Implementation scope (single file)
+- The 8-pixel threshold at line 1187 is fine, but `ui.panning` is now also being touched in `onPointerDown` for pinch; if a pinch ends with one finger lifted first, the remaining single-pointer path may inherit stale `_maybeTap` state and never reach `openPinSheet`.
+- More likely: `setViewAnchored()` or `applyTransform()` is throwing silently on the very first move event, and the catch path leaves `_maybeTap.moved = true` without ever reaching the up handler in a clean state.
 
-`public/survey.html`:
-1. Restyle `.work-toolbar` from `bottom:14px; left:50%; transform:translateX(-50%); flex-direction:row` → `bottom:14px; left:12px; flex-direction:column`.
-2. Add `.mode-pill` segmented control (Pin / Draw) absolutely positioned `top:8px; left:8px`. Wire to existing `ui.mode` state used by tap handler.
-3. Replace `.fullscreen-btn` with `.menu-btn` (⋯) at `top:8px; right:8px`; move Export `<button>` into the existing menu list alongside `fsMenuItem`. Delete the standalone `.fullscreen-btn` element.
-4. Reposition `#pinPickerBtn` (the "Edit pin ▾" pill) to `bottom:` above the toolbar rail at `left:12px`. Keep its existing show/hide-on-pin-count logic, plus hide it when `ui.mode === 'draw'`.
-5. Show/hide draw-only buttons (stroke/thickness) based on `ui.mode`.
+## Fix
 
-No business-logic changes — all existing handlers (`undo()`, `toggleFullscreen()`, `openPinPicker()`, export, mode setters) stay as-is; only their containers and positions change.
+1. **Re-test the live preview with a real project loaded.** Use the browser tool to navigate to `/survey.html`, create a project, drop a pin, and inspect:
+   - Computed style + bounding rect of `#pinPickerBtn` (is it 0×0? offscreen? `display:none`? behind another element via `elementFromPoint`?).
+   - Console errors during pinch / tap.
+   - State of `_maybeTap`, `_pointers`, `ui.panning` after a tap that should have opened the sheet.
+
+2. **Pin pill** — based on what the inspection shows, the targeted fix is one of:
+   - Restore correct stacking: bump `#pinPickerBtn` to `z-index:6` (matching `.mode-pill`) and ensure no transform is applied to `#stage`.
+   - Remove any leftover `.hidden` class added by an earlier patch.
+   - If `#planSvg` is now overlaying the button due to width/height changes, set `#planSvg { pointer-events:auto; z-index:0 }` and `#pinPickerBtn { z-index:6 }` explicitly.
+
+3. **Pin drop sheet** — make tap detection robust:
+   - In `onPointerDown`, when a single pointer goes down, reset `_maybeTap.moved = false` explicitly.
+   - In `onPointerMove`, only set `moved = true` if there's actually a single active pointer (`_pointers.size === 1`) — pinch midpoint jitter must not poison a tap.
+   - In `onPointerUp`, if the released pointer is the last one and `_maybeTap` exists with `!moved`, open the pin sheet even if `ui.panning` was touched.
+   - Wrap `setViewAnchored` / `applyTransform` calls in try/catch so a math hiccup can't strand `_maybeTap` in a half state.
+
+4. **Verify** with the browser tool: drop a pin → sheet must appear; pinch-zoom → floor plan stays put; pill visible bottom-left and counts read "(N pins · M pics)".
+
+## Scope
+
+Only `public/survey.html`. No other files touched. No business logic changes.
