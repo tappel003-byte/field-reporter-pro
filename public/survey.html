@@ -145,14 +145,14 @@
   .mode-pill .tool:active{transform:scale(.95)}
 
   /* Pin picker pill — bottom-left */
-  .pin-picker-btn{position:absolute;bottom:14px;left:12px;
-    display:flex;align-items:center;gap:8px;background:var(--paper);
+  .pin-picker-btn{position:absolute !important;bottom:14px;left:12px;
+    display:flex !important;align-items:center;gap:8px;background:var(--paper);
     padding:9px 16px;border-radius:999px;box-shadow:var(--shadow-lg);
     border:1px solid var(--line);font-size:14px;font-weight:600;color:var(--ink);
-    z-index:5;white-space:nowrap;max-width:calc(100% - 32px)}
+    z-index:7;white-space:nowrap;max-width:calc(100% - 32px);visibility:visible;opacity:1}
   .pin-picker-btn:disabled{opacity:.55}
   .pin-picker-btn:active:not(:disabled){transform:scale(.97)}
-  .pin-picker-btn.hidden{display:none}
+  .pin-picker-btn.hidden{display:none !important}
   .pin-picker-btn .ppc{font-size:12px;color:var(--muted);font-weight:500}
 
   /* Draw toolbar — left edge, vertically centered, only in draw mode */
