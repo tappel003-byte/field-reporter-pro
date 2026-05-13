@@ -1343,35 +1343,48 @@ function renderDrawings() {
   });
 }
 function renderNorth() {
-  const g = document.getElementById('gNorth');
-  if (!g) return;
-  g.innerHTML = '';
-  if (!project || !project.north) return;
-  const n = project.north;
-  const R = Math.max(project.plan.width, project.plan.height) * 0.03;
-  const grp = svgEl('g', { class: 'north', transform: `translate(${n.x},${n.y}) rotate(${n.rotation})` });
-  const hit = svgEl('circle', { class:'nhit', cx:0, cy:0, r:R*2.6 });
-  hit.setAttribute('fill', 'transparent');
-  hit.setAttribute('stroke', 'transparent');
-  grp.appendChild(hit);
-  // disc
-  grp.appendChild(svgEl('circle', { class:'nbg', cx:0, cy:0, r:R }));
-  // arrow (points up = north)
-  const arrow = svgEl('path', {
-    class: 'narrow',
-    d: `M 0 ${-R*0.85} L ${R*0.45} ${R*0.55} L 0 ${R*0.2} L ${-R*0.45} ${R*0.55} Z`,
+  const rot = document.getElementById('northWidgetRot');
+  if (!rot || !project || !project.north) return;
+  rot.setAttribute('transform', `rotate(${project.north.rotation})`);
+}
+function setupNorthWidget() {
+  const w = document.getElementById('northWidget');
+  if (!w || w._wired) return;
+  w._wired = true;
+  let active = null;
+  const center = () => {
+    const r = w.getBoundingClientRect();
+    return { cx: r.left + r.width/2, cy: r.top + r.height/2 };
+  };
+  w.addEventListener('pointerdown', (e) => {
+    if (!project || !project.north) return;
+    e.preventDefault(); e.stopPropagation();
+    const { cx, cy } = center();
+    active = {
+      pid: e.pointerId,
+      startAngle: Math.atan2(e.clientY - cy, e.clientX - cx),
+      startRot: project.north.rotation,
+    };
+    w.setPointerCapture(e.pointerId);
+    w.classList.add('dragging');
+    snapshot('rotate north');
   });
-  grp.appendChild(arrow);
-  const tN = svgEl('text', { class:'nN', x:0, y:R*0.78 });
-  tN.style.fontSize = (R*0.55) + 'px';
-  tN.textContent = 'N';
-  grp.appendChild(tN);
-  // rotation handle (grip outside the disc, straight up before rotation)
-  const handle = svgEl('circle', { class:'nrot', cx:0, cy:-R*1.85, r:R*0.65 });
-  grp.appendChild(handle);
-  // tether line
-  grp.appendChild(svgEl('line', { x1:0,y1:-R,x2:0,y2:-R*1.55, stroke:'#1a1a1a', 'stroke-width':R*0.06 }));
-  g.appendChild(grp);
+  w.addEventListener('pointermove', (e) => {
+    if (!active || active.pid !== e.pointerId) return;
+    const { cx, cy } = center();
+    const a = Math.atan2(e.clientY - cy, e.clientX - cx);
+    const da = (a - active.startAngle) * 180 / Math.PI;
+    project.north.rotation = active.startRot + da;
+    renderNorth();
+  });
+  const end = (e) => {
+    if (!active || active.pid !== e.pointerId) return;
+    active = null;
+    w.classList.remove('dragging');
+    saveProject();
+  };
+  w.addEventListener('pointerup', end);
+  w.addEventListener('pointercancel', end);
 }
 
 // ---------- Export ----------
