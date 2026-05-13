@@ -1151,7 +1151,16 @@ function onPointerDown(e) {
   // Hit-test pins (in image space)
   const pin = hitTestPin(imgPt.x, imgPt.y, e.clientX, e.clientY);
   if (pin) {
-    _maybeTap = { kind: 'pin', pinId: pin.id, startX: e.clientX, startY: e.clientY, moved: false };
+    const tap = { kind: 'pin', pinId: pin.id, startX: e.clientX, startY: e.clientY, moved: false, longPressTimer: null };
+    tap.longPressTimer = setTimeout(() => {
+      if (_maybeTap === tap && !tap.moved && _pointers.size === 1) {
+        snapshot('move pin');
+        _dragPin = { pinId: pin.id };
+        _maybeTap = null;
+        try { if (navigator.vibrate) navigator.vibrate(40); } catch(_) {}
+      }
+    }, 450);
+    _maybeTap = tap;
     return;
   }
 
@@ -1233,6 +1242,12 @@ function onPointerMove(e) {
 
   // (north arrow rotation handled by floating widget, not stage pointers)
 
+  if (_dragPin) {
+    const imgPt = clientToImage(e.clientX, e.clientY);
+    const p = (project.pins||[]).find(pp => pp.id === _dragPin.pinId);
+    if (p) { p.x = imgPt.x; p.y = imgPt.y; renderPins(); }
+    return;
+  }
 
   if (ui.drawing) {
     const imgPt = clientToImage(e.clientX, e.clientY);
@@ -1258,6 +1273,7 @@ function onPointerMove(e) {
     const dx = e.clientX - _maybeTap.startX;
     const dy = e.clientY - _maybeTap.startY;
     if (Math.hypot(dx, dy) > 8) {
+      if (_maybeTap.longPressTimer) { clearTimeout(_maybeTap.longPressTimer); _maybeTap.longPressTimer = null; }
       // Promote to pan (only from 'plan' kind)
       if (_maybeTap.kind === 'plan' && ui.panning) {
         ui.view.tx = ui.panning.tx + dx;
@@ -1290,9 +1306,20 @@ function onPointerUp(e) {
     return;
   }
 
+  if (_dragPin) {
+    _dragPin = null;
+    saveProject();
+    renderPins();
+    e.preventDefault();
+    e.stopPropagation();
+    ui.panning = null;
+    return;
+  }
+
   if (_maybeTap) {
     const tap = _maybeTap;
     _maybeTap = null;
+    if (tap.longPressTimer) { clearTimeout(tap.longPressTimer); tap.longPressTimer = null; }
     if (commitTapAction(tap)) {
       e.preventDefault();
       e.stopPropagation();
