@@ -1242,6 +1242,12 @@ function onPointerMove(e) {
 
   // (north arrow rotation handled by floating widget, not stage pointers)
 
+  if (_dragPin) {
+    const imgPt = clientToImage(e.clientX, e.clientY);
+    const p = (project.pins||[]).find(pp => pp.id === _dragPin.pinId);
+    if (p) { p.x = imgPt.x; p.y = imgPt.y; renderPins(); }
+    return;
+  }
 
   if (ui.drawing) {
     const imgPt = clientToImage(e.clientX, e.clientY);
