@@ -416,7 +416,7 @@
 </div>
 
 <!-- ============ PIN SHEET ============ -->
-<div class="scrim" id="scrim" onclick="closeSheets()"></div>
+<div class="scrim" id="scrim" onclick="closeSheets(event)"></div>
 <div class="sheet" id="pinSheet">
   <div class="grab"></div>
   <div class="sheet-head">
@@ -1060,6 +1060,7 @@ const stageEl = document.getElementById('stage');
 let _pointers = new Map();
 let _pinchInitial = null;
 let _maybeTap = null;
+let _sheetOpenedAt = 0;
 let _dragNorth = null;
 let _rotateNorth = null;
 let _dragPin = null;
@@ -1249,7 +1250,10 @@ function onPointerUp(e) {
   if (_maybeTap) {
     const tap = _maybeTap;
     _maybeTap = null;
-    commitTapAction(tap);
+    if (commitTapAction(tap)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
   }
   ui.panning = null;
 }
