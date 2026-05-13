@@ -791,7 +791,6 @@ function toggleFullscreen() {
   }
 }
 document.addEventListener('fullscreenchange', () => {
-  document.getElementById('fsBtn').textContent = document.fullscreenElement ? '⤡' : '⛶';
   setTimeout(fitView, 100);
 });
 
