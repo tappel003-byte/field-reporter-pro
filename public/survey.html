@@ -1837,7 +1837,10 @@ function escapeHtml(s) {
 
 // ---------- Resize / clamp ----------
 window.addEventListener('resize', () => { updateAppHeight(); if (project) applyTransform(); });
-if (window.visualViewport) window.visualViewport.addEventListener('resize', updateAppHeight);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => { updateAppHeight(); if (project) applyTransform(); });
+  window.visualViewport.addEventListener('scroll', updateAppHeight);
+}
 
 // ---------- Boot ----------
 load();
