@@ -1335,6 +1335,7 @@ function deleteCurrentPin() {
 function openPinSheet() {
   const p = currentPin();
   if (!p) return;
+  _sheetOpenedAt = performance.now();
   document.getElementById('pinTitle').textContent = 'Pin #' + p.num;
   document.getElementById('pinDesc').value = p.description || '';
   renderPhotoStrip();
@@ -1414,7 +1415,12 @@ function removePhoto(i) {
 }
 
 // ---------- Sheets ----------
-function closeSheets() {
+function closeSheets(ev) {
+  if (ev && ev.currentTarget && ev.currentTarget.id === 'scrim' && performance.now() - _sheetOpenedAt < 350) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    return;
+  }
   document.getElementById('pinSheet').classList.remove('open');
   document.getElementById('exportSheet').classList.remove('open');
   document.getElementById('pinPickerSheet').classList.remove('open');
@@ -1426,6 +1432,7 @@ function closeSheets() {
 // ---------- Pin picker (slide-up list) ----------
 function openPinPicker() {
   if (!project || !(project.pins||[]).length) return;
+  _sheetOpenedAt = performance.now();
   const list = document.getElementById('pinList');
   list.innerHTML = '';
   // Show pins in numbering order (creation order, since recomputeNumbering preserves it)
