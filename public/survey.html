@@ -953,6 +953,8 @@ function applyTransform() {
   if (!svg) return;
   // We zoom by manipulating viewBox so coordinates remain image-space.
   const W = project.plan.width, H = project.plan.height;
+  ui.view.scale = Math.max(0.5, Math.min(8, Number(ui.view.scale) || 1));
+  constrainView();
   const s = ui.view.scale;
   const vw = W / s;
   const vh = H / s;
@@ -960,27 +962,66 @@ function applyTransform() {
   const vy = -ui.view.ty / s;
   svg.setAttribute('viewBox', `${vx} ${vy} ${vw} ${vh}`);
 }
+function constrainView() {
+  if (!project || !project.plan) return;
+  const W = project.plan.width, H = project.plan.height;
+  const s = Math.max(0.5, Math.min(8, Number(ui.view.scale) || 1));
+  const vw = W / s, vh = H / s;
+  let vx = -ui.view.tx / s, vy = -ui.view.ty / s;
+  vx = vw >= W ? (W - vw) / 2 : Math.max(0, Math.min(W - vw, vx));
+  vy = vh >= H ? (H - vh) / 2 : Math.max(0, Math.min(H - vh, vy));
+  ui.view.scale = s;
+  ui.view.tx = -vx * s;
+  ui.view.ty = -vy * s;
+}
+function svgContentBox() {
+  const svg = document.getElementById('planSvg');
+  const r = svg.getBoundingClientRect();
+  const W = project.plan.width, H = project.plan.height;
+  const planAspect = W / H;
+  const boxAspect = r.width / r.height;
+  let width, height, left, top;
+  if (boxAspect > planAspect) {
+    height = r.height;
+    width = height * planAspect;
+    left = r.left + (r.width - width) / 2;
+    top = r.top;
+  } else {
+    width = r.width;
+    height = width / planAspect;
+    left = r.left;
+    top = r.top + (r.height - height) / 2;
+  }
+  return { left, top, width, height };
+}
+function setViewAnchored(newScale, clientX, clientY, imgPt) {
+  if (!project || !project.plan || !imgPt) return false;
+  const W = project.plan.width, H = project.plan.height;
+  const box = svgContentBox();
+  if (!box.width || !box.height) return false;
+  const s = Math.max(0.5, Math.min(8, newScale));
+  const px = clientX - box.left;
+  const py = clientY - box.top;
+  const pixelsPerImageUnit = box.width / (W / s);
+  if (!isFinite(pixelsPerImageUnit) || pixelsPerImageUnit <= 0) return false;
+  const vx = imgPt.x - (px / pixelsPerImageUnit);
+  const vy = imgPt.y - (py / pixelsPerImageUnit);
+  if (![s, vx, vy].every(isFinite)) return false;
+  ui.view.scale = s;
+  ui.view.tx = -vx * s;
+  ui.view.ty = -vy * s;
+  applyTransform();
+  return true;
+}
 function fitView() {
   ui.view = { tx:0, ty:0, scale:1 };
   applyTransform();
 }
 function zoomBy(factor, cx, cy) {
   if (!project) return;
-  const stage = document.getElementById('stage');
-  const r = stage.getBoundingClientRect();
-  const px = cx - r.left, py = cy - r.top;
-  // image coords at point
   const imgPt = clientToImage(cx, cy);
   const newScale = Math.max(0.5, Math.min(8, ui.view.scale * factor));
-  ui.view.scale = newScale;
-  // Recompute tx/ty so imgPt stays under (px,py)
-  // image pixel-per-screen at new scale:
-  const W = project.plan.width, H = project.plan.height;
-  // viewBox = (-tx/s, -ty/s, W/s, H/s); screen px to image: imgX = vx + (px/r.w)*vw
-  // => imgPt.x = -tx/s + (px/r.w)*(W/s)  =>  tx = (px/r.w)*W - imgPt.x*s
-  ui.view.tx = (px/r.width)*W - imgPt.x*newScale;
-  ui.view.ty = (py/r.height)*H - imgPt.y*newScale;
-  applyTransform();
+  setViewAnchored(newScale, cx, cy, imgPt);
 }
 function clientToImage(cx, cy) {
   const svg = document.getElementById('planSvg');
