@@ -751,6 +751,7 @@ function enterWork() {
   document.getElementById('wTitle').textContent = project.address;
   refreshSubtitle();
   setTool('pin');
+  if (!project.north) project.north = { rotation: 0 };
   setupNorthWidget();
   showScreen('screenWork');
   // Render after layout
