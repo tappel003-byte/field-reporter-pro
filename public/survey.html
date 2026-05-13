@@ -1626,6 +1626,7 @@ function openExport() {
   if (!project.pins || !project.pins.length) {
     if (!confirm('No pins yet — export anyway?')) return;
   }
+  _sheetOpenedAt = performance.now();
   const isInternal = project.mode === 'internal';
   document.getElementById('exportZipBtn').style.display = isInternal ? '' : 'none';
   document.getElementById('exportZipNote').style.display = isInternal ? '' : 'none';
