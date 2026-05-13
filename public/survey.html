@@ -857,8 +857,6 @@ function setupDrawToolbar() {
 // ---------- Menu ----------
 function toggleMenu() {
   document.getElementById('workMenu').classList.toggle('open');
-  document.getElementById('fsMenuItem').textContent =
-    document.fullscreenElement ? '⛶ Exit fullscreen' : '⛶ Fullscreen';
 }
 function closeMenu() { document.getElementById('workMenu').classList.remove('open'); }
 document.addEventListener('click', (e) => {
@@ -875,7 +873,15 @@ function toggleFullscreen() {
     (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
   }
 }
+function updateFullscreenButton() {
+  const btn = document.getElementById('wFullscreen');
+  if (!btn) return;
+  const isFs = !!document.fullscreenElement;
+  btn.textContent = isFs ? '⤢' : '⛶';
+  btn.title = isFs ? 'Exit fullscreen' : 'Fullscreen';
+}
 document.addEventListener('fullscreenchange', () => {
+  updateFullscreenButton();
   setTimeout(fitView, 100);
 });
 
