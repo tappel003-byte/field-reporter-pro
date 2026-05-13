@@ -341,16 +341,14 @@
 
   <div class="stage" id="stage">
     <svg id="planSvg" xmlns="http://www.w3.org/2000/svg"></svg>
-    <button class="fullscreen-btn" onclick="toggleFullscreen()" id="fsBtn" title="Fullscreen">⛶</button>
+    <div class="mode-pill">
+      <button class="tool active" id="toolPin" onclick="setTool('pin')" title="Pin mode">📍</button>
+      <button class="tool" id="toolDraw" onclick="setTool('draw')" title="Draw mode">✏️</button>
+    </div>
     <button class="pin-picker-btn" id="pinPickerBtn" onclick="openPinPicker()" disabled>
       <span>📍 Edit pin ▾</span>
       <span class="ppc" id="pinPickerCount">(0 pins)</span>
     </button>
-    <div class="work-toolbar">
-      <button class="tool active" id="toolPin" onclick="setTool('pin')" title="Pin">📍</button>
-      <button class="tool" id="toolDraw" onclick="setTool('draw')" title="Draw">✏️</button>
-      <button class="tool" id="toolExport" onclick="openExport()" title="Export">📤</button>
-    </div>
   </div>
 </div>
 
