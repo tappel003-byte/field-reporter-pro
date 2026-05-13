@@ -527,8 +527,12 @@ function showScreen(id) {
   closeSheets();
 }
 function updateAppHeight() {
-  const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight || document.documentElement.clientHeight;
+  const vv = window.visualViewport;
+  const h = (vv && vv.height) || window.innerHeight || document.documentElement.clientHeight;
   if (h) document.documentElement.style.setProperty('--app-height', `${Math.round(h)}px`);
+  const layoutH = window.innerHeight || document.documentElement.clientHeight || h;
+  const bottomOffset = vv ? Math.max(0, layoutH - vv.height - vv.offsetTop) : 0;
+  document.documentElement.style.setProperty('--app-bottom-offset', `${Math.round(bottomOffset)}px`);
 }
 function goHome() {
   if (project) { saveProject(); }
@@ -797,7 +801,7 @@ function enterWork() {
   document.getElementById('drawToolbar').classList.toggle('show', ui.tool === 'draw');
   showScreen('screenWork');
   // Render after layout
-  requestAnimationFrame(() => { mountPlan(); fitView(); renderAll(); updateUndoButton(); });
+  requestAnimationFrame(() => { updateAppHeight(); mountPlan(); fitView(); renderAll(); updateUndoButton(); });
 }
 function saveProject() {
   if (!project) return;
