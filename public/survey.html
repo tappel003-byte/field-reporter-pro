@@ -756,6 +756,7 @@ function refreshSubtitle() {
   if (btn && cnt) {
     btn.disabled = n === 0;
     cnt.textContent = '(' + n + ' pin' + (n===1?'':'s') + ')';
+    btn.classList.toggle('hidden', ui.tool !== 'pin' || n === 0);
   }
 }
 
@@ -764,6 +765,7 @@ function setTool(t) {
   ui.tool = t;
   document.getElementById('toolPin').classList.toggle('active', t === 'pin');
   document.getElementById('toolDraw').classList.toggle('active', t === 'draw');
+  refreshSubtitle();
   closeMenu();
 }
 
