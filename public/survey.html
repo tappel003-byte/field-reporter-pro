@@ -1100,7 +1100,7 @@ function onPointerDown(e) {
   // Hit-test pins (in image space)
   const pin = hitTestPin(imgPt.x, imgPt.y, e.clientX, e.clientY);
   if (pin) {
-    _maybeTap = { kind: 'pin', pinId: pin.id, startX: e.clientX, startY: e.clientY };
+    _maybeTap = { kind: 'pin', pinId: pin.id, startX: e.clientX, startY: e.clientY, moved: false };
     return;
   }
 
