@@ -124,12 +124,16 @@
     pointer-events:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
   .pin.selected .pin-bg{stroke:#ffd34d;stroke-width:3}
 
-  .north{cursor:grab}
-  .north.dragging{cursor:grabbing}
-  .north .nbg{fill:var(--paper);stroke:var(--ink);stroke-width:1.5}
-  .north .narrow{fill:var(--accent)}
-  .north .nN{fill:var(--ink);font-size:11px;font-weight:700;text-anchor:middle;dominant-baseline:central}
-  .north .nrot{fill:var(--ink);opacity:.5}
+  /* North arrow widget — floating top-right in stage gutter */
+  .north-widget{position:absolute;top:8px;right:8px;width:56px;height:56px;
+    background:rgba(255,250,240,.92);border:1px solid var(--line);border-radius:50%;
+    box-shadow:var(--shadow);z-index:6;touch-action:none;cursor:grab;
+    display:flex;align-items:center;justify-content:center;user-select:none;-webkit-user-select:none}
+  .north-widget.dragging{cursor:grabbing}
+  .north-widget svg{width:100%;height:100%;display:block;pointer-events:none}
+  .north-widget .nbg{fill:var(--paper);stroke:var(--ink);stroke-width:1.5}
+  .north-widget .narrow{fill:var(--accent)}
+  .north-widget .nN{fill:var(--ink);font-weight:700;text-anchor:middle;dominant-baseline:central}
 
   /* Mode pill — top-left segmented control */
   .mode-pill{position:absolute;top:8px;left:8px;display:flex;gap:2px;
@@ -349,6 +353,15 @@
       <span>📍 Edit pin ▾</span>
       <span class="ppc" id="pinPickerCount">(0 pins)</span>
     </button>
+    <div class="north-widget" id="northWidget" title="Drag to rotate north">
+      <svg viewBox="-30 -30 60 60" xmlns="http://www.w3.org/2000/svg">
+        <g id="northWidgetRot">
+          <circle class="nbg" cx="0" cy="0" r="26"/>
+          <path class="narrow" d="M 0 -22 L 11 14 L 0 5 L -11 14 Z"/>
+          <text class="nN" x="0" y="20" style="font-size:11px">N</text>
+        </g>
+      </svg>
+    </div>
   </div>
 </div>
 
@@ -738,6 +751,8 @@ function enterWork() {
   document.getElementById('wTitle').textContent = project.address;
   refreshSubtitle();
   setTool('pin');
+  if (!project.north) project.north = { rotation: 0 };
+  setupNorthWidget();
   showScreen('screenWork');
   // Render after layout
   requestAnimationFrame(() => { mountPlan(); fitView(); renderAll(); updateUndoButton(); });
@@ -815,7 +830,7 @@ function resetNorthArrow() {
   closeMenu();
   if (!project) return;
   snapshot('reset north');
-  project.north = { x: project.plan.width * 0.92, y: project.plan.height * 0.08, rotation: 0 };
+  project.north = { rotation: 0 };
   saveProject();
   renderNorth();
 }
@@ -865,7 +880,7 @@ function mountPlan() {
   // groups
   svg.appendChild(svgEl('g', { id:'gDrawings' }));
   svg.appendChild(svgEl('g', { id:'gPins' }));
-  svg.appendChild(svgEl('g', { id:'gNorth' }));
+  
 }
 
 // ---------- View transform (pan/zoom) ----------
@@ -954,7 +969,7 @@ function onPointerDown(e) {
   // Ignore taps that originate on UI controls layered over the stage
   // (toolbar buttons, fullscreen, menus, sheets, etc.)
   if (e.target && e.target.closest &&
-      e.target.closest('.mode-pill, .pin-picker-btn, .menu, .sheet, .scrim, button, input, textarea, a')) {
+      e.target.closest('.mode-pill, .pin-picker-btn, .north-widget, .menu, .sheet, .scrim, button, input, textarea, a')) {
     return;
   }
   stageEl.setPointerCapture(e.pointerId);
@@ -972,37 +987,8 @@ function onPointerDown(e) {
     return;
   }
 
-  // Hit-test north arrow first with large finger-friendly zones.
+  // (north arrow lives in floating widget, not on canvas)
   const imgPt = clientToImage(e.clientX, e.clientY);
-  const n = project.north;
-  const dx = imgPt.x - n.x, dy = imgPt.y - n.y;
-  const dist = Math.hypot(dx, dy);
-  const arrowR = Math.max(project.plan.width, project.plan.height) * 0.03;
-  const minTouchImg = screenPixelsToImage(48, e.clientX, e.clientY);
-  const rotHandleDist = arrowR * 1.85;
-  const rotHandleR = Math.max(arrowR * 1.45, minTouchImg);
-  const bodyR = Math.max(arrowR * 1.1, minTouchImg);
-  const rotateZoneR = Math.max(arrowR * 2.6, minTouchImg * 1.65);
-  const rad = (n.rotation - 90) * Math.PI / 180;
-  const hx = n.x + Math.cos(rad)*rotHandleDist;
-  const hy = n.y + Math.sin(rad)*rotHandleDist;
-  const distHandle = Math.hypot(imgPt.x-hx, imgPt.y-hy);
-  const inNorthZone = distHandle <= rotHandleR || dist <= rotateZoneR;
-  if (inNorthZone) {
-    e.preventDefault();
-    e.stopPropagation();
-    _maybeTap = null;
-    ui.panning = null;
-    // Center of the disc moves; the rest of the enlarged target rotates.
-    if (dist > bodyR * 0.72 || distHandle <= rotHandleR) {
-      _rotateNorth = { startRot: n.rotation, startAngle: Math.atan2(imgPt.y-n.y, imgPt.x-n.x) };
-      snapshot('rotate north');
-      return;
-    }
-    _dragNorth = { offsetX: dx, offsetY: dy };
-    snapshot('move north');
-    return;
-  }
 
   // Hit-test pins (in image space)
   const pin = hitTestPin(imgPt.x, imgPt.y, e.clientX, e.clientY);
@@ -1046,22 +1032,8 @@ function onPointerMove(e) {
     return;
   }
 
-  if (_rotateNorth) {
-    const imgPt = clientToImage(e.clientX, e.clientY);
-    const n = project.north;
-    const a = Math.atan2(imgPt.y-n.y, imgPt.x-n.x);
-    const da = (a - _rotateNorth.startAngle) * 180 / Math.PI;
-    n.rotation = _rotateNorth.startRot + da;
-    renderNorth();
-    return;
-  }
-  if (_dragNorth) {
-    const imgPt = clientToImage(e.clientX, e.clientY);
-    project.north.x = imgPt.x - _dragNorth.offsetX;
-    project.north.y = imgPt.y - _dragNorth.offsetY;
-    renderNorth();
-    return;
-  }
+  // (north arrow rotation handled by floating widget, not stage pointers)
+
 
   if (ui.drawing) {
     const imgPt = clientToImage(e.clientX, e.clientY);
@@ -1098,8 +1070,6 @@ function onPointerUp(e) {
   _pointers.delete(e.pointerId);
   if (_pointers.size < 2) _pinchInitial = null;
 
-  if (_rotateNorth) { _rotateNorth = null; saveProject(); return; }
-  if (_dragNorth) { _dragNorth = null; saveProject(); return; }
   if (ui.drawing) {
     if (ui.drawing.points.length < 2) {
       // remove zero-length
@@ -1375,35 +1345,48 @@ function renderDrawings() {
   });
 }
 function renderNorth() {
-  const g = document.getElementById('gNorth');
-  if (!g) return;
-  g.innerHTML = '';
-  if (!project || !project.north) return;
-  const n = project.north;
-  const R = Math.max(project.plan.width, project.plan.height) * 0.03;
-  const grp = svgEl('g', { class: 'north', transform: `translate(${n.x},${n.y}) rotate(${n.rotation})` });
-  const hit = svgEl('circle', { class:'nhit', cx:0, cy:0, r:R*2.6 });
-  hit.setAttribute('fill', 'transparent');
-  hit.setAttribute('stroke', 'transparent');
-  grp.appendChild(hit);
-  // disc
-  grp.appendChild(svgEl('circle', { class:'nbg', cx:0, cy:0, r:R }));
-  // arrow (points up = north)
-  const arrow = svgEl('path', {
-    class: 'narrow',
-    d: `M 0 ${-R*0.85} L ${R*0.45} ${R*0.55} L 0 ${R*0.2} L ${-R*0.45} ${R*0.55} Z`,
+  const rot = document.getElementById('northWidgetRot');
+  if (!rot || !project || !project.north) return;
+  rot.setAttribute('transform', `rotate(${project.north.rotation})`);
+}
+function setupNorthWidget() {
+  const w = document.getElementById('northWidget');
+  if (!w || w._wired) return;
+  w._wired = true;
+  let active = null;
+  const center = () => {
+    const r = w.getBoundingClientRect();
+    return { cx: r.left + r.width/2, cy: r.top + r.height/2 };
+  };
+  w.addEventListener('pointerdown', (e) => {
+    if (!project || !project.north) return;
+    e.preventDefault(); e.stopPropagation();
+    const { cx, cy } = center();
+    active = {
+      pid: e.pointerId,
+      startAngle: Math.atan2(e.clientY - cy, e.clientX - cx),
+      startRot: project.north.rotation,
+    };
+    w.setPointerCapture(e.pointerId);
+    w.classList.add('dragging');
+    snapshot('rotate north');
   });
-  grp.appendChild(arrow);
-  const tN = svgEl('text', { class:'nN', x:0, y:R*0.78 });
-  tN.style.fontSize = (R*0.55) + 'px';
-  tN.textContent = 'N';
-  grp.appendChild(tN);
-  // rotation handle (grip outside the disc, straight up before rotation)
-  const handle = svgEl('circle', { class:'nrot', cx:0, cy:-R*1.85, r:R*0.65 });
-  grp.appendChild(handle);
-  // tether line
-  grp.appendChild(svgEl('line', { x1:0,y1:-R,x2:0,y2:-R*1.55, stroke:'#1a1a1a', 'stroke-width':R*0.06 }));
-  g.appendChild(grp);
+  w.addEventListener('pointermove', (e) => {
+    if (!active || active.pid !== e.pointerId) return;
+    const { cx, cy } = center();
+    const a = Math.atan2(e.clientY - cy, e.clientX - cx);
+    const da = (a - active.startAngle) * 180 / Math.PI;
+    project.north.rotation = active.startRot + da;
+    renderNorth();
+  });
+  const end = (e) => {
+    if (!active || active.pid !== e.pointerId) return;
+    active = null;
+    w.classList.remove('dragging');
+    saveProject();
+  };
+  w.addEventListener('pointerup', end);
+  w.addEventListener('pointercancel', end);
 }
 
 // ---------- Export ----------
@@ -1462,9 +1445,12 @@ async function composeMapImage() {
       // north arrow
       const n = project.north;
       if (n) {
-        const NR = Math.max(W, H) * 0.03;
+        const NR = Math.max(W, H) * 0.04;
+        const NX = W - NR * 1.6;
+        const NY = NR * 1.6;
         ctx.save();
-        ctx.translate(n.x, n.y);
+        ctx.translate(NX, NY);
+        ctx.rotate((n.rotation || 0) * Math.PI/180);
         ctx.rotate(n.rotation * Math.PI/180);
         ctx.beginPath(); ctx.arc(0,0,NR,0,Math.PI*2);
         ctx.fillStyle = '#fffaf0'; ctx.fill();
