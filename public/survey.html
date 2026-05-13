@@ -1083,12 +1083,14 @@ function onPointerDown(e) {
   // Two-finger pinch
   if (_pointers.size === 2) {
     const pts = Array.from(_pointers.values());
+    const cx = (pts[0].x+pts[1].x)/2, cy = (pts[0].y+pts[1].y)/2;
     _pinchInitial = {
       dist: Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y),
       scale: ui.view.scale,
-      cx: (pts[0].x+pts[1].x)/2, cy: (pts[0].y+pts[1].y)/2,
+      imgPt: clientToImage(cx, cy),
     };
     _maybeTap = null;
+    ui.panning = null;
     return;
   }
 
@@ -1148,20 +1150,14 @@ function onPointerMove(e) {
     if (!isFinite(factor) || factor <= 0) return;
     const newScale = Math.max(0.5, Math.min(8, _pinchInitial.scale * factor));
     if (!isFinite(newScale)) return;
-    // Zoom about midpoint
-    const stage = stageEl.getBoundingClientRect();
-    const cx = _pinchInitial.cx, cy = _pinchInitial.cy;
-    const imgPt = clientToImage(cx, cy);
+    const cx = (pts[0].x+pts[1].x)/2, cy = (pts[0].y+pts[1].y)/2;
+    const imgPt = _pinchInitial.imgPt;
     if (!imgPt || !isFinite(imgPt.x) || !isFinite(imgPt.y)) return;
     const prevScale = ui.view.scale, prevTx = ui.view.tx, prevTy = ui.view.ty;
-    ui.view.scale = newScale;
-    ui.view.tx = ((cx - stage.left)/stage.width)*project.plan.width - imgPt.x*newScale;
-    ui.view.ty = ((cy - stage.top)/stage.height)*project.plan.height - imgPt.y*newScale;
-    if (!isFinite(ui.view.tx) || !isFinite(ui.view.ty)) {
+    if (!setViewAnchored(newScale, cx, cy, imgPt)) {
       ui.view.scale = prevScale; ui.view.tx = prevTx; ui.view.ty = prevTy;
       return;
     }
-    applyTransform();
     return;
   }
 
