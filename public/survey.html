@@ -911,24 +911,34 @@ function onPointerDown(e) {
     return;
   }
 
-  // Hit-test north arrow rotate handle, then north body
+  // Hit-test north arrow rotate handle, then north body.
+  // Use a finger-friendly minimum touch radius (in screen px) converted to image space.
   const imgPt = clientToImage(e.clientX, e.clientY);
   const n = project.north;
   const dx = imgPt.x - n.x, dy = imgPt.y - n.y;
   const dist = Math.hypot(dx, dy);
   const arrowR = Math.max(project.plan.width, project.plan.height) * 0.03;
-  // Rotation handle is at angle (n.rotation - 90deg) at distance arrowR*1.35
+  const scale = (ui.view && ui.view.scale) ? ui.view.scale : 1;
+  const minTouchImg = 22 / scale; // ~44px finger target in screen space
   const rotHandleDist = arrowR * 1.35;
-  const rotHandleR = arrowR * 0.85;
+  const rotHandleR = Math.max(arrowR * 0.85, minTouchImg);
+  const bodyR = Math.max(arrowR, minTouchImg);
   const rad = (n.rotation - 90) * Math.PI / 180;
   const hx = n.x + Math.cos(rad)*rotHandleDist;
   const hy = n.y + Math.sin(rad)*rotHandleDist;
-  if (Math.hypot(imgPt.x-hx, imgPt.y-hy) <= rotHandleR) {
-    _rotateNorth = { startRot: n.rotation, startAngle: Math.atan2(imgPt.y-n.y, imgPt.x-n.x) };
-    snapshot('rotate north');
-    return;
-  }
-  if (dist <= arrowR) {
+  const distHandle = Math.hypot(imgPt.x-hx, imgPt.y-hy);
+  // Guard: if the touch is anywhere in the north-arrow neighborhood,
+  // it must NOT fall through to drop-pin / pan logic.
+  const inNorthZone = distHandle <= rotHandleR || dist <= bodyR + minTouchImg;
+  if (inNorthZone) {
+    _maybeTap = null;
+    ui.panning = null;
+    // Prefer rotation when closer to the handle, or when outside the arrow body.
+    if (distHandle <= rotHandleR || dist > bodyR) {
+      _rotateNorth = { startRot: n.rotation, startAngle: Math.atan2(imgPt.y-n.y, imgPt.x-n.x) };
+      snapshot('rotate north');
+      return;
+    }
     _dragNorth = { offsetX: dx, offsetY: dy };
     snapshot('move north');
     return;
