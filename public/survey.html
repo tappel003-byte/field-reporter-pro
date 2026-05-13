@@ -1267,6 +1267,7 @@ function onStageClickFallback(e) {
   const imgPt = clientToImage(e.clientX, e.clientY);
   const pin = hitTestPin(imgPt.x, imgPt.y, e.clientX, e.clientY);
   if (pin) commitTapAction({ kind: 'pin', pinId: pin.id, moved: false });
+  else commitTapAction({ kind: 'plan', imgPt, moved: false });
 }
 
 function hitTestPin(x, y, cx, cy) {
