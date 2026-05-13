@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>PGG Distress Survey – Field Reporter</title>
+<title>Distress Survey – Field Reporter</title>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
@@ -257,7 +257,7 @@
 <!-- ============ HOME ============ -->
 <div id="screenHome" class="screen active">
   <div class="home-head">
-    <div class="brand">PGG Distress Survey</div>
+    <div class="brand">Distress Survey</div>
     <h1>Field Reporter</h1>
     
   </div>
@@ -352,11 +352,12 @@
       <small id="wSub"></small>
     </div>
     <button class="icon-btn" id="wUndo" onclick="undo()" title="Undo">↶</button>
+    <button class="icon-btn" id="wRedo" onclick="redo()" title="Redo">↷</button>
+    <button class="icon-btn" id="wFullscreen" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
     <button class="icon-btn" onclick="toggleMenu()" title="More">⋯</button>
   </div>
   <div class="menu" id="workMenu">
     <button onclick="openExport()">📤 Export</button>
-    <button onclick="toggleFullscreen()" id="fsMenuItem">⛶ Fullscreen</button>
     <div class="sep"></div>
     <button onclick="clearDrawings()">✎ Clear all drawings</button>
     <button onclick="resetNorthArrow()">🧭 Reset north arrow</button>
@@ -489,6 +490,7 @@ let ui = {
   view: { tx: 0, ty: 0, scale: 1 },
   drawing: null,                  // active stroke/shape
   undo: [],
+  redo: [],
   panning: null,
 };
 
@@ -539,6 +541,7 @@ function goHome() {
   project = null;
   ui.selectedPinId = null;
   ui.undo = [];
+  ui.redo = [];
   renderHome();
   showScreen('screenHome');
 }
@@ -791,6 +794,7 @@ function commitNewProject() {
 function enterWork() {
   ui.selectedPinId = null;
   ui.undo = [];
+  ui.redo = [];
   ui.tool = 'pin';
   document.getElementById('wTitle').textContent = project.address;
   refreshSubtitle();
@@ -856,8 +860,6 @@ function setupDrawToolbar() {
 // ---------- Menu ----------
 function toggleMenu() {
   document.getElementById('workMenu').classList.toggle('open');
-  document.getElementById('fsMenuItem').textContent =
-    document.fullscreenElement ? '⛶ Exit fullscreen' : '⛶ Fullscreen';
 }
 function closeMenu() { document.getElementById('workMenu').classList.remove('open'); }
 document.addEventListener('click', (e) => {
@@ -874,7 +876,15 @@ function toggleFullscreen() {
     (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
   }
 }
+function updateFullscreenButton() {
+  const btn = document.getElementById('wFullscreen');
+  if (!btn) return;
+  const isFs = !!document.fullscreenElement;
+  btn.textContent = isFs ? '⤢' : '⛶';
+  btn.title = isFs ? 'Exit fullscreen' : 'Fullscreen';
+}
 document.addEventListener('fullscreenchange', () => {
+  updateFullscreenButton();
   setTimeout(fitView, 100);
 });
 
@@ -904,20 +914,39 @@ function resetNorthArrow() {
   renderNorth();
 }
 
-// ---------- Undo ----------
-function snapshot(label) {
-  if (!project) return;
-  ui.undo.push(JSON.stringify({ pins: project.pins, drawings: project.drawings, north: project.north, nextNum: project.nextNum }));
-  if (ui.undo.length > UNDO_LIMIT) ui.undo.shift();
-  updateUndoButton();
+// ---------- Undo / Redo ----------
+function _snapState() {
+  return JSON.stringify({ pins: project.pins, drawings: project.drawings, north: project.north, nextNum: project.nextNum });
 }
-function undo() {
-  if (!ui.undo.length) return;
-  const prev = JSON.parse(ui.undo.pop());
+function _applyState(s) {
+  const prev = JSON.parse(s);
   project.pins = prev.pins || [];
   project.drawings = prev.drawings || [];
   project.north = prev.north || project.north;
   project.nextNum = prev.nextNum || project.nextNum;
+}
+function snapshot(label) {
+  if (!project) return;
+  ui.undo.push(_snapState());
+  if (ui.undo.length > UNDO_LIMIT) ui.undo.shift();
+  ui.redo = []; // new edit invalidates redo
+  updateUndoButton();
+}
+function undo() {
+  if (!ui.undo.length) return;
+  ui.redo.push(_snapState());
+  if (ui.redo.length > UNDO_LIMIT) ui.redo.shift();
+  _applyState(ui.undo.pop());
+  saveProject();
+  renderAll();
+  refreshSubtitle();
+  updateUndoButton();
+}
+function redo() {
+  if (!ui.redo.length) return;
+  ui.undo.push(_snapState());
+  if (ui.undo.length > UNDO_LIMIT) ui.undo.shift();
+  _applyState(ui.redo.pop());
   saveProject();
   renderAll();
   refreshSubtitle();
@@ -925,6 +954,8 @@ function undo() {
 }
 function updateUndoButton() {
   document.getElementById('wUndo').disabled = !ui.undo.length;
+  const r = document.getElementById('wRedo');
+  if (r) r.disabled = !ui.redo.length;
 }
 
 // ---------- Plan / SVG ----------
@@ -1733,7 +1764,7 @@ async function exportPdf() {
 
     // ---- Page 1: header + map ----
     pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
-    pdf.text('PGG Distress Survey – Field Reporter', MARGIN, MARGIN + 6);
+    pdf.text('Distress Survey – Field Reporter', MARGIN, MARGIN + 6);
     pdf.setFont('helvetica','normal'); pdf.setFontSize(11);
     pdf.text(project.address, MARGIN, MARGIN + 24);
     const meta = (project.mode === 'internal' ? 'Internal' : 'External') + '  ·  ' +
