@@ -1306,9 +1306,20 @@ function onPointerUp(e) {
     return;
   }
 
+  if (_dragPin) {
+    _dragPin = null;
+    saveProject();
+    renderPins();
+    e.preventDefault();
+    e.stopPropagation();
+    ui.panning = null;
+    return;
+  }
+
   if (_maybeTap) {
     const tap = _maybeTap;
     _maybeTap = null;
+    if (tap.longPressTimer) { clearTimeout(tap.longPressTimer); tap.longPressTimer = null; }
     if (commitTapAction(tap)) {
       e.preventDefault();
       e.stopPropagation();
