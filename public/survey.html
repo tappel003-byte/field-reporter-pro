@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>Distress Survey – Field Reporter</title>
+<title>PGG Distress Survey – Field Reporter</title>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
@@ -154,18 +154,6 @@
   .pin-picker-btn:active:not(:disabled){transform:scale(.97)}
   .pin-picker-btn.hidden{display:none}
   .pin-picker-btn .ppc{font-size:12px;color:var(--muted);font-weight:500}
-  .mode-pill .pin-picker-btn{position:static;bottom:auto;left:auto;z-index:auto;box-shadow:none;
-    border:none;background:transparent;border-radius:8px;padding:0 10px;height:38px;max-width:none;
-    gap:4px;font-size:13px}
-  .mode-pill .pin-picker-btn:disabled{opacity:.35}
-  .mode-pill .pin-picker-btn:not(:disabled):active{background:var(--line);transform:scale(.95)}
-  .mode-pill .pin-picker-btn .ppc{display:none}
-
-  /* Recenter button — bottom-right */
-  .recenter-btn{position:absolute;bottom:14px;right:12px;display:flex;align-items:center;gap:6px;
-    background:var(--paper);padding:9px 14px;border-radius:999px;box-shadow:var(--shadow-lg);
-    border:1px solid var(--line);font-size:13px;font-weight:600;color:var(--ink);z-index:5;white-space:nowrap}
-  .recenter-btn:active{transform:scale(.97)}
 
   /* Draw toolbar — left edge, vertically centered, only in draw mode */
   .draw-toolbar{position:absolute;left:8px;top:50%;transform:translateY(-50%);
@@ -229,7 +217,6 @@
     background:transparent;color:var(--muted);font-size:13px;display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:4px}
   .add-photo .ic{font-size:22px}
-  .file-input-hidden{position:fixed;left:-100vw;top:0;width:1px;height:1px;opacity:.01;pointer-events:none}
 
   .desc-area{width:100%;min-height:90px;padding:10px 12px;border:1px solid var(--line);
     border-radius:10px;background:var(--bg);font-size:15px;font-family:inherit;color:var(--ink);
@@ -269,7 +256,7 @@
 <!-- ============ HOME ============ -->
 <div id="screenHome" class="screen active">
   <div class="home-head">
-    <div class="brand">Distress Survey</div>
+    <div class="brand">PGG Distress Survey</div>
     <h1>Field Reporter</h1>
     
   </div>
@@ -381,12 +368,11 @@
     <div class="mode-pill">
       <button class="tool active" id="toolPin" onclick="setTool('pin')" title="Pin mode">📍</button>
       <button class="tool" id="toolDraw" onclick="setTool('draw')" title="Draw mode">✏️</button>
-      <button class="tool" id="toolRecenter" onclick="fitView()" title="Recenter floor plan">⛶</button>
-      <button class="pin-picker-btn" id="pinPickerBtn" onclick="openPinPicker()" disabled>
-        <span>📍 Edit pin ▾</span>
-        <span class="ppc" id="pinPickerCount">(0 pins)</span>
-      </button>
     </div>
+    <button class="pin-picker-btn" id="pinPickerBtn" onclick="openPinPicker()" disabled>
+      <span>📍 Edit pin ▾</span>
+      <span class="ppc" id="pinPickerCount">(0 pins)</span>
+    </button>
     <div class="north-widget" id="northWidget" title="Drag to rotate north">
       <svg viewBox="-30 -30 60 60" xmlns="http://www.w3.org/2000/svg">
         <g id="northWidgetRot">
@@ -440,7 +426,7 @@
     <button class="ghost" onclick="closeSheets()">Done</button>
   </div>
   <div class="photo-strip" id="photoStrip"></div>
-  <input type="file" id="pinPhotoFile" class="file-input-hidden" accept="image/*" capture="environment" multiple onchange="onPinPhotoFile(event)" />
+  <input type="file" id="pinPhotoFile" accept="image/*" capture="environment" multiple style="display:none" onchange="onPinPhotoFile(event)" />
   <textarea class="desc-area" id="pinDesc" placeholder="Describe what you see…" oninput="onPinDescInput(event)"></textarea>
   <div class="sheet-actions">
     <button class="ghost danger" onclick="deleteCurrentPin()">🗑 Delete pin</button>
@@ -482,7 +468,7 @@
 
 <script>
 // =====================================================================
-// Distress Survey – Field Reporter
+// PGG Distress Survey – Field Reporter
 // Pen-and-paper version
 // =====================================================================
 const STORAGE_KEY = 'pgg_survey_v1';
@@ -962,57 +948,39 @@ function mountPlan() {
 }
 
 // ---------- View transform (pan/zoom) ----------
-// SVG uses preserveAspectRatio="xMidYMid meet" — it letterboxes the viewBox
-// inside the stage. Anchor math must honor the fitted rect, not assume the
-// viewBox spans the entire stage.
 function applyTransform() {
   const svg = document.getElementById('planSvg');
-  if (!svg || !project || !project.plan) return;
+  if (!svg) return;
+  // We zoom by manipulating viewBox so coordinates remain image-space.
   const W = project.plan.width, H = project.plan.height;
   const s = ui.view.scale;
-  const vw = W / s, vh = H / s;
-  let vx = -ui.view.tx / s;
-  let vy = -ui.view.ty / s;
-  const keepX = Math.min(vw, W) * 0.25;
-  const keepY = Math.min(vh, H) * 0.25;
-  vx = Math.max(-(vw - keepX), Math.min(W - keepX, vx));
-  vy = Math.max(-(vh - keepY), Math.min(H - keepY, vy));
-  ui.view.tx = -vx * s;
-  ui.view.ty = -vy * s;
+  const vw = W / s;
+  const vh = H / s;
+  const vx = -ui.view.tx / s;
+  const vy = -ui.view.ty / s;
   svg.setAttribute('viewBox', `${vx} ${vy} ${vw} ${vh}`);
 }
 function fitView() {
-  ui.view = { tx: 0, ty: 0, scale: 1 };
+  ui.view = { tx:0, ty:0, scale:1 };
   applyTransform();
-}
-// Set tx/ty so image-space `imgPt` stays under screen point (cx,cy) at newScale.
-// Honors the letterboxed fit of preserveAspectRatio="meet".
-function anchorViewTo(imgPt, cx, cy, newScale) {
-  ui.view.scale = newScale;
-  const stage = document.getElementById('stage').getBoundingClientRect();
-  const W = project.plan.width, H = project.plan.height;
-  const vw = W / newScale, vh = H / newScale;
-  const r  = Math.min(stage.width / vw, stage.height / vh);
-  const ox = (stage.width  - r * vw) / 2;
-  const oy = (stage.height - r * vh) / 2;
-  const sx = cx - stage.left, sy = cy - stage.top;
-  // sx = ox + r*(imgPt.x - vx)  =>  vx = imgPt.x - (sx - ox)/r
-  const vx = imgPt.x - (sx - ox) / r;
-  const vy = imgPt.y - (sy - oy) / r;
-  ui.view.tx = -vx * newScale;
-  ui.view.ty = -vy * newScale;
 }
 function zoomBy(factor, cx, cy) {
   if (!project) return;
+  const stage = document.getElementById('stage');
+  const r = stage.getBoundingClientRect();
+  const px = cx - r.left, py = cy - r.top;
+  // image coords at point
   const imgPt = clientToImage(cx, cy);
   const newScale = Math.max(0.5, Math.min(8, ui.view.scale * factor));
-  anchorViewTo(imgPt, cx, cy, newScale);
+  ui.view.scale = newScale;
+  // Recompute tx/ty so imgPt stays under (px,py)
+  // image pixel-per-screen at new scale:
+  const W = project.plan.width, H = project.plan.height;
+  // viewBox = (-tx/s, -ty/s, W/s, H/s); screen px to image: imgX = vx + (px/r.w)*vw
+  // => imgPt.x = -tx/s + (px/r.w)*(W/s)  =>  tx = (px/r.w)*W - imgPt.x*s
+  ui.view.tx = (px/r.width)*W - imgPt.x*newScale;
+  ui.view.ty = (py/r.height)*H - imgPt.y*newScale;
   applyTransform();
-}
-function triggerPinCamera() {
-  const input = document.getElementById('pinPhotoFile');
-  if (!input) return;
-  try { input.click(); } catch(_) {}
 }
 function clientToImage(cx, cy) {
   const svg = document.getElementById('planSvg');
@@ -1074,12 +1042,10 @@ function onPointerDown(e) {
   // Two-finger pinch
   if (_pointers.size === 2) {
     const pts = Array.from(_pointers.values());
-    const cx = (pts[0].x+pts[1].x)/2, cy = (pts[0].y+pts[1].y)/2;
     _pinchInitial = {
       dist: Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y),
       scale: ui.view.scale,
-      cx, cy,
-      imgPt: clientToImage(cx, cy),  // cached once; avoids drift from clamping
+      cx: (pts[0].x+pts[1].x)/2, cy: (pts[0].y+pts[1].y)/2,
     };
     _maybeTap = null;
     return;
@@ -1137,8 +1103,13 @@ function onPointerMove(e) {
     const d = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
     const factor = d / _pinchInitial.dist;
     const newScale = Math.max(0.5, Math.min(8, _pinchInitial.scale * factor));
-    // Anchor the cached image point under the original pinch midpoint.
-    anchorViewTo(_pinchInitial.imgPt, _pinchInitial.cx, _pinchInitial.cy, newScale);
+    // Zoom about midpoint
+    const stage = stageEl.getBoundingClientRect();
+    const cx = _pinchInitial.cx, cy = _pinchInitial.cy;
+    const imgPt = clientToImage(cx, cy);
+    ui.view.scale = newScale;
+    ui.view.tx = ((cx - stage.left)/stage.width)*project.plan.width - imgPt.x*newScale;
+    ui.view.ty = ((cy - stage.top)/stage.height)*project.plan.height - imgPt.y*newScale;
     applyTransform();
     return;
   }
@@ -1205,11 +1176,11 @@ function onPointerUp(e) {
         selectPin(_maybeTap.pinId);
         openPinSheet();
       } else if (_maybeTap.kind === 'plan' && ui.tool === 'pin') {
-        // Drop a new pin, open its sheet, then immediately open camera/photo chooser.
+        // Drop a new pin and open its sheet. Camera only opens when the
+        // user taps "Add photo" — never automatically.
         const p = createPin(_maybeTap.imgPt.x, _maybeTap.imgPt.y);
         selectPin(p.id);
         openPinSheet();
-        triggerPinCamera();
       }
     }
     _maybeTap = null;
@@ -1314,7 +1285,7 @@ function renderPhotoStrip() {
   const add = document.createElement('button');
   add.className = 'add-photo';
   add.innerHTML = '<span class="ic">📷</span><span>Add</span>';
-  add.onclick = triggerPinCamera;
+  add.onclick = () => document.getElementById('pinPhotoFile').click();
   strip.appendChild(add);
 }
 function onPinPhotoFile(e) {
@@ -1668,7 +1639,7 @@ async function exportPdf() {
 
     // ---- Page 1: header + map ----
     pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
-    pdf.text('Distress Survey – Field Reporter', MARGIN, MARGIN + 6);
+    pdf.text('PGG Distress Survey – Field Reporter', MARGIN, MARGIN + 6);
     pdf.setFont('helvetica','normal'); pdf.setFontSize(11);
     pdf.text(project.address, MARGIN, MARGIN + 24);
     const meta = (project.mode === 'internal' ? 'Internal' : 'External') + '  ·  ' +
