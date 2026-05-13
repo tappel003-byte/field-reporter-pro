@@ -955,47 +955,51 @@ function mountPlan() {
 }
 
 // ---------- View transform (pan/zoom) ----------
+// SVG uses preserveAspectRatio="xMidYMid meet" — it letterboxes the viewBox
+// inside the stage. Anchor math must honor the fitted rect, not assume the
+// viewBox spans the entire stage.
 function applyTransform() {
   const svg = document.getElementById('planSvg');
-  if (!svg) return;
-  // We zoom by manipulating viewBox so coordinates remain image-space.
+  if (!svg || !project || !project.plan) return;
   const W = project.plan.width, H = project.plan.height;
   const s = ui.view.scale;
-  const vw = W / s;
-  const vh = H / s;
+  const vw = W / s, vh = H / s;
   let vx = -ui.view.tx / s;
   let vy = -ui.view.ty / s;
-  // Clamp pan so at least 25% of the plan stays visible on each axis.
   const keepX = Math.min(vw, W) * 0.25;
   const keepY = Math.min(vh, H) * 0.25;
-  const minVx = -(vw - keepX), maxVx = W - keepX;
-  const minVy = -(vh - keepY), maxVy = H - keepY;
-  vx = Math.max(minVx, Math.min(maxVx, vx));
-  vy = Math.max(minVy, Math.min(maxVy, vy));
+  vx = Math.max(-(vw - keepX), Math.min(W - keepX, vx));
+  vy = Math.max(-(vh - keepY), Math.min(H - keepY, vy));
   ui.view.tx = -vx * s;
   ui.view.ty = -vy * s;
   svg.setAttribute('viewBox', `${vx} ${vy} ${vw} ${vh}`);
 }
 function fitView() {
-  ui.view = { tx:0, ty:0, scale:1 };
+  ui.view = { tx: 0, ty: 0, scale: 1 };
   applyTransform();
+}
+// Set tx/ty so image-space `imgPt` stays under screen point (cx,cy) at newScale.
+// Honors the letterboxed fit of preserveAspectRatio="meet".
+function anchorViewTo(imgPt, cx, cy, newScale) {
+  ui.view.scale = newScale;
+  const stage = document.getElementById('stage').getBoundingClientRect();
+  const W = project.plan.width, H = project.plan.height;
+  const vw = W / newScale, vh = H / newScale;
+  const r  = Math.min(stage.width / vw, stage.height / vh);
+  const ox = (stage.width  - r * vw) / 2;
+  const oy = (stage.height - r * vh) / 2;
+  const sx = cx - stage.left, sy = cy - stage.top;
+  // sx = ox + r*(imgPt.x - vx)  =>  vx = imgPt.x - (sx - ox)/r
+  const vx = imgPt.x - (sx - ox) / r;
+  const vy = imgPt.y - (sy - oy) / r;
+  ui.view.tx = -vx * newScale;
+  ui.view.ty = -vy * newScale;
 }
 function zoomBy(factor, cx, cy) {
   if (!project) return;
-  const stage = document.getElementById('stage');
-  const r = stage.getBoundingClientRect();
-  const px = cx - r.left, py = cy - r.top;
-  // image coords at point
   const imgPt = clientToImage(cx, cy);
   const newScale = Math.max(0.5, Math.min(8, ui.view.scale * factor));
-  ui.view.scale = newScale;
-  // Recompute tx/ty so imgPt stays under (px,py)
-  // image pixel-per-screen at new scale:
-  const W = project.plan.width, H = project.plan.height;
-  // viewBox = (-tx/s, -ty/s, W/s, H/s); screen px to image: imgX = vx + (px/r.w)*vw
-  // => imgPt.x = -tx/s + (px/r.w)*(W/s)  =>  tx = (px/r.w)*W - imgPt.x*s
-  ui.view.tx = (px/r.width)*W - imgPt.x*newScale;
-  ui.view.ty = (py/r.height)*H - imgPt.y*newScale;
+  anchorViewTo(imgPt, cx, cy, newScale);
   applyTransform();
 }
 function clientToImage(cx, cy) {
@@ -1121,14 +1125,8 @@ function onPointerMove(e) {
     const d = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
     const factor = d / _pinchInitial.dist;
     const newScale = Math.max(0.5, Math.min(8, _pinchInitial.scale * factor));
-    // Zoom about midpoint — use the imgPt cached at pinch start so the
-    // anchor point doesn't drift if applyTransform clamps the view.
-    const stage = stageEl.getBoundingClientRect();
-    const cx = _pinchInitial.cx, cy = _pinchInitial.cy;
-    const imgPt = _pinchInitial.imgPt;
-    ui.view.scale = newScale;
-    ui.view.tx = ((cx - stage.left)/stage.width)*project.plan.width - imgPt.x*newScale;
-    ui.view.ty = ((cy - stage.top)/stage.height)*project.plan.height - imgPt.y*newScale;
+    // Anchor the cached image point under the original pinch midpoint.
+    anchorViewTo(_pinchInitial.imgPt, _pinchInitial.cx, _pinchInitial.cy, newScale);
     applyTransform();
     return;
   }
