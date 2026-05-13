@@ -1058,10 +1058,12 @@ function onPointerDown(e) {
   // Two-finger pinch
   if (_pointers.size === 2) {
     const pts = Array.from(_pointers.values());
+    const cx = (pts[0].x+pts[1].x)/2, cy = (pts[0].y+pts[1].y)/2;
     _pinchInitial = {
       dist: Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y),
       scale: ui.view.scale,
-      cx: (pts[0].x+pts[1].x)/2, cy: (pts[0].y+pts[1].y)/2,
+      cx, cy,
+      imgPt: clientToImage(cx, cy),  // cached once; avoids drift from clamping
     };
     _maybeTap = null;
     return;
