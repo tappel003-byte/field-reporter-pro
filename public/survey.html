@@ -1059,8 +1059,26 @@ function onPointerDown(e) {
 
   // Draw mode start
   if (ui.tool === 'draw') {
+    if (ui.drawTool === 'eraser') {
+      const idx = hitTestDrawing(imgPt.x, imgPt.y);
+      if (idx >= 0) {
+        snapshot('erase');
+        project.drawings.splice(idx, 1);
+        saveProject();
+        renderDrawings();
+      }
+      _maybeTap = null;
+      return;
+    }
     snapshot('draw');
-    ui.drawing = { id: uid(), points: [[imgPt.x, imgPt.y]] };
+    const base = { id: uid(), color: ui.drawColor, thick: ui.drawThick };
+    if (ui.drawTool === 'pencil') {
+      ui.drawing = { ...base, kind: 'path', points: [[imgPt.x, imgPt.y]] };
+    } else if (ui.drawTool === 'rect') {
+      ui.drawing = { ...base, kind: 'rect', x0: imgPt.x, y0: imgPt.y, x1: imgPt.x, y1: imgPt.y };
+    } else if (ui.drawTool === 'circle') {
+      ui.drawing = { ...base, kind: 'circle', x0: imgPt.x, y0: imgPt.y, x1: imgPt.x, y1: imgPt.y };
+    }
     project.drawings = project.drawings || [];
     project.drawings.push(ui.drawing);
     renderDrawings();
