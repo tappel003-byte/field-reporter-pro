@@ -24,7 +24,8 @@
   button{font-family:inherit;cursor:pointer}
 
   /* Screens */
-  .screen{position:fixed;inset:0;display:none;flex-direction:column;background:var(--bg)}
+  .screen{position:fixed;top:0;left:0;right:0;bottom:auto;height:var(--app-height,100dvh);
+    display:none;flex-direction:column;background:var(--bg)}
   .screen.active{display:flex}
 
   /* ---------- HOME ---------- */
@@ -145,7 +146,7 @@
   .mode-pill .tool:active{transform:scale(.95)}
 
   /* Pin picker pill — bottom-left */
-  .pin-picker-btn{position:absolute !important;bottom:14px;left:12px;
+  .pin-picker-btn{position:absolute !important;bottom:calc(14px + var(--app-bottom-offset,0px));left:12px;
     display:flex !important;align-items:center;gap:8px;background:var(--paper);
     padding:9px 16px;border-radius:999px;box-shadow:var(--shadow-lg);
     border:1px solid var(--line);font-size:14px;font-weight:600;color:var(--ink);
@@ -193,11 +194,11 @@
   /* ---------- SHEET / DIALOGS ---------- */
   .scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:40;display:none}
   .scrim.active{display:block}
-  .sheet{position:fixed;left:0;right:0;bottom:0;background:var(--paper);
+  .sheet{position:fixed;left:0;right:0;bottom:var(--app-bottom-offset,0px);background:var(--paper);
     border-top-left-radius:18px;border-top-right-radius:18px;
     box-shadow:0 -10px 30px rgba(0,0,0,.25);
     transform:translateY(100%);transition:transform .25s cubic-bezier(.2,.8,.2,1);
-    padding:6px 18px 22px;z-index:50;max-height:88vh;overflow-y:auto;
+    padding:6px 18px 22px;z-index:50;max-height:min(88vh, calc(var(--app-height,100dvh) - 18px));overflow-y:auto;
     padding-bottom:calc(22px + env(safe-area-inset-bottom))}
   .sheet.open{transform:translateY(0)}
   .grab{width:38px;height:4px;background:var(--line);border-radius:2px;margin:8px auto 14px}
@@ -526,8 +527,12 @@ function showScreen(id) {
   closeSheets();
 }
 function updateAppHeight() {
-  const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight || document.documentElement.clientHeight;
+  const vv = window.visualViewport;
+  const h = (vv && vv.height) || window.innerHeight || document.documentElement.clientHeight;
   if (h) document.documentElement.style.setProperty('--app-height', `${Math.round(h)}px`);
+  const layoutH = window.innerHeight || document.documentElement.clientHeight || h;
+  const bottomOffset = vv ? Math.max(0, layoutH - vv.height - vv.offsetTop) : 0;
+  document.documentElement.style.setProperty('--app-bottom-offset', `${Math.round(bottomOffset)}px`);
 }
 function goHome() {
   if (project) { saveProject(); }
@@ -796,7 +801,7 @@ function enterWork() {
   document.getElementById('drawToolbar').classList.toggle('show', ui.tool === 'draw');
   showScreen('screenWork');
   // Render after layout
-  requestAnimationFrame(() => { mountPlan(); fitView(); renderAll(); updateUndoButton(); });
+  requestAnimationFrame(() => { updateAppHeight(); mountPlan(); fitView(); renderAll(); updateUndoButton(); });
 }
 function saveProject() {
   if (!project) return;
@@ -1063,6 +1068,7 @@ stageEl.addEventListener('pointerdown', onPointerDown);
 stageEl.addEventListener('pointermove', onPointerMove);
 stageEl.addEventListener('pointerup', onPointerUp);
 stageEl.addEventListener('pointercancel', onPointerUp);
+stageEl.addEventListener('click', onStageClickFallback, true);
 stageEl.addEventListener('wheel', (e) => {
   if (!project) return;
   e.preventDefault();
@@ -1071,6 +1077,7 @@ stageEl.addEventListener('wheel', (e) => {
 
 function onPointerDown(e) {
   if (!project) return;
+  closeMenu();
   // Ignore taps that originate on UI controls layered over the stage
   // (toolbar buttons, fullscreen, menus, sheets, etc.)
   if (e.target && e.target.closest &&
@@ -1136,6 +1143,21 @@ function onPointerDown(e) {
   // Otherwise: prepare pan / possible tap to drop pin
   _maybeTap = { kind: 'plan', startX: e.clientX, startY: e.clientY, imgPt, moved: false };
   ui.panning = { x: e.clientX, y: e.clientY, tx: ui.view.tx, ty: ui.view.ty };
+}
+function commitTapAction(tap) {
+  if (!tap || tap.moved || !project) return false;
+  if (tap.kind === 'pin') {
+    selectPin(tap.pinId);
+    openPinSheet();
+    return true;
+  }
+  if (tap.kind === 'plan' && ui.tool === 'pin' && tap.imgPt) {
+    const p = createPin(tap.imgPt.x, tap.imgPt.y);
+    selectPin(p.id);
+    openPinSheet();
+    return true;
+  }
+  return false;
 }
 function onPointerMove(e) {
   if (!_pointers.has(e.pointerId)) return;
@@ -1225,21 +1247,27 @@ function onPointerUp(e) {
   }
 
   if (_maybeTap) {
-    if (!_maybeTap.moved) {
-      if (_maybeTap.kind === 'pin') {
-        selectPin(_maybeTap.pinId);
-        openPinSheet();
-      } else if (_maybeTap.kind === 'plan' && ui.tool === 'pin') {
-        // Drop a new pin and open its sheet. Camera only opens when the
-        // user taps "Add photo" — never automatically.
-        const p = createPin(_maybeTap.imgPt.x, _maybeTap.imgPt.y);
-        selectPin(p.id);
-        openPinSheet();
-      }
-    }
+    const tap = _maybeTap;
     _maybeTap = null;
+    commitTapAction(tap);
   }
   ui.panning = null;
+}
+function onStageClickFallback(e) {
+  if (!project || ui.tool !== 'pin') return;
+  if (e.target && e.target.closest &&
+      e.target.closest('.mode-pill, .pin-picker-btn, .north-widget, .draw-toolbar, .menu, .sheet, .scrim, button, input, textarea, a')) {
+    return;
+  }
+  if (document.getElementById('pinSheet').classList.contains('open') ||
+      document.getElementById('pinPickerSheet').classList.contains('open') ||
+      document.getElementById('exportSheet').classList.contains('open')) {
+    return;
+  }
+  const imgPt = clientToImage(e.clientX, e.clientY);
+  const pin = hitTestPin(imgPt.x, imgPt.y, e.clientX, e.clientY);
+  if (pin) commitTapAction({ kind: 'pin', pinId: pin.id, moved: false });
+  else commitTapAction({ kind: 'plan', imgPt, moved: false });
 }
 
 function hitTestPin(x, y, cx, cy) {
@@ -1809,7 +1837,10 @@ function escapeHtml(s) {
 
 // ---------- Resize / clamp ----------
 window.addEventListener('resize', () => { updateAppHeight(); if (project) applyTransform(); });
-if (window.visualViewport) window.visualViewport.addEventListener('resize', updateAppHeight);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => { updateAppHeight(); if (project) applyTransform(); });
+  window.visualViewport.addEventListener('scroll', updateAppHeight);
+}
 
 // ---------- Boot ----------
 load();
