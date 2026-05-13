@@ -917,9 +917,9 @@ function onPointerDown(e) {
   const dx = imgPt.x - n.x, dy = imgPt.y - n.y;
   const dist = Math.hypot(dx, dy);
   const arrowR = Math.max(project.plan.width, project.plan.height) * 0.03;
-  // Rotation handle is at angle (n.rotation - 90deg) at distance arrowR*1.9
-  const rotHandleDist = arrowR * 1.9;
-  const rotHandleR = arrowR * 0.4;
+  // Rotation handle is at angle (n.rotation - 90deg) at distance arrowR*1.35
+  const rotHandleDist = arrowR * 1.35;
+  const rotHandleR = arrowR * 0.85;
   const rad = (n.rotation - 90) * Math.PI / 180;
   const hx = n.x + Math.cos(rad)*rotHandleDist;
   const hy = n.y + Math.sin(rad)*rotHandleDist;
@@ -1270,11 +1270,11 @@ function renderNorth() {
   tN.style.fontSize = (R*0.55) + 'px';
   tN.textContent = 'N';
   grp.appendChild(tN);
-  // rotation handle (small grip at angle 0 relative to disc, i.e. straight up before rotation)
-  const handle = svgEl('circle', { class:'nrot', cx:0, cy:-R*1.9, r:R*0.4 });
+  // rotation handle (small grip just outside the disc, straight up before rotation)
+  const handle = svgEl('circle', { class:'nrot', cx:0, cy:-R*1.35, r:R*0.45 });
   grp.appendChild(handle);
   // tether line
-  grp.appendChild(svgEl('line', { x1:0,y1:-R,x2:0,y2:-R*1.5, stroke:'#1a1a1a', 'stroke-width':R*0.06, 'stroke-dasharray': (R*0.18)+','+(R*0.18) }));
+  grp.appendChild(svgEl('line', { x1:0,y1:-R,x2:0,y2:-R*1.05, stroke:'#1a1a1a', 'stroke-width':R*0.06 }));
   g.appendChild(grp);
 }
 
