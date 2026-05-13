@@ -124,12 +124,16 @@
     pointer-events:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
   .pin.selected .pin-bg{stroke:#ffd34d;stroke-width:3}
 
-  .north{cursor:grab}
-  .north.dragging{cursor:grabbing}
-  .north .nbg{fill:var(--paper);stroke:var(--ink);stroke-width:1.5}
-  .north .narrow{fill:var(--accent)}
-  .north .nN{fill:var(--ink);font-size:11px;font-weight:700;text-anchor:middle;dominant-baseline:central}
-  .north .nrot{fill:var(--ink);opacity:.5}
+  /* North arrow widget — floating top-right in stage gutter */
+  .north-widget{position:absolute;top:8px;right:8px;width:56px;height:56px;
+    background:rgba(255,250,240,.92);border:1px solid var(--line);border-radius:50%;
+    box-shadow:var(--shadow);z-index:6;touch-action:none;cursor:grab;
+    display:flex;align-items:center;justify-content:center;user-select:none;-webkit-user-select:none}
+  .north-widget.dragging{cursor:grabbing}
+  .north-widget svg{width:100%;height:100%;display:block;pointer-events:none}
+  .north-widget .nbg{fill:var(--paper);stroke:var(--ink);stroke-width:1.5}
+  .north-widget .narrow{fill:var(--accent)}
+  .north-widget .nN{fill:var(--ink);font-weight:700;text-anchor:middle;dominant-baseline:central}
 
   /* Mode pill — top-left segmented control */
   .mode-pill{position:absolute;top:8px;left:8px;display:flex;gap:2px;
