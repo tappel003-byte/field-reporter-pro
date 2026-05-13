@@ -1151,7 +1151,16 @@ function onPointerDown(e) {
   // Hit-test pins (in image space)
   const pin = hitTestPin(imgPt.x, imgPt.y, e.clientX, e.clientY);
   if (pin) {
-    _maybeTap = { kind: 'pin', pinId: pin.id, startX: e.clientX, startY: e.clientY, moved: false };
+    const tap = { kind: 'pin', pinId: pin.id, startX: e.clientX, startY: e.clientY, moved: false, longPressTimer: null };
+    tap.longPressTimer = setTimeout(() => {
+      if (_maybeTap === tap && !tap.moved && _pointers.size === 1) {
+        snapshot('move pin');
+        _dragPin = { pinId: pin.id };
+        _maybeTap = null;
+        try { if (navigator.vibrate) navigator.vibrate(40); } catch(_) {}
+      }
+    }, 450);
+    _maybeTap = tap;
     return;
   }
 
