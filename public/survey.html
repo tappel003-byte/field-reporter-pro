@@ -1068,8 +1068,6 @@ function onPointerUp(e) {
   _pointers.delete(e.pointerId);
   if (_pointers.size < 2) _pinchInitial = null;
 
-  if (_rotateNorth) { _rotateNorth = null; saveProject(); return; }
-  if (_dragNorth) { _dragNorth = null; saveProject(); return; }
   if (ui.drawing) {
     if (ui.drawing.points.length < 2) {
       // remove zero-length
