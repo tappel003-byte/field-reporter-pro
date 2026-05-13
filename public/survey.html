@@ -1550,16 +1550,30 @@ async function composeMapImage() {
       ctx.drawImage(img, 0, 0, W, H);
 
       // drawings
-      const sw = Math.max(W, H) * 0.004;
-      ctx.strokeStyle = '#c14a2b';
-      ctx.lineWidth = sw;
+      const baseSw = Math.max(W, H) * 0.004;
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       (project.drawings||[]).forEach(d => {
-        if (!d.points || d.points.length<2) return;
-        ctx.beginPath();
-        ctx.moveTo(d.points[0][0], d.points[0][1]);
-        for (let i=1;i<d.points.length;i++) ctx.lineTo(d.points[i][0], d.points[i][1]);
-        ctx.stroke();
+        const mult = d.thick === 3 ? 2.2 : d.thick === 2 ? 1.4 : d.thick === 1 ? 0.8 : 1;
+        ctx.lineWidth = baseSw * mult;
+        ctx.strokeStyle = d.color || '#c14a2b';
+        const kind = d.kind || 'path';
+        if (kind === 'path') {
+          if (!d.points || d.points.length < 2) return;
+          ctx.beginPath();
+          ctx.moveTo(d.points[0][0], d.points[0][1]);
+          for (let i=1;i<d.points.length;i++) ctx.lineTo(d.points[i][0], d.points[i][1]);
+          ctx.stroke();
+        } else if (kind === 'rect') {
+          const x = Math.min(d.x0,d.x1), y = Math.min(d.y0,d.y1);
+          const w = Math.abs(d.x1-d.x0), h = Math.abs(d.y1-d.y0);
+          ctx.strokeRect(x, y, w, h);
+        } else if (kind === 'circle') {
+          const cx = (d.x0+d.x1)/2, cy = (d.y0+d.y1)/2;
+          const rx = Math.abs(d.x1-d.x0)/2, ry = Math.abs(d.y1-d.y0)/2;
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI*2);
+          ctx.stroke();
+        }
       });
 
       // pins
