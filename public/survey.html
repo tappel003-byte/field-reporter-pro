@@ -1008,6 +1008,11 @@ function zoomBy(factor, cx, cy) {
   anchorViewTo(imgPt, cx, cy, newScale);
   applyTransform();
 }
+function triggerPinCamera() {
+  const input = document.getElementById('pinPhotoFile');
+  if (!input) return;
+  try { input.click(); } catch(_) {}
+}
 function clientToImage(cx, cy) {
   const svg = document.getElementById('planSvg');
   const ctm = svg && svg.getScreenCTM ? svg.getScreenCTM() : null;
