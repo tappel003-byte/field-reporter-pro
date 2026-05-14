@@ -674,6 +674,14 @@ function relTime(t) {
 }
 function deleteProject(id) {
   if (!confirm('Delete this project? This cannot be undone.')) return;
+  const proj = (store.projects||[]).find(p => p.id === id);
+  if (proj) {
+    for (const pin of (proj.pins||[])) {
+      for (const entry of (pin.photos||[])) {
+        if (isPhotoId(entry)) idbDel(entry).catch(()=>{});
+      }
+    }
+  }
   store.projects = (store.projects||[]).filter(p => p.id !== id);
   save(); renderHome();
 }
