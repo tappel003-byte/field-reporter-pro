@@ -538,10 +538,47 @@
   </div>
 </div>
 
-<!-- ============ LIGHTBOX ============ -->
-<div class="lightbox" id="lightbox" onclick="closeLightbox()">
-  <button class="close" onclick="event.stopPropagation();closeLightbox()">✕</button>
-  <img id="lightboxImg" alt="" />
+<!-- ============ PHOTO VIEWER ============ -->
+<div class="pviewer" id="pviewer">
+  <div class="pv-stage" id="pvStage">
+    <div class="pv-content" id="pvContent">
+      <img class="pv-photo" id="pvPhoto" alt="" />
+      <canvas class="pv-canvas" id="pvCanvas"></canvas>
+    </div>
+  </div>
+  <div class="pv-head" id="pvHead">
+    <button class="pv-btn" onclick="closePhotoViewer()" aria-label="Close">✕</button>
+    <div class="pv-counter" id="pvCounter">1 / 1</div>
+    <button class="pv-annotate-btn" onclick="enterAnnotateMode()">✏️ Annotate</button>
+    <button class="pv-btn pv-danger" onclick="deleteCurrentViewerPhoto()" aria-label="Delete photo">🗑</button>
+  </div>
+  <div class="pv-toolbar" id="pvToolbar">
+    <div class="dt-row">
+      <button class="dt-btn" data-pvtool="pencil" title="Pencil">✏️</button>
+      <button class="dt-btn" data-pvtool="rect" title="Rectangle">▭</button>
+      <button class="dt-btn" data-pvtool="circle" title="Circle">◯</button>
+      <button class="dt-btn" data-pvtool="eraser" title="Eraser">🩹</button>
+    </div>
+    <div class="dt-sep"></div>
+    <div class="dt-row">
+      <button class="dt-btn" data-pvthick="1" title="Thin"><span class="dt-thick"><span class="bar" style="height:2px"></span></span></button>
+      <button class="dt-btn" data-pvthick="2" title="Medium"><span class="dt-thick"><span class="bar" style="height:4px"></span></span></button>
+      <button class="dt-btn" data-pvthick="3" title="Thick"><span class="dt-thick"><span class="bar" style="height:7px"></span></span></button>
+    </div>
+    <div class="dt-sep"></div>
+    <div class="dt-row">
+      <button class="dt-btn dt-color" data-pvcolor="#c14a2b" style="background:#c14a2b" title="Red"></button>
+      <button class="dt-btn dt-color" data-pvcolor="#111111" style="background:#111111" title="Black"></button>
+      <button class="dt-btn dt-color" data-pvcolor="#1d4ed8" style="background:#1d4ed8" title="Blue"></button>
+      <button class="dt-btn dt-color" data-pvcolor="#16a34a" style="background:#16a34a" title="Green"></button>
+      <button class="dt-btn dt-color" data-pvcolor="#ea7317" style="background:#ea7317" title="Orange"></button>
+    </div>
+  </div>
+  <div class="pv-foot">
+    <button class="pv-cancel" onclick="cancelAnnotate()">Cancel</button>
+    <button class="pv-undo" id="pvUndoBtn" onclick="annotateUndo()" title="Undo">↶</button>
+    <button class="pv-save" onclick="saveAnnotate()">Save</button>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
