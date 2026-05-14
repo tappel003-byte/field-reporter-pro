@@ -1111,6 +1111,7 @@ let _sheetOpenedAt = 0;
 let _dragNorth = null;
 let _rotateNorth = null;
 let _dragPin = null;
+let _suppressClickUntil = 0;
 
 stageEl.addEventListener('pointerdown', onPointerDown);
 stageEl.addEventListener('pointermove', onPointerMove);
