@@ -2115,9 +2115,12 @@ function drawStrokesOnCtx(ctx, strokes, W, H) {
       ctx.font = `700 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       ctx.textBaseline = 'top';
       ctx.fillStyle = d.color || '#1a1a1a';
-      const lines = String(d.text || '').split('\n');
+      const maxW = Math.max(60, Math.min(W - d.x - baseSw * 2, W * 0.85));
+      const lines = wrapTextCtx(ctx, d.text, maxW);
       lines.forEach((ln, i) => ctx.fillText(ln, d.x, d.y + i * fontPx * 1.15));
-      d._fontPx = fontPx; // cache for hit-test
+      d._fontPx = fontPx;
+      d._lines = lines;
+      d._lineW = lines.reduce((m, ln) => Math.max(m, ctx.measureText(ln).width), 0);
     }
   }
 }
