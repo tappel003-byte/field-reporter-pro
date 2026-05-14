@@ -124,6 +124,10 @@
   .pin .pin-txt{fill:#fff;font-size:13px;font-weight:700;text-anchor:middle;dominant-baseline:central;
     pointer-events:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
   .pin.selected .pin-bg{stroke:#ffd34d;stroke-width:3}
+  .pin.dragging .pin-bg{stroke:#ffd34d;stroke-width:4;filter:drop-shadow(0 0 6px rgba(255,211,77,.9))}
+  .pin.dragging{transform-box:fill-box;transform-origin:center}
+  @keyframes pinPulse{0%{transform:scale(1)}50%{transform:scale(1.35)}100%{transform:scale(1.15)}}
+  .pin.pulse{animation:pinPulse .25s ease-out forwards;transform-box:fill-box;transform-origin:center}
 
   /* North arrow widget — floating top-right in stage gutter */
   .north-widget{position:absolute;top:8px;right:8px;width:56px;height:56px;
