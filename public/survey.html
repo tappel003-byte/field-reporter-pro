@@ -2293,8 +2293,8 @@ function pvHitTestStroke(x, y) {
       if (Math.hypot(px - x, py - y) <= tol) return i;
     } else if (kind === 'text') {
       const fontPx = d._fontPx || Math.max(baseSw * (d.thick === 3 ? 14 : d.thick === 2 ? 10 : 7), 28);
-      const lines = String(d.text || '').split('\n');
-      const w = Math.max(...lines.map(l => l.length)) * fontPx * 0.6;
+      const lines = d._lines || String(d.text || '').split('\n');
+      const w = d._lineW != null ? d._lineW : Math.max(...lines.map(l => l.length)) * fontPx * 0.6;
       const h = lines.length * fontPx * 1.15;
       if (x >= d.x - tol && x <= d.x + w + tol && y >= d.y - tol && y <= d.y + h + tol) return i;
     }
