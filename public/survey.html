@@ -461,6 +461,8 @@
       <button class="dt-btn active" data-dtool="pencil" title="Pencil">✏️</button>
       <button class="dt-btn" data-dtool="rect" title="Rectangle">▭</button>
       <button class="dt-btn" data-dtool="circle" title="Circle">◯</button>
+      <button class="dt-btn" data-dtool="arrow" title="Arrow (drag to point)">➤</button>
+      <button class="dt-btn" data-dtool="text" title="Text (tap to place)">T</button>
       <button class="dt-btn" data-dtool="eraser" title="Eraser (tap shape)">🩹</button>
       <div class="dt-sep"></div>
       <button class="dt-btn active" data-dthick="1" title="Thin"><span class="dt-thick"><span class="bar" style="height:2px"></span></span></button>
@@ -1383,6 +1385,25 @@ function onPointerDown(e) {
       _maybeTap = null;
       return;
     }
+    if (ui.drawTool === 'text') {
+      const idx = hitTestDrawing(imgPt.x, imgPt.y);
+      if (idx >= 0 && (project.drawings[idx].kind === 'text')) {
+        const t = project.drawings[idx];
+        ui.editingText = { idx, startX: imgPt.x, startY: imgPt.y, origX: t.x, origY: t.y, moved: false, snapshotted: false };
+        _maybeTap = null;
+        return;
+      }
+      const txt = window.prompt('Add text:', '');
+      if (txt && txt.trim()) {
+        snapshot('draw');
+        project.drawings = project.drawings || [];
+        project.drawings.push({ id: uid(), kind: 'text', color: ui.drawColor, thick: ui.drawThick, x: imgPt.x, y: imgPt.y, text: txt.trim() });
+        saveProject();
+        renderDrawings();
+      }
+      _maybeTap = null;
+      return;
+    }
     snapshot('draw');
     const base = { id: uid(), color: ui.drawColor, thick: ui.drawThick };
     if (ui.drawTool === 'pencil') {
@@ -1391,6 +1412,8 @@ function onPointerDown(e) {
       ui.drawing = { ...base, kind: 'rect', x0: imgPt.x, y0: imgPt.y, x1: imgPt.x, y1: imgPt.y };
     } else if (ui.drawTool === 'circle') {
       ui.drawing = { ...base, kind: 'circle', x0: imgPt.x, y0: imgPt.y, x1: imgPt.x, y1: imgPt.y };
+    } else if (ui.drawTool === 'arrow') {
+      ui.drawing = { ...base, kind: 'arrow', x0: imgPt.x, y0: imgPt.y, x1: imgPt.x, y1: imgPt.y };
     }
     project.drawings = project.drawings || [];
     project.drawings.push(ui.drawing);
@@ -1455,6 +1478,20 @@ function onPointerMove(e) {
     return;
   }
 
+  if (ui.editingText) {
+    const imgPt = clientToImage(e.clientX, e.clientY);
+    const dx = imgPt.x - ui.editingText.startX, dy = imgPt.y - ui.editingText.startY;
+    if (!ui.editingText.moved && Math.hypot(dx, dy) > 6) {
+      ui.editingText.moved = true;
+      if (!ui.editingText.snapshotted) { snapshot('move text'); ui.editingText.snapshotted = true; }
+    }
+    if (ui.editingText.moved) {
+      const t = project.drawings[ui.editingText.idx];
+      if (t) { t.x = ui.editingText.origX + dx; t.y = ui.editingText.origY + dy; renderDrawings(); }
+    }
+    return;
+  }
+
   if (ui.drawing) {
     const imgPt = clientToImage(e.clientX, e.clientY);
     const d = ui.drawing;
@@ -1500,10 +1537,33 @@ function onPointerUp(e) {
   _pointers.delete(e.pointerId);
   if (_pointers.size < 2) _pinchInitial = null;
 
+  if (ui.editingText) {
+    const et = ui.editingText;
+    ui.editingText = null;
+    if (!et.moved) {
+      const t = project.drawings[et.idx];
+      if (t) {
+        const next = window.prompt('Edit text (empty to delete):', t.text || '');
+        if (next !== null) {
+          snapshot('edit text');
+          if (next.trim()) t.text = next.trim();
+          else project.drawings.splice(et.idx, 1);
+          saveProject();
+          renderDrawings();
+        }
+      }
+    } else {
+      saveProject();
+    }
+    ui.panning = null;
+    return;
+  }
+
   if (ui.drawing) {
     const d = ui.drawing;
     let tooSmall = false;
     if (d.kind === 'path') tooSmall = d.points.length < 2;
+    else if (d.kind === 'text') tooSmall = false;
     else tooSmall = Math.hypot(d.x1-d.x0, d.y1-d.y0) < 4;
     if (tooSmall) project.drawings.pop();
     ui.drawing = null;
@@ -2323,6 +2383,12 @@ function pvSetupGestures() {
       return;
     }
     if (pv.tool === 'text') {
+      // Tap on existing text → drag to move; release without movement → edit
+      const idx = pvHitTestStroke(x, y);
+      if (idx >= 0 && pv.workingStrokes[idx].kind === 'text') {
+        pv.editingText = { idx, startX: x, startY: y, origX: pv.workingStrokes[idx].x, origY: pv.workingStrokes[idx].y, moved: false, snapshotted: false };
+        return;
+      }
       drawPointerId = null;
       try { canvas.releasePointerCapture(e.pointerId); } catch(_) {}
       const txt = window.prompt('Add text:', '');
@@ -2344,10 +2410,23 @@ function pvSetupGestures() {
   });
 
   canvas.addEventListener('pointermove', (e) => {
-    if (!pv.annotating || !pv.drawing || drawPointerId !== e.pointerId) return;
+    if (!pv.annotating || drawPointerId !== e.pointerId) return;
     e.preventDefault();
     e.stopPropagation();
     const [x, y] = canvasPoint(e.clientX, e.clientY);
+    if (pv.editingText) {
+      const dx = x - pv.editingText.startX, dy = y - pv.editingText.startY;
+      if (!pv.editingText.moved && Math.hypot(dx, dy) > 6) {
+        pv.editingText.moved = true;
+        if (!pv.editingText.snapshotted) { pushAnnotateUndo(); pv.editingText.snapshotted = true; }
+      }
+      if (pv.editingText.moved) {
+        const s = pv.workingStrokes[pv.editingText.idx];
+        if (s) { s.x = pv.editingText.origX + dx; s.y = pv.editingText.origY + dy; renderViewerStrokes(); }
+      }
+      return;
+    }
+    if (!pv.drawing) return;
     if (pv.drawing.kind === 'path') {
       const pts = pv.drawing.points;
       const last = pts[pts.length - 1];
@@ -2359,10 +2438,31 @@ function pvSetupGestures() {
   });
 
   const endDraw = (e) => {
-    if (!pv.annotating || !pv.drawing || drawPointerId !== e.pointerId) return;
+    if (!pv.annotating || drawPointerId !== e.pointerId) return;
     e.preventDefault();
     e.stopPropagation();
     drawPointerId = null;
+    if (pv.editingText) {
+      const et = pv.editingText;
+      pv.editingText = null;
+      if (!et.moved) {
+        // Tap without drag → edit/delete prompt
+        const s = pv.workingStrokes[et.idx];
+        if (s) {
+          const next = window.prompt('Edit text (empty to delete):', s.text || '');
+          if (next === null) return; // cancelled
+          pushAnnotateUndo();
+          if (next.trim()) s.text = next.trim();
+          else pv.workingStrokes.splice(et.idx, 1);
+          updatePvUndoBtn();
+          renderViewerStrokes();
+        }
+      } else {
+        updatePvUndoBtn();
+      }
+      return;
+    }
+    if (!pv.drawing) return;
     if (pv.drawing.kind === 'path' && pv.drawing.points.length < 2) {
       pv.undoStack.pop();
     } else if ((pv.drawing.kind === 'rect' || pv.drawing.kind === 'circle' || pv.drawing.kind === 'arrow') &&
@@ -2436,6 +2536,28 @@ function renderDrawings() {
       const cx = (d.x0 + d.x1)/2, cy = (d.y0 + d.y1)/2;
       const rx = Math.abs(d.x1 - d.x0)/2, ry = Math.abs(d.y1 - d.y0)/2;
       g.appendChild(svgEl('ellipse', { ...common, cx, cy, rx, ry }));
+    } else if (kind === 'arrow') {
+      const dx = d.x1 - d.x0, dy = d.y1 - d.y0;
+      const len = Math.hypot(dx, dy) || 1;
+      const ang = Math.atan2(dy, dx);
+      const head = Math.max(sw * 4, Math.max(project.plan.width, project.plan.height) * 0.012);
+      g.appendChild(svgEl('line', { ...common, x1: d.x0, y1: d.y0, x2: d.x1, y2: d.y1 }));
+      const a1 = ang + Math.PI - 0.5, a2 = ang + Math.PI + 0.5;
+      const hx1 = d.x1 + Math.cos(a1) * head, hy1 = d.y1 + Math.sin(a1) * head;
+      const hx2 = d.x1 + Math.cos(a2) * head, hy2 = d.y1 + Math.sin(a2) * head;
+      g.appendChild(svgEl('polygon', { fill: stroke, stroke, 'stroke-width': sw * 0.5, 'stroke-linejoin':'round',
+        points: `${d.x1},${d.y1} ${hx1},${hy1} ${hx2},${hy2}` }));
+    } else if (kind === 'text') {
+      const fontPx = Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.04 : d.thick === 2 ? 0.028 : 0.02), 12);
+      const lines = String(d.text || '').split('\n');
+      lines.forEach((ln, i) => {
+        const t = svgEl('text', { x: d.x, y: d.y + (i + 0.85) * fontPx * 1.15, fill: stroke,
+          'font-size': fontPx, 'font-weight': '600',
+          'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' });
+        t.textContent = ln;
+        g.appendChild(t);
+      });
+      d._fontPx = fontPx;
     }
   });
 }
@@ -2471,6 +2593,19 @@ function hitTestDrawing(x, y) {
       const nx = (x - cx)/rx, ny = (y - cy)/ry;
       const dist = Math.abs(Math.hypot(nx, ny) - 1) * Math.min(rx, ry);
       if (dist <= t) return i;
+    } else if (kind === 'arrow') {
+      const dx = d.x1 - d.x0, dy = d.y1 - d.y0;
+      const len2 = dx*dx + dy*dy;
+      if (len2 < 1) continue;
+      const tt = Math.max(0, Math.min(1, ((x - d.x0)*dx + (y - d.y0)*dy) / len2));
+      const px = d.x0 + tt*dx, py = d.y0 + tt*dy;
+      if (Math.hypot(px - x, py - y) <= t) return i;
+    } else if (kind === 'text') {
+      const fontPx = d._fontPx || Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.04 : d.thick === 2 ? 0.028 : 0.02), 12);
+      const lines = String(d.text || '').split('\n');
+      const w = Math.max(...lines.map(l => l.length)) * fontPx * 0.6;
+      const h = lines.length * fontPx * 1.15;
+      if (x >= d.x - t && x <= d.x + w + t && y >= d.y - t && y <= d.y + h + t) return i;
     }
   }
   return -1;
@@ -2572,6 +2707,28 @@ async function composeMapImage(format) {
           ctx.beginPath();
           ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI*2);
           ctx.stroke();
+        } else if (kind === 'arrow') {
+          ctx.beginPath();
+          ctx.moveTo(d.x0, d.y0);
+          ctx.lineTo(d.x1, d.y1);
+          ctx.stroke();
+          const ang = Math.atan2(d.y1 - d.y0, d.x1 - d.x0);
+          const head = Math.max(ctx.lineWidth * 4, Math.max(W, H) * 0.012);
+          const a1 = ang + Math.PI - 0.5, a2 = ang + Math.PI + 0.5;
+          ctx.beginPath();
+          ctx.moveTo(d.x1, d.y1);
+          ctx.lineTo(d.x1 + Math.cos(a1) * head, d.y1 + Math.sin(a1) * head);
+          ctx.lineTo(d.x1 + Math.cos(a2) * head, d.y1 + Math.sin(a2) * head);
+          ctx.closePath();
+          ctx.fillStyle = ctx.strokeStyle;
+          ctx.fill();
+        } else if (kind === 'text') {
+          const fontPx = Math.max(Math.max(W, H) * (d.thick === 3 ? 0.04 : d.thick === 2 ? 0.028 : 0.02), 12);
+          ctx.font = `600 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+          ctx.textBaseline = 'top';
+          ctx.fillStyle = d.color || '#c14a2b';
+          const lines = String(d.text || '').split('\n');
+          lines.forEach((ln, i) => ctx.fillText(ln, d.x, d.y + i * fontPx * 1.15));
         }
       });
 
