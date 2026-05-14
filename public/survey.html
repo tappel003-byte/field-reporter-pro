@@ -1635,13 +1635,19 @@ function renderPhotoStrip() {
   (p.photos||[]).forEach((entry, i) => {
     const div = document.createElement('div');
     div.className = 'photo-thumb';
+    div.onclick = () => openPhotoViewer(p.id, i);
     const img = document.createElement('img');
     div.appendChild(img);
     Promise.resolve(resolvePhoto(entry)).then(url => {
       if (!url) return;
       img.src = url;
-      img.onclick = () => openLightbox(url);
     });
+    // Annotation indicator
+    if (hasAnnotations(p, entry)) {
+      const dot = document.createElement('div');
+      dot.className = 'ann-dot';
+      div.appendChild(dot);
+    }
     const x = document.createElement('button');
     x.className = 'x'; x.textContent = '✕';
     x.onclick = (ev) => { ev.stopPropagation(); removePhoto(i); };
@@ -1653,6 +1659,11 @@ function renderPhotoStrip() {
   add.innerHTML = '<span class="ic">📷</span><span>Add</span>';
   add.onclick = () => document.getElementById('pinPhotoFile').click();
   strip.appendChild(add);
+}
+function hasAnnotations(pin, photoEntry) {
+  if (!pin || !pin.photoStrokes || !isPhotoId(photoEntry)) return false;
+  const s = pin.photoStrokes[photoEntry];
+  return Array.isArray(s) && s.length > 0;
 }
 function onPinPhotoFile(e) {
   const p = currentPin();
