@@ -519,12 +519,86 @@ function load() {
     if (raw) store = JSON.parse(raw);
   } catch (e) { console.warn('load failed', e); }
   if (!store.projects) store.projects = [];
+  // Migrate any inline photo dataURLs out of localStorage into IndexedDB
+  migratePhotosToIdb();
 }
 function save() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); }
   catch (e) {
-    toast('Storage full — older photos may need to be cleared.');
+    toast('Storage full — try removing some photos or an old project.');
     console.error(e);
+  }
+}
+
+// ---------- Photo storage (IndexedDB, much larger quota than localStorage) ----------
+const IDB_NAME = 'pgg_photos_v1', IDB_STORE = 'photos';
+let _idbP;
+function idb() {
+  if (_idbP) return _idbP;
+  _idbP = new Promise((res, rej) => {
+    const r = indexedDB.open(IDB_NAME, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(IDB_STORE);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+  return _idbP;
+}
+function idbReq(mode, fn) {
+  return idb().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(IDB_STORE, mode);
+    const store = tx.objectStore(IDB_STORE);
+    const r = fn(store);
+    tx.oncomplete = () => res(r && 'result' in r ? r.result : undefined);
+    tx.onerror = () => rej(tx.error);
+    tx.onabort = () => rej(tx.error);
+  }));
+}
+const idbPut = (k, v) => idbReq('readwrite', s => s.put(v, k));
+const idbGet = (k) => idbReq('readonly', s => s.get(k));
+const idbDel = (k) => idbReq('readwrite', s => s.delete(k));
+
+function newPhotoId() { return 'ph_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function isPhotoId(s) { return typeof s === 'string' && s.startsWith('ph_'); }
+function isDataUrl(s)  { return typeof s === 'string' && s.startsWith('data:'); }
+
+async function resolvePhoto(entry) {
+  if (!entry) return null;
+  if (isDataUrl(entry)) return entry; // legacy inline
+  if (isPhotoId(entry)) {
+    try { return await idbGet(entry); } catch { return null; }
+  }
+  return null;
+}
+
+async function storePhotoDataUrl(dataUrl) {
+  const id = newPhotoId();
+  await idbPut(id, dataUrl);
+  return id;
+}
+
+async function migratePhotosToIdb() {
+  if (!store.projects) return;
+  let changed = false;
+  for (const proj of store.projects) {
+    for (const pin of (proj.pins || [])) {
+      if (!pin.photos) continue;
+      for (let i = 0; i < pin.photos.length; i++) {
+        const v = pin.photos[i];
+        if (isDataUrl(v)) {
+          try {
+            const id = await storePhotoDataUrl(v);
+            pin.photos[i] = id;
+            changed = true;
+          } catch (e) { console.warn('photo migrate failed', e); }
+        }
+      }
+    }
+  }
+  if (changed) {
+    save();
+    // Re-render whatever's on screen so thumbs reload from IDB
+    if (typeof renderPhotoStrip === 'function') renderPhotoStrip();
+    if (typeof renderHome === 'function' && document.getElementById('homeScreen')?.style.display !== 'none') renderHome();
   }
 }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -600,6 +674,14 @@ function relTime(t) {
 }
 function deleteProject(id) {
   if (!confirm('Delete this project? This cannot be undone.')) return;
+  const proj = (store.projects||[]).find(p => p.id === id);
+  if (proj) {
+    for (const pin of (proj.pins||[])) {
+      for (const entry of (pin.photos||[])) {
+        if (isPhotoId(entry)) idbDel(entry).catch(()=>{});
+      }
+    }
+  }
   store.projects = (store.projects||[]).filter(p => p.id !== id);
   save(); renderHome();
 }
@@ -1445,13 +1527,16 @@ function renderPhotoStrip() {
   const strip = document.getElementById('photoStrip');
   strip.innerHTML = '';
   if (!p) return;
-  (p.photos||[]).forEach((dataUrl, i) => {
+  (p.photos||[]).forEach((entry, i) => {
     const div = document.createElement('div');
     div.className = 'photo-thumb';
     const img = document.createElement('img');
-    img.src = dataUrl;
-    img.onclick = () => openLightbox(dataUrl);
     div.appendChild(img);
+    Promise.resolve(resolvePhoto(entry)).then(url => {
+      if (!url) return;
+      img.src = url;
+      img.onclick = () => openLightbox(url);
+    });
     const x = document.createElement('button');
     x.className = 'x'; x.textContent = '✕';
     x.onclick = (ev) => { ev.stopPropagation(); removePhoto(i); };
@@ -1474,9 +1559,15 @@ function onPinPhotoFile(e) {
   files.forEach(f => {
     const reader = new FileReader();
     reader.onload = ev => {
-      resizeImage(ev.target.result, MAX_PHOTO_DIM, (dataUrl) => {
+      resizeImage(ev.target.result, MAX_PHOTO_DIM, async (dataUrl) => {
         p.photos = p.photos || [];
-        p.photos.push(dataUrl);
+        try {
+          const id = await storePhotoDataUrl(dataUrl);
+          p.photos.push(id);
+        } catch (err) {
+          console.error('photo save failed', err);
+          toast('Could not save photo — storage may be full.');
+        }
         if (--remaining === 0) {
           recomputeNumbering();
           saveProject();
@@ -1494,12 +1585,12 @@ function removePhoto(i) {
   const p = currentPin();
   if (!p) return;
   snapshot('remove photo');
-  p.photos.splice(i,1);
+  const removed = p.photos.splice(i,1)[0];
+  if (isPhotoId(removed)) { idbDel(removed).catch(()=>{}); }
   recomputeNumbering();
   saveProject();
   renderPhotoStrip();
   renderPins();
-  refreshSubtitle();
   refreshSubtitle();
 }
 
@@ -1900,16 +1991,19 @@ async function exportPhotosZip() {
   try {
     const zip = new JSZip();
     let any = false;
-    (project.pins||[]).forEach(p => {
-      (p.photos||[]).forEach((dataUrl, i) => {
+    for (const p of (project.pins||[])) {
+      const photos = p.photos||[];
+      for (let i = 0; i < photos.length; i++) {
+        const dataUrl = await resolvePhoto(photos[i]);
+        if (!dataUrl) continue;
         const m = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
-        if (!m) return;
+        if (!m) continue;
         const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
         const name = String(p.num).padStart(2,'0') + '-photo' + (i+1) + '.' + ext;
         zip.file(name, m[2], { base64: true });
         any = true;
-      });
-    });
+      }
+    }
     if (!any) {
       toast('No photos to bundle.');
       return;
