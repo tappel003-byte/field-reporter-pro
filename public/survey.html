@@ -1386,6 +1386,13 @@ function onPointerDown(e) {
       return;
     }
     if (ui.drawTool === 'text') {
+      const idx = hitTestDrawing(imgPt.x, imgPt.y);
+      if (idx >= 0 && (project.drawings[idx].kind === 'text')) {
+        const t = project.drawings[idx];
+        ui.editingText = { idx, startX: imgPt.x, startY: imgPt.y, origX: t.x, origY: t.y, moved: false, snapshotted: false };
+        _maybeTap = null;
+        return;
+      }
       const txt = window.prompt('Add text:', '');
       if (txt && txt.trim()) {
         snapshot('draw');
