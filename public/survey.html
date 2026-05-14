@@ -1111,6 +1111,7 @@ let _sheetOpenedAt = 0;
 let _dragNorth = null;
 let _rotateNorth = null;
 let _dragPin = null;
+let _suppressClickUntil = 0;
 
 stageEl.addEventListener('pointerdown', onPointerDown);
 stageEl.addEventListener('pointermove', onPointerMove);
@@ -1323,6 +1324,7 @@ function onPointerUp(e) {
     _dragPin = null;
     saveProject();
     renderPins();
+    _suppressClickUntil = Date.now() + 500;
     e.preventDefault();
     e.stopPropagation();
     ui.panning = null;
@@ -1342,6 +1344,7 @@ function onPointerUp(e) {
 }
 function onStageClickFallback(e) {
   if (!project || ui.tool !== 'pin') return;
+  if (Date.now() < _suppressClickUntil) { e.stopPropagation(); return; }
   if (e.target && e.target.closest &&
       e.target.closest('.mode-pill, .pin-picker-btn, .north-widget, .draw-toolbar, .menu, .sheet, .scrim, button, input, textarea, a')) {
     return;
