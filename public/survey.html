@@ -2452,6 +2452,28 @@ function renderDrawings() {
       const cx = (d.x0 + d.x1)/2, cy = (d.y0 + d.y1)/2;
       const rx = Math.abs(d.x1 - d.x0)/2, ry = Math.abs(d.y1 - d.y0)/2;
       g.appendChild(svgEl('ellipse', { ...common, cx, cy, rx, ry }));
+    } else if (kind === 'arrow') {
+      const dx = d.x1 - d.x0, dy = d.y1 - d.y0;
+      const len = Math.hypot(dx, dy) || 1;
+      const ang = Math.atan2(dy, dx);
+      const head = Math.max(sw * 4, Math.max(project.plan.width, project.plan.height) * 0.012);
+      g.appendChild(svgEl('line', { ...common, x1: d.x0, y1: d.y0, x2: d.x1, y2: d.y1 }));
+      const a1 = ang + Math.PI - 0.5, a2 = ang + Math.PI + 0.5;
+      const hx1 = d.x1 + Math.cos(a1) * head, hy1 = d.y1 + Math.sin(a1) * head;
+      const hx2 = d.x1 + Math.cos(a2) * head, hy2 = d.y1 + Math.sin(a2) * head;
+      g.appendChild(svgEl('polygon', { fill: stroke, stroke, 'stroke-width': sw * 0.5, 'stroke-linejoin':'round',
+        points: `${d.x1},${d.y1} ${hx1},${hy1} ${hx2},${hy2}` }));
+    } else if (kind === 'text') {
+      const fontPx = Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.04 : d.thick === 2 ? 0.028 : 0.02), 12);
+      const lines = String(d.text || '').split('\n');
+      lines.forEach((ln, i) => {
+        const t = svgEl('text', { x: d.x, y: d.y + (i + 0.85) * fontPx * 1.15, fill: stroke,
+          'font-size': fontPx, 'font-weight': '600',
+          'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' });
+        t.textContent = ln;
+        g.appendChild(t);
+      });
+      d._fontPx = fontPx;
     }
   });
 }
