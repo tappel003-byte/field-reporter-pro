@@ -2322,6 +2322,18 @@ function pvSetupGestures() {
       drawPointerId = null;
       return;
     }
+    if (pv.tool === 'text') {
+      drawPointerId = null;
+      try { canvas.releasePointerCapture(e.pointerId); } catch(_) {}
+      const txt = window.prompt('Add text:', '');
+      if (txt && txt.trim()) {
+        pushAnnotateUndo();
+        pv.workingStrokes.push({ id: uid(), kind: 'text', color: pv.color, thick: pv.thick, x, y, text: txt.trim() });
+        updatePvUndoBtn();
+        renderViewerStrokes();
+      }
+      return;
+    }
     pushAnnotateUndo();
     if (pv.tool === 'pencil') {
       pv.drawing = { id: uid(), kind: 'path', color: pv.color, thick: pv.thick, points: [[x, y]] };
@@ -2352,10 +2364,9 @@ function pvSetupGestures() {
     e.stopPropagation();
     drawPointerId = null;
     if (pv.drawing.kind === 'path' && pv.drawing.points.length < 2) {
-      // discard a non-stroke (just a tap)
       pv.undoStack.pop();
-    } else if ((pv.drawing.kind === 'rect' || pv.drawing.kind === 'circle') &&
-               Math.hypot(pv.drawing.x1 - pv.drawing.x0, pv.drawing.y1 - pv.drawing.y0) < 4) {
+    } else if ((pv.drawing.kind === 'rect' || pv.drawing.kind === 'circle' || pv.drawing.kind === 'arrow') &&
+               Math.hypot(pv.drawing.x1 - pv.drawing.x0, pv.drawing.y1 - pv.drawing.y0) < 6) {
       pv.undoStack.pop();
     } else {
       pv.workingStrokes.push(pv.drawing);
