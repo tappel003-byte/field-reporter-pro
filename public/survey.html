@@ -187,9 +187,9 @@
      max-height:500px catches all phones (≤430px tall) but excludes tablets (iPad mini ~744px). */
   @media (orientation: landscape) and (max-height: 500px) {
     .draw-toolbar{left:50%;top:6px;right:auto;bottom:auto;transform:translateX(-50%);
-      flex-direction:row;max-width:calc(100vw - 12px);flex-wrap:nowrap;
+      flex-direction:row;max-width:calc(100vw - 12px);flex-wrap:wrap;row-gap:4px;
       justify-content:center;gap:4px;padding:4px}
-    .draw-toolbar .dt-row{flex-direction:row;gap:3px}
+    .draw-toolbar .dt-row{flex-direction:row;gap:3px;flex-wrap:wrap;justify-content:center}
     .draw-toolbar .dt-sep{width:1px;height:24px;margin:0 2px}
     .draw-toolbar .dt-btn{width:32px;height:32px;font-size:15px}
     .draw-toolbar .dt-color{width:22px;height:22px}
@@ -290,9 +290,9 @@
 
   /* Drawing toolbar inside the photo viewer — anchored top, horizontal strip */
   .pv-toolbar{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 8px);
-    transform:translateX(-50%);display:none;flex-direction:row;gap:4px;
+    transform:translateX(-50%);display:none;flex-direction:row;gap:4px;row-gap:4px;
     background:rgba(255,250,240,.95);padding:4px;border-radius:14px;box-shadow:var(--shadow-lg);
-    border:1px solid var(--line);z-index:6;max-width:calc(100vw - 16px);flex-wrap:nowrap;
+    border:1px solid var(--line);z-index:6;max-width:calc(100vw - 16px);flex-wrap:wrap;
     align-items:center;justify-content:center}
   .pviewer.annotating .pv-toolbar{display:flex}
   .pv-toolbar .dt-row{display:flex;flex-direction:row;gap:3px;align-items:center}
@@ -603,7 +603,7 @@ let project = null;               // active project ref
 let ui = {
   tool: 'pin',                    // 'pin' | 'draw'
   drawTool: 'pencil',             // 'pencil' | 'rect' | 'circle' | 'eraser'
-  drawColor: '#c14a2b',
+  drawColor: '#1a1a1a',
   drawThick: 1,                   // 1 | 2 | 3
   selectedPinId: null,
   view: { tx: 0, ty: 0, scale: 1 },
@@ -1397,7 +1397,7 @@ function onPointerDown(e) {
       if (txt && txt.trim()) {
         snapshot('draw');
         project.drawings = project.drawings || [];
-        project.drawings.push({ id: uid(), kind: 'text', color: '#1a1a1a', thick: ui.drawThick, x: imgPt.x, y: imgPt.y, text: txt.trim() });
+        project.drawings.push({ id: uid(), kind: 'text', color: ui.drawColor, thick: ui.drawThick, x: imgPt.x, y: imgPt.y, text: txt.trim() });
         saveProject();
         renderDrawings();
       }
@@ -1857,7 +1857,7 @@ const pv = {
   drawing: null,      // active in-progress stroke
   undoStack: [],      // snapshots of workingStrokes
   // toolbar state (mirrors ui.draw* but kept independent so floor-plan toolbar isn't disturbed)
-  tool: 'pencil', color: '#c14a2b', thick: 2,
+  tool: 'pencil', color: '#1a1a1a', thick: 2,
 };
 
 function currentViewerPin() {
@@ -2017,6 +2017,58 @@ function renderViewerStrokes() {
     drawStrokesOnCtx(ctx, [pv.drawing], pv.natW, pv.natH);
   }
 }
+// Word-wrap helpers used by text annotations.
+// Canvas variant: measures with the current ctx font.
+function wrapTextCtx(ctx, text, maxWidth) {
+  const out = [];
+  for (const para of String(text || '').split('\n')) {
+    if (!para) { out.push(''); continue; }
+    const words = para.split(/\s+/);
+    let line = '';
+    for (const w of words) {
+      const test = line ? line + ' ' + w : w;
+      if (ctx.measureText(test).width <= maxWidth) line = test;
+      else {
+        if (line) out.push(line);
+        // word longer than maxWidth: hard-break by character
+        if (ctx.measureText(w).width > maxWidth) {
+          let chunk = '';
+          for (const ch of w) {
+            const t2 = chunk + ch;
+            if (ctx.measureText(t2).width <= maxWidth) chunk = t2;
+            else { if (chunk) out.push(chunk); chunk = ch; }
+          }
+          line = chunk;
+        } else line = w;
+      }
+    }
+    if (line) out.push(line);
+  }
+  return out.length ? out : [''];
+}
+// SVG variant: estimates by char count (no canvas ctx available).
+function wrapTextChars(text, maxChars) {
+  const out = [];
+  for (const para of String(text || '').split('\n')) {
+    if (!para) { out.push(''); continue; }
+    const words = para.split(/\s+/);
+    let line = '';
+    for (const w of words) {
+      const test = line ? line + ' ' + w : w;
+      if (test.length <= maxChars) line = test;
+      else {
+        if (line) out.push(line);
+        if (w.length > maxChars) {
+          for (let i = 0; i < w.length; i += maxChars) out.push(w.slice(i, i + maxChars));
+          line = '';
+        } else line = w;
+      }
+    }
+    if (line) out.push(line);
+  }
+  return out.length ? out : [''];
+}
+
 function drawStrokesOnCtx(ctx, strokes, W, H) {
   const baseSw = Math.max(W, H) * 0.005;
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -2063,9 +2115,12 @@ function drawStrokesOnCtx(ctx, strokes, W, H) {
       ctx.font = `700 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       ctx.textBaseline = 'top';
       ctx.fillStyle = d.color || '#1a1a1a';
-      const lines = String(d.text || '').split('\n');
+      const maxW = Math.max(60, Math.min(W - d.x - baseSw * 2, W * 0.85));
+      const lines = wrapTextCtx(ctx, d.text, maxW);
       lines.forEach((ln, i) => ctx.fillText(ln, d.x, d.y + i * fontPx * 1.15));
-      d._fontPx = fontPx; // cache for hit-test
+      d._fontPx = fontPx;
+      d._lines = lines;
+      d._lineW = lines.reduce((m, ln) => Math.max(m, ctx.measureText(ln).width), 0);
     }
   }
 }
@@ -2238,8 +2293,8 @@ function pvHitTestStroke(x, y) {
       if (Math.hypot(px - x, py - y) <= tol) return i;
     } else if (kind === 'text') {
       const fontPx = d._fontPx || Math.max(baseSw * (d.thick === 3 ? 14 : d.thick === 2 ? 10 : 7), 28);
-      const lines = String(d.text || '').split('\n');
-      const w = Math.max(...lines.map(l => l.length)) * fontPx * 0.6;
+      const lines = d._lines || String(d.text || '').split('\n');
+      const w = d._lineW != null ? d._lineW : Math.max(...lines.map(l => l.length)) * fontPx * 0.6;
       const h = lines.length * fontPx * 1.15;
       if (x >= d.x - tol && x <= d.x + w + tol && y >= d.y - tol && y <= d.y + h + tol) return i;
     }
@@ -2394,7 +2449,7 @@ function pvSetupGestures() {
       const txt = window.prompt('Add text:', '');
       if (txt && txt.trim()) {
         pushAnnotateUndo();
-        pv.workingStrokes.push({ id: uid(), kind: 'text', color: '#1a1a1a', thick: pv.thick, x, y, text: txt.trim() });
+        pv.workingStrokes.push({ id: uid(), kind: 'text', color: pv.color, thick: pv.thick, x, y, text: txt.trim() });
         updatePvUndoBtn();
         renderViewerStrokes();
       }
@@ -2549,7 +2604,9 @@ function renderDrawings() {
         points: `${d.x1},${d.y1} ${hx1},${hy1} ${hx2},${hy2}` }));
     } else if (kind === 'text') {
       const fontPx = Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.07 : d.thick === 2 ? 0.05 : 0.035), 24);
-      const lines = String(d.text || '').split('\n');
+      // Char-width estimate ~0.55*fontPx; cap line width at ~50% of plan
+      const maxChars = Math.max(8, Math.floor((Math.min(project.plan.width - d.x, project.plan.width * 0.5)) / (fontPx * 0.55)));
+      const lines = wrapTextChars(d.text, maxChars);
       lines.forEach((ln, i) => {
         const t = svgEl('text', { x: d.x, y: d.y + (i + 0.85) * fontPx * 1.15, fill: stroke,
           'font-size': fontPx, 'font-weight': '700',
@@ -2558,6 +2615,8 @@ function renderDrawings() {
         g.appendChild(t);
       });
       d._fontPx = fontPx;
+      d._lines = lines;
+      d._lineW = Math.max(...lines.map(l => l.length)) * fontPx * 0.55;
     }
   });
 }
@@ -2602,8 +2661,8 @@ function hitTestDrawing(x, y) {
       if (Math.hypot(px - x, py - y) <= t) return i;
     } else if (kind === 'text') {
       const fontPx = d._fontPx || Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.07 : d.thick === 2 ? 0.05 : 0.035), 24);
-      const lines = String(d.text || '').split('\n');
-      const w = Math.max(...lines.map(l => l.length)) * fontPx * 0.6;
+      const lines = d._lines || String(d.text || '').split('\n');
+      const w = d._lineW != null ? d._lineW : Math.max(...lines.map(l => l.length)) * fontPx * 0.55;
       const h = lines.length * fontPx * 1.15;
       if (x >= d.x - t && x <= d.x + w + t && y >= d.y - t && y <= d.y + h + t) return i;
     }
@@ -2726,8 +2785,9 @@ async function composeMapImage(format) {
           const fontPx = Math.max(Math.max(W, H) * (d.thick === 3 ? 0.04 : d.thick === 2 ? 0.028 : 0.02), 12);
           ctx.font = `600 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
           ctx.textBaseline = 'top';
-          ctx.fillStyle = d.color || '#c14a2b';
-          const lines = String(d.text || '').split('\n');
+          ctx.fillStyle = d.color || '#1a1a1a';
+          const maxW = Math.max(60, Math.min(W - d.x, W * 0.5));
+          const lines = wrapTextCtx(ctx, d.text, maxW);
           lines.forEach((ln, i) => ctx.fillText(ln, d.x, d.y + i * fontPx * 1.15));
         }
       });
