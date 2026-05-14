@@ -1397,7 +1397,7 @@ function onPointerDown(e) {
       if (txt && txt.trim()) {
         snapshot('draw');
         project.drawings = project.drawings || [];
-        project.drawings.push({ id: uid(), kind: 'text', color: ui.drawColor, thick: ui.drawThick, x: imgPt.x, y: imgPt.y, text: txt.trim() });
+        project.drawings.push({ id: uid(), kind: 'text', color: '#1a1a1a', thick: ui.drawThick, x: imgPt.x, y: imgPt.y, text: txt.trim() });
         saveProject();
         renderDrawings();
       }
@@ -2059,10 +2059,10 @@ function drawStrokesOnCtx(ctx, strokes, W, H) {
       ctx.fillStyle = ctx.strokeStyle;
       ctx.fill();
     } else if (kind === 'text') {
-      const fontPx = Math.max(baseSw * (d.thick === 3 ? 8 : d.thick === 2 ? 5.5 : 4), 14);
-      ctx.font = `600 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      const fontPx = Math.max(baseSw * (d.thick === 3 ? 14 : d.thick === 2 ? 10 : 7), 28);
+      ctx.font = `700 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       ctx.textBaseline = 'top';
-      ctx.fillStyle = d.color || '#c14a2b';
+      ctx.fillStyle = d.color || '#1a1a1a';
       const lines = String(d.text || '').split('\n');
       lines.forEach((ln, i) => ctx.fillText(ln, d.x, d.y + i * fontPx * 1.15));
       d._fontPx = fontPx; // cache for hit-test
@@ -2237,7 +2237,7 @@ function pvHitTestStroke(x, y) {
       const px = d.x0 + t*dx, py = d.y0 + t*dy;
       if (Math.hypot(px - x, py - y) <= tol) return i;
     } else if (kind === 'text') {
-      const fontPx = d._fontPx || Math.max(baseSw * (d.thick === 3 ? 8 : d.thick === 2 ? 5.5 : 4), 14);
+      const fontPx = d._fontPx || Math.max(baseSw * (d.thick === 3 ? 14 : d.thick === 2 ? 10 : 7), 28);
       const lines = String(d.text || '').split('\n');
       const w = Math.max(...lines.map(l => l.length)) * fontPx * 0.6;
       const h = lines.length * fontPx * 1.15;
@@ -2394,7 +2394,7 @@ function pvSetupGestures() {
       const txt = window.prompt('Add text:', '');
       if (txt && txt.trim()) {
         pushAnnotateUndo();
-        pv.workingStrokes.push({ id: uid(), kind: 'text', color: pv.color, thick: pv.thick, x, y, text: txt.trim() });
+        pv.workingStrokes.push({ id: uid(), kind: 'text', color: '#1a1a1a', thick: pv.thick, x, y, text: txt.trim() });
         updatePvUndoBtn();
         renderViewerStrokes();
       }
@@ -2548,11 +2548,11 @@ function renderDrawings() {
       g.appendChild(svgEl('polygon', { fill: stroke, stroke, 'stroke-width': sw * 0.5, 'stroke-linejoin':'round',
         points: `${d.x1},${d.y1} ${hx1},${hy1} ${hx2},${hy2}` }));
     } else if (kind === 'text') {
-      const fontPx = Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.04 : d.thick === 2 ? 0.028 : 0.02), 12);
+      const fontPx = Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.07 : d.thick === 2 ? 0.05 : 0.035), 24);
       const lines = String(d.text || '').split('\n');
       lines.forEach((ln, i) => {
         const t = svgEl('text', { x: d.x, y: d.y + (i + 0.85) * fontPx * 1.15, fill: stroke,
-          'font-size': fontPx, 'font-weight': '600',
+          'font-size': fontPx, 'font-weight': '700',
           'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' });
         t.textContent = ln;
         g.appendChild(t);
@@ -2601,7 +2601,7 @@ function hitTestDrawing(x, y) {
       const px = d.x0 + tt*dx, py = d.y0 + tt*dy;
       if (Math.hypot(px - x, py - y) <= t) return i;
     } else if (kind === 'text') {
-      const fontPx = d._fontPx || Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.04 : d.thick === 2 ? 0.028 : 0.02), 12);
+      const fontPx = d._fontPx || Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.07 : d.thick === 2 ? 0.05 : 0.035), 24);
       const lines = String(d.text || '').split('\n');
       const w = Math.max(...lines.map(l => l.length)) * fontPx * 0.6;
       const h = lines.length * fontPx * 1.15;
