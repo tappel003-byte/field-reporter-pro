@@ -2340,6 +2340,12 @@ function pvSetupGestures() {
       return;
     }
     if (pv.tool === 'text') {
+      // Tap on existing text → drag to move; release without movement → edit
+      const idx = pvHitTestStroke(x, y);
+      if (idx >= 0 && pv.workingStrokes[idx].kind === 'text') {
+        pv.editingText = { idx, startX: x, startY: y, origX: pv.workingStrokes[idx].x, origY: pv.workingStrokes[idx].y, moved: false, snapshotted: false };
+        return;
+      }
       drawPointerId = null;
       try { canvas.releasePointerCapture(e.pointerId); } catch(_) {}
       const txt = window.prompt('Add text:', '');
@@ -2361,10 +2367,23 @@ function pvSetupGestures() {
   });
 
   canvas.addEventListener('pointermove', (e) => {
-    if (!pv.annotating || !pv.drawing || drawPointerId !== e.pointerId) return;
+    if (!pv.annotating || drawPointerId !== e.pointerId) return;
     e.preventDefault();
     e.stopPropagation();
     const [x, y] = canvasPoint(e.clientX, e.clientY);
+    if (pv.editingText) {
+      const dx = x - pv.editingText.startX, dy = y - pv.editingText.startY;
+      if (!pv.editingText.moved && Math.hypot(dx, dy) > 6) {
+        pv.editingText.moved = true;
+        if (!pv.editingText.snapshotted) { pushAnnotateUndo(); pv.editingText.snapshotted = true; }
+      }
+      if (pv.editingText.moved) {
+        const s = pv.workingStrokes[pv.editingText.idx];
+        if (s) { s.x = pv.editingText.origX + dx; s.y = pv.editingText.origY + dy; renderViewerStrokes(); }
+      }
+      return;
+    }
+    if (!pv.drawing) return;
     if (pv.drawing.kind === 'path') {
       const pts = pv.drawing.points;
       const last = pts[pts.length - 1];
@@ -2376,10 +2395,31 @@ function pvSetupGestures() {
   });
 
   const endDraw = (e) => {
-    if (!pv.annotating || !pv.drawing || drawPointerId !== e.pointerId) return;
+    if (!pv.annotating || drawPointerId !== e.pointerId) return;
     e.preventDefault();
     e.stopPropagation();
     drawPointerId = null;
+    if (pv.editingText) {
+      const et = pv.editingText;
+      pv.editingText = null;
+      if (!et.moved) {
+        // Tap without drag → edit/delete prompt
+        const s = pv.workingStrokes[et.idx];
+        if (s) {
+          const next = window.prompt('Edit text (empty to delete):', s.text || '');
+          if (next === null) return; // cancelled
+          pushAnnotateUndo();
+          if (next.trim()) s.text = next.trim();
+          else pv.workingStrokes.splice(et.idx, 1);
+          updatePvUndoBtn();
+          renderViewerStrokes();
+        }
+      } else {
+        updatePvUndoBtn();
+      }
+      return;
+    }
+    if (!pv.drawing) return;
     if (pv.drawing.kind === 'path' && pv.drawing.points.length < 2) {
       pv.undoStack.pop();
     } else if ((pv.drawing.kind === 'rect' || pv.drawing.kind === 'circle' || pv.drawing.kind === 'arrow') &&
