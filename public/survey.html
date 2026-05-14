@@ -2785,8 +2785,9 @@ async function composeMapImage(format) {
           const fontPx = Math.max(Math.max(W, H) * (d.thick === 3 ? 0.04 : d.thick === 2 ? 0.028 : 0.02), 12);
           ctx.font = `600 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
           ctx.textBaseline = 'top';
-          ctx.fillStyle = d.color || '#c14a2b';
-          const lines = String(d.text || '').split('\n');
+          ctx.fillStyle = d.color || '#1a1a1a';
+          const maxW = Math.max(60, Math.min(W - d.x, W * 0.5));
+          const lines = wrapTextCtx(ctx, d.text, maxW);
           lines.forEach((ln, i) => ctx.fillText(ln, d.x, d.y + i * fontPx * 1.15));
         }
       });
