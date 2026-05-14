@@ -1,65 +1,67 @@
 ## Goal
 
-Replace the current two-button export (PDF + photos ZIP) with **one button** that downloads a single ZIP containing everything you need for a job: map image, pin list, and photos.
+Tap a photo thumbnail in the pin dialog → opens full-screen viewer. Inside the viewer, optionally annotate the photo with the existing drawing toolbar. Annotations are stored as editable data and re-openable forever; exports show the flattened composite.
 
-## What's in the ZIP
+## Scope
 
-Filename: `001 - 123 Main St.zip` (pin-count prefix + address, sanitized)
+`public/survey.html` only. No new files, no new dependencies.
 
-Contents:
-```
-001 - 123 Main St/
-  map.png              ← floor plan with numbered pins drawn on it
-  pins.csv             ← one row per pin: #, description, photo count
-  photos/
-    01-photo1.jpg
-    01-photo2.jpg
-    02-photo1.jpg
-    ...
-```
+## What gets built
 
-That's it. No JSON, no PDF, no extra files.
+### 1. Full-screen photo viewer
 
-## CSV columns
+- Tap any thumbnail in the pin dialog → opens an overlay covering the screen
+- Black backdrop, photo centered and fit-to-screen
+- **Swipe left/right** to move between photos in the current pin
+- **Pinch-to-zoom + pan** on the photo (reuse the gesture pattern already used on the floor plan canvas)
+- Top bar: `X` close, photo counter (`3 / 7`), delete button (trash icon)
+- Tap-X or swipe-down to close
+- Delete prompts confirm, then removes the photo and either advances to the next or closes if it was the last
 
-`Pin, Description, Photos`
+### 2. Annotate mode inside the viewer
 
-Example:
-```
-1, Water heater - Rheem 50gal, 2
-2, Main panel - 200A, 1
-3, Crawl space access, 0
-```
+- An **Annotate** button in the viewer top bar
+- Tapping it docks the existing drawing toolbar (pencil/rect/circle/eraser, 5 colors, 3 thicknesses) to the photo
+- All strokes draw onto a canvas overlay sized to the photo's natural dimensions (so they stay registered when zoomed)
+- **Undo** works during the session (reuse existing snapshot system)
+- **Save** commits the current strokes to the photo's data
+- **Cancel** discards changes since the annotate session opened
 
-## How the map.png is made
+### 3. Persistent, editable annotations
 
-Reuse the same canvas-rendering logic that `exportPdf()` already uses to draw the floor plan + numbered pins, but output a PNG via `canvas.toBlob('image/png')` instead of embedding into a PDF. Same view you see today, just flat.
+- Each photo gets an optional `strokes` array stored alongside it (same shape as floor-plan strokes)
+- Stored in IndexedDB next to the photo blob, keyed off the photo id
+- Re-opening an already-annotated photo loads its strokes back into the canvas — fully editable: add, undo, erase, change colors, save again
+- The original photo is never modified
 
-## UI changes in the export sheet
+### 4. Composite at render time
 
-Before:
-- 📄 Download Picture Map (PDF)
-- 🗂 Download Photo Folder (ZIP)
+- Thumbnail in the pin dialog: render photo + strokes flattened (so you can see at a glance which are marked)
+- Full-screen viewer: render photo + strokes (interactive in annotate mode, static otherwise)
+- ZIP/PDF export: photos exported with strokes burned into the JPEG, same filename pattern as today
 
-After:
-- 📦 **Download Project (ZIP)** ← single primary button
-- (small helper text listing what's inside)
+### 5. Annotation indicator on thumbnails
 
-Old PDF and photos-only buttons are removed. One button, one file.
+- Small dot (or pencil icon) badge in the corner of any thumbnail that has strokes
+- Glance-test: which shots did I mark up?
 
 ## Technical notes
 
-- `public/survey.html` only — no other files touched.
-- JSZip is already loaded; jsPDF stays loaded but unused (we can remove the script tag too — saves ~80KB).
-- Photo naming uses the existing `NN-photoN.jpg` pattern from `exportPhotosZip()`, just nested under `photos/`.
-- Map render: extract the pin-drawing code from `exportPdf()` into a shared `renderMapToCanvas()` helper, then both old PDF code (if we keep it) and new PNG export call it. Cleaner either way.
-- File-saver pattern stays the same (Blob → object URL → `<a download>` click).
+- **Drawing engine reuse:** the existing stroke renderer that draws on the floor plan canvas is reused as-is; only the target canvas changes (photo overlay instead of plan).
+- **Stroke coordinate space:** strokes are stored in the photo's natural pixel coordinates (e.g. 1600×1200), not screen coordinates. This way zoom/pan in the viewer doesn't distort them, and the export composite is pixel-perfect.
+- **Storage:** extend the IDB record from `Blob` to `{ blob, strokes? }`. Migration: any existing photo without a strokes field is treated as `strokes: []`.
+- **Composite for export:** at export time, draw photo to an offscreen canvas at natural size, then replay strokes on top, then `canvas.toBlob('image/jpeg', 0.9)`. Same path as today, with a stroke pass added.
+- **Composite for thumbnails:** same composite logic but rendered to a small canvas; cached so we don't re-flatten on every render.
+- **Gestures:** swipe between photos uses a simple touch-move x-delta threshold; pinch-zoom on the photo reuses the existing pinch handler from the plan canvas.
 
-## Out of scope (your call later)
+## Out of scope
 
-- Re-importable project file (JSON)
-- Per-photo descriptions in CSV
-- GPS coordinates in CSV
-- Auto-upload to cloud / email
+- Photo brightness/contrast adjustment
+- Text annotations on photos (text tool)
+- Per-stroke layer visibility toggle
+- Annotating from outside the viewer (e.g. annotating from the pin list)
+- Animated transitions between photos (just snap)
 
-Approve and I'll build it. Should be ready well before Saturday.
+## Field-test impact
+
+Ships before Saturday is realistic but tight. If anything slips, the order to cut is: (5) annotation badges → (4) burned-in export → (2 + 3) annotate mode. The viewer itself (1) is the highest-value standalone piece and ships first.
