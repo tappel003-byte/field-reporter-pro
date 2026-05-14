@@ -943,16 +943,7 @@ function setupDrawToolbar() {
   const tb = document.getElementById('drawToolbar');
   if (!tb || tb._wired) return;
   tb._wired = true;
-  const flip = document.getElementById('drawToolbarFlip');
-  if (flip) {
-    try { tb.classList.toggle('side-right', localStorage.getItem('drawToolbarSide') === 'right'); } catch(_) {}
-    flip.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const nowRight = !tb.classList.contains('side-right');
-      tb.classList.toggle('side-right', nowRight);
-      try { localStorage.setItem('drawToolbarSide', nowRight ? 'right' : 'left'); } catch(_) {}
-    });
-  }
+  try { localStorage.removeItem('drawToolbarSide'); } catch(_) {}
   tb.addEventListener('click', (e) => {
     const b = e.target.closest('button.dt-btn'); if (!b) return;
     if (b.dataset.dtool) {
