@@ -1520,6 +1520,7 @@ function onPointerUp(e) {
     const d = ui.drawing;
     let tooSmall = false;
     if (d.kind === 'path') tooSmall = d.points.length < 2;
+    else if (d.kind === 'text') tooSmall = false;
     else tooSmall = Math.hypot(d.x1-d.x0, d.y1-d.y0) < 4;
     if (tooSmall) project.drawings.pop();
     ui.drawing = null;
