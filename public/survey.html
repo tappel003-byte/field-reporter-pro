@@ -2017,6 +2017,58 @@ function renderViewerStrokes() {
     drawStrokesOnCtx(ctx, [pv.drawing], pv.natW, pv.natH);
   }
 }
+// Word-wrap helpers used by text annotations.
+// Canvas variant: measures with the current ctx font.
+function wrapTextCtx(ctx, text, maxWidth) {
+  const out = [];
+  for (const para of String(text || '').split('\n')) {
+    if (!para) { out.push(''); continue; }
+    const words = para.split(/\s+/);
+    let line = '';
+    for (const w of words) {
+      const test = line ? line + ' ' + w : w;
+      if (ctx.measureText(test).width <= maxWidth) line = test;
+      else {
+        if (line) out.push(line);
+        // word longer than maxWidth: hard-break by character
+        if (ctx.measureText(w).width > maxWidth) {
+          let chunk = '';
+          for (const ch of w) {
+            const t2 = chunk + ch;
+            if (ctx.measureText(t2).width <= maxWidth) chunk = t2;
+            else { if (chunk) out.push(chunk); chunk = ch; }
+          }
+          line = chunk;
+        } else line = w;
+      }
+    }
+    if (line) out.push(line);
+  }
+  return out.length ? out : [''];
+}
+// SVG variant: estimates by char count (no canvas ctx available).
+function wrapTextChars(text, maxChars) {
+  const out = [];
+  for (const para of String(text || '').split('\n')) {
+    if (!para) { out.push(''); continue; }
+    const words = para.split(/\s+/);
+    let line = '';
+    for (const w of words) {
+      const test = line ? line + ' ' + w : w;
+      if (test.length <= maxChars) line = test;
+      else {
+        if (line) out.push(line);
+        if (w.length > maxChars) {
+          for (let i = 0; i < w.length; i += maxChars) out.push(w.slice(i, i + maxChars));
+          line = '';
+        } else line = w;
+      }
+    }
+    if (line) out.push(line);
+  }
+  return out.length ? out : [''];
+}
+
 function drawStrokesOnCtx(ctx, strokes, W, H) {
   const baseSw = Math.max(W, H) * 0.005;
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
