@@ -168,6 +168,11 @@
     padding:6px;border-radius:14px;box-shadow:var(--shadow-lg);
     border:1px solid var(--line);z-index:6;align-items:center}
   .draw-toolbar.show{display:flex}
+  .draw-toolbar.side-right{left:auto;right:8px}
+  .draw-toolbar .dt-flip{width:36px;height:24px;border-radius:8px;border:none;
+    background:transparent;color:var(--muted);font-size:14px;padding:0;
+    display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .draw-toolbar .dt-flip:active{transform:scale(.92)}
   .draw-toolbar .dt-row{display:flex;flex-direction:column;gap:4px;align-items:center}
   .draw-toolbar .dt-sep{width:28px;height:1px;background:var(--line);margin:2px 0}
   .draw-toolbar .dt-btn{width:36px;height:36px;border-radius:8px;border:none;
@@ -185,13 +190,15 @@
   /* Phone landscape only: flip toolbar to a single horizontal top strip.
      max-height:500px catches all phones (≤430px tall) but excludes tablets (iPad mini ~744px). */
   @media (orientation: landscape) and (max-height: 500px) {
-    .draw-toolbar{left:50%;top:6px;transform:translateX(-50%);
+    .draw-toolbar{left:50%;top:6px;right:auto;bottom:auto;transform:translateX(-50%);
       flex-direction:row;max-width:calc(100vw - 12px);flex-wrap:nowrap;
       justify-content:center;gap:4px;padding:4px}
+    .draw-toolbar.side-right{left:50%;right:auto;top:auto;bottom:6px;transform:translateX(-50%)}
     .draw-toolbar .dt-row{flex-direction:row;gap:3px}
     .draw-toolbar .dt-sep{width:1px;height:24px;margin:0 2px}
     .draw-toolbar .dt-btn{width:32px;height:32px;font-size:15px}
     .draw-toolbar .dt-color{width:22px;height:22px}
+    .draw-toolbar .dt-flip{width:24px;height:32px}
   }
 
   .pin-list{display:flex;flex-direction:column;gap:4px;max-height:60vh;overflow-y:auto;
@@ -403,6 +410,7 @@
       </svg>
     </div>
     <div class="draw-toolbar" id="drawToolbar">
+      <button class="dt-flip" id="drawToolbarFlip" title="Move toolbar to other side" aria-label="Move toolbar">⇆</button>
       <button class="dt-btn active" data-dtool="pencil" title="Pencil">✏️</button>
       <button class="dt-btn" data-dtool="rect" title="Rectangle">▭</button>
       <button class="dt-btn" data-dtool="circle" title="Circle">◯</button>
@@ -942,6 +950,16 @@ function setupDrawToolbar() {
   const tb = document.getElementById('drawToolbar');
   if (!tb || tb._wired) return;
   tb._wired = true;
+  const flip = document.getElementById('drawToolbarFlip');
+  if (flip) {
+    try { tb.classList.toggle('side-right', localStorage.getItem('drawToolbarSide') === 'right'); } catch(_) {}
+    flip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const nowRight = !tb.classList.contains('side-right');
+      tb.classList.toggle('side-right', nowRight);
+      try { localStorage.setItem('drawToolbarSide', nowRight ? 'right' : 'left'); } catch(_) {}
+    });
+  }
   tb.addEventListener('click', (e) => {
     const b = e.target.closest('button.dt-btn'); if (!b) return;
     if (b.dataset.dtool) {
