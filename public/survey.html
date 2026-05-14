@@ -1983,16 +1983,19 @@ async function exportPhotosZip() {
   try {
     const zip = new JSZip();
     let any = false;
-    (project.pins||[]).forEach(p => {
-      (p.photos||[]).forEach((dataUrl, i) => {
+    for (const p of (project.pins||[])) {
+      const photos = p.photos||[];
+      for (let i = 0; i < photos.length; i++) {
+        const dataUrl = await resolvePhoto(photos[i]);
+        if (!dataUrl) continue;
         const m = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
-        if (!m) return;
+        if (!m) continue;
         const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
         const name = String(p.num).padStart(2,'0') + '-photo' + (i+1) + '.' + ext;
         zip.file(name, m[2], { base64: true });
         any = true;
-      });
-    });
+      }
+    }
     if (!any) {
       toast('No photos to bundle.');
       return;
