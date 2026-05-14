@@ -2146,101 +2146,104 @@ function pvSetupGestures() {
   if (stage._wired) return;
   stage._wired = true;
 
-  // ---- VIEW MODE: stage-level touches ----
-  let touches = []; // {id, x, y, x0, y0}
-  let pinchStart = null;
-  let swipeStart = null;
-  let panStart = null;
-  const getTouchById = (id) => touches.find(t => t.id === id);
-
-  stage.addEventListener('touchstart', (e) => {
-    if (pv.annotating) return;
-    for (const t of e.changedTouches) {
-      touches.push({ id: t.identifier, x: t.clientX, y: t.clientY, x0: t.clientX, y0: t.clientY });
-    }
-    if (touches.length === 2) {
-      const [a, b] = touches;
-      pinchStart = {
-        d: Math.hypot(a.x - b.x, a.y - b.y),
-        scale: pv.scale, tx: pv.tx, ty: pv.ty,
-        cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2,
+  // ---- VIEW MODE: pointer gestures ----
+  let pvPointers = new Map();
+  let pvGesture = null;
+  const viewerActive = () => document.getElementById('pviewer').classList.contains('active');
+  const clampPvScale = (s) => Math.max(pv.fitScale || 1, Math.min((pv.fitScale || 1) * 8, s));
+  const pointList = () => Array.from(pvPointers.values());
+  const startPvGesture = () => {
+    const pts = pointList();
+    if (pts.length >= 2) {
+      const a = pts[0], b = pts[1];
+      const r = stage.getBoundingClientRect();
+      const mx = (a.x + b.x) / 2 - r.left;
+      const my = (a.y + b.y) / 2 - r.top;
+      pvGesture = {
+        kind: 'pinch',
+        dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+        scale: pv.scale,
+        contentX: (mx - pv.tx) / pv.scale,
+        contentY: (my - pv.ty) / pv.scale,
       };
-      swipeStart = null;
-      panStart = null;
-    } else if (touches.length === 1) {
-      const t = touches[0];
-      if (Math.abs(pv.scale - pv.fitScale) < 0.001) {
-        // At fit-scale: candidate swipe
-        swipeStart = { x: t.x, y: t.y, t: performance.now() };
-        panStart = null;
-      } else {
-        // Zoomed: pan
-        panStart = { x: t.x, y: t.y, tx: pv.tx, ty: pv.ty };
-        swipeStart = null;
-      }
-    }
-  }, { passive: true });
-
-  stage.addEventListener('touchmove', (e) => {
-    if (pv.annotating) return;
-    for (const t of e.changedTouches) {
-      const obj = getTouchById(t.identifier);
-      if (obj) { obj.x = t.clientX; obj.y = t.clientY; }
-    }
-    if (touches.length === 2 && pinchStart) {
-      const [a, b] = touches;
-      const d = Math.hypot(a.x - b.x, a.y - b.y);
-      const factor = d / pinchStart.d;
-      let newScale = Math.max(pv.fitScale, Math.min(pv.fitScale * 8, pinchStart.scale * factor));
-      // Zoom around the original pinch midpoint
-      const stageRect = stage.getBoundingClientRect();
-      const mx = pinchStart.cx - stageRect.left;
-      const my = pinchStart.cy - stageRect.top;
-      // (mx - tx)/scale = const => new tx so the same content point stays under midpoint
-      const ratio = newScale / pinchStart.scale;
-      pv.tx = mx - (mx - pinchStart.tx) * ratio;
-      pv.ty = my - (my - pinchStart.ty) * ratio;
-      pv.scale = newScale;
-      applyPvTransform();
-    } else if (touches.length === 1 && panStart) {
-      const t = touches[0];
-      pv.tx = panStart.tx + (t.x - panStart.x);
-      pv.ty = panStart.ty + (t.y - panStart.y);
-      applyPvTransform();
-    }
-  }, { passive: true });
-
-  const endTouch = (e) => {
-    if (pv.annotating) {
-      // Reset gesture state and bail
-      touches = touches.filter(o => !Array.from(e.changedTouches).some(t => t.identifier === o.id));
-      pinchStart = null; swipeStart = null; panStart = null;
       return;
     }
-    // Detect swipe nav
-    if (swipeStart && touches.length === 1 && e.changedTouches.length) {
-      const t = touches[0];
-      const dx = t.x - swipeStart.x;
-      const dy = t.y - swipeStart.y;
-      const dt = performance.now() - swipeStart.t;
-      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 600) {
+    if (pts.length === 1) {
+      const p = pts[0];
+      pvGesture = { kind: 'drag', id: p.id, sx: p.x, sy: p.y, x: p.x, y: p.y, tx: pv.tx, ty: pv.ty, t: performance.now() };
+    }
+  };
+
+  stage.addEventListener('pointerdown', (e) => {
+    if (!viewerActive() || pv.annotating) return;
+    if (e.target && e.target.closest && e.target.closest('.pv-head, .pv-toolbar, .pv-foot, button')) return;
+    e.preventDefault();
+    try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+    pvPointers.set(e.pointerId, { id: e.pointerId, x: e.clientX, y: e.clientY });
+    startPvGesture();
+  }, { passive: false });
+
+  stage.addEventListener('pointermove', (e) => {
+    if (!viewerActive() || pv.annotating || !pvPointers.has(e.pointerId)) return;
+    e.preventDefault();
+    const p = pvPointers.get(e.pointerId);
+    p.x = e.clientX; p.y = e.clientY;
+    const pts = pointList();
+    if (pts.length >= 2 && pvGesture && pvGesture.kind === 'pinch') {
+      const a = pts[0], b = pts[1];
+      const r = stage.getBoundingClientRect();
+      const mx = (a.x + b.x) / 2 - r.left;
+      const my = (a.y + b.y) / 2 - r.top;
+      const dist = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      pv.scale = clampPvScale(pvGesture.scale * (dist / pvGesture.dist));
+      pv.tx = mx - pvGesture.contentX * pv.scale;
+      pv.ty = my - pvGesture.contentY * pv.scale;
+      applyPvTransform();
+    } else if (pts.length === 1 && pvGesture && pvGesture.kind === 'drag') {
+      pvGesture.x = e.clientX; pvGesture.y = e.clientY;
+      if (pv.scale > (pv.fitScale || 1) + 0.01) {
+        pv.tx = pvGesture.tx + (e.clientX - pvGesture.sx);
+        pv.ty = pvGesture.ty + (e.clientY - pvGesture.sy);
+        applyPvTransform();
+      }
+    }
+  }, { passive: false });
+
+  const endPvPointer = (e) => {
+    if (!viewerActive()) return;
+    const existing = pvPointers.get(e.pointerId);
+    if (existing) { existing.x = e.clientX; existing.y = e.clientY; }
+    if (!pv.annotating && pvGesture && pvGesture.kind === 'drag' && pvGesture.id === e.pointerId) {
+      const dx = (existing ? existing.x : e.clientX) - pvGesture.sx;
+      const dy = (existing ? existing.y : e.clientY) - pvGesture.sy;
+      const dt = performance.now() - pvGesture.t;
+      const atFit = Math.abs(pv.scale - (pv.fitScale || 1)) < 0.03;
+      if (atFit && Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.25 && dt < 900) {
         viewerNav(dx < 0 ? 1 : -1);
-      } else if (dy > 100 && Math.abs(dy) > Math.abs(dx) * 1.4 && Math.abs(pv.scale - pv.fitScale) < 0.01) {
-        // swipe down to close
+      } else if (atFit && dy > 95 && Math.abs(dy) > Math.abs(dx) * 1.25) {
         closePhotoViewer();
       }
     }
-    // Drop ended touches
-    touches = touches.filter(o => !Array.from(e.changedTouches).some(t => t.identifier === o.id));
-    if (touches.length < 2) pinchStart = null;
-    if (touches.length === 0) { swipeStart = null; panStart = null; }
-    // If user pinched out then released, re-clamp pan to keep image on screen
-    if (Math.abs(pv.scale - pv.fitScale) < 0.001) {
-      resetViewerView();
-    }
+    pvPointers.delete(e.pointerId);
+    if (pvPointers.size) startPvGesture();
+    else pvGesture = null;
+    if (!pv.annotating && Math.abs(pv.scale - (pv.fitScale || 1)) < 0.03) resetViewerView();
   };
-  stage.addEventListener('touchend', endTouch);
-  stage.addEventListener('touchcancel', endTouch);
+  stage.addEventListener('pointerup', endPvPointer, { passive: false });
+  stage.addEventListener('pointercancel', endPvPointer, { passive: false });
+  stage.addEventListener('wheel', (e) => {
+    if (!viewerActive() || pv.annotating) return;
+    e.preventDefault();
+    const r = stage.getBoundingClientRect();
+    const mx = e.clientX - r.left;
+    const my = e.clientY - r.top;
+    const contentX = (mx - pv.tx) / pv.scale;
+    const contentY = (my - pv.ty) / pv.scale;
+    pv.scale = clampPvScale(pv.scale * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
+    pv.tx = mx - contentX * pv.scale;
+    pv.ty = my - contentY * pv.scale;
+    applyPvTransform();
+  }, { passive: false });
 
   // ---- ANNOTATE MODE: canvas pointer for drawing ----
   let drawPointerId = null;
@@ -2254,8 +2257,9 @@ function pvSetupGestures() {
   canvas.addEventListener('pointerdown', (e) => {
     if (!pv.annotating) return;
     e.preventDefault();
+    e.stopPropagation();
     drawPointerId = e.pointerId;
-    canvas.setPointerCapture(e.pointerId);
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
     const [x, y] = canvasPoint(e.clientX, e.clientY);
     if (pv.tool === 'eraser') {
       const idx = pvHitTestStroke(x, y);
@@ -2279,6 +2283,8 @@ function pvSetupGestures() {
 
   canvas.addEventListener('pointermove', (e) => {
     if (!pv.annotating || !pv.drawing || drawPointerId !== e.pointerId) return;
+    e.preventDefault();
+    e.stopPropagation();
     const [x, y] = canvasPoint(e.clientX, e.clientY);
     if (pv.drawing.kind === 'path') {
       const pts = pv.drawing.points;
@@ -2292,6 +2298,8 @@ function pvSetupGestures() {
 
   const endDraw = (e) => {
     if (!pv.annotating || !pv.drawing || drawPointerId !== e.pointerId) return;
+    e.preventDefault();
+    e.stopPropagation();
     drawPointerId = null;
     if (pv.drawing.kind === 'path' && pv.drawing.points.length < 2) {
       // discard a non-stroke (just a tap)
