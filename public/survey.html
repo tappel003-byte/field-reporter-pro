@@ -6,6 +6,7 @@
 <title>Distress Survey – Field Reporter</title>
 
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <style>
   :root{
     --bg:#f4f0e8; --paper:#fffaf0; --ink:#1a1a1a; --muted:#7a7468;
@@ -473,6 +474,12 @@
       • <code>map.png</code> — floor plan with numbered pins<br>
       • <code>pins.csv</code> — pin number, description, photo count<br>
       <span id="exportPhotosNote">• <code>photos/</code> — every photo as <code>NN-photoN.jpg</code></span>
+    </div>
+    <button class="ghost" style="margin-top:14px;width:100%" onclick="exportProjectPdf()">
+      📄 Download Map as PDF
+    </button>
+    <div class="sheet-sub" style="margin-top:6px">
+      Single-page PDF of the map only — best for printing at 11×17.
     </div>
   </div>
 </div>
@@ -1981,10 +1988,50 @@ function csvField(s) {
   if (/[",\r\n]/.test(str)) return '"' + str.replace(/"/g, '""') + '"';
   return str;
 }
-  return (s||'survey').replace(/[^a-z0-9_\-]+/gi,'_').replace(/_+/g,'_').replace(/^_|_$/g,'').slice(0,60) || 'survey';
-}
 function sanitizeFilename(s) {
   return (s||'survey').replace(/[^a-z0-9_\-]+/gi,'_').replace(/_+/g,'_').replace(/^_|_$/g,'').slice(0,60) || 'survey';
+}
+
+async function exportProjectPdf() {
+  if (!project) return;
+  const btn = event && event.target;
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Building PDF…'; }
+  try {
+    const pngBlob = await composeMapImage('png-blob');
+    const dataUrl = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.onerror = rej;
+      r.readAsDataURL(pngBlob);
+    });
+    const W = project.plan.width, H = project.plan.height;
+    const landscape = W >= H;
+    const { jsPDF } = window.jspdf;
+    // 11x17 tabloid in inches
+    const pdf = new jsPDF({
+      unit: 'in',
+      format: [11, 17],
+      orientation: landscape ? 'landscape' : 'portrait'
+    });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const margin = 0.4;
+    const maxW = pageW - margin*2;
+    const maxH = pageH - margin*2;
+    const scale = Math.min(maxW / W, maxH / H);
+    const drawW = W * scale, drawH = H * scale;
+    const x = (pageW - drawW) / 2;
+    const y = (pageH - drawH) / 2;
+    pdf.addImage(dataUrl, 'PNG', x, y, drawW, drawH, undefined, 'FAST');
+    pdf.save(sanitizeFilename(project.address) + '.pdf');
+    toast('PDF downloaded');
+  } catch (err) {
+    console.error(err);
+    alert('Could not build the PDF: ' + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig || '📄 Download Map as PDF'; }
+  }
 }
 function escapeHtml(s) {
   return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
