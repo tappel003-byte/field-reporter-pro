@@ -1911,130 +1911,76 @@ async function composeMapImage(format) {
   });
 }
 
-async function exportPdf() {
+async function exportProjectZip() {
   if (!project) return;
   const btn = event && event.target;
-  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
-  try {
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
-    const PW = pdf.internal.pageSize.getWidth();
-    const PH = pdf.internal.pageSize.getHeight();
-    const MARGIN = 36;
-
-    // ---- Page 1: header + map ----
-    pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
-    pdf.text('Distress Survey – Field Reporter', MARGIN, MARGIN + 6);
-    pdf.setFont('helvetica','normal'); pdf.setFontSize(11);
-    pdf.text(project.address, MARGIN, MARGIN + 24);
-    const meta = (project.mode === 'internal' ? 'Internal' : 'External') + '  ·  ' +
-      new Date().toLocaleDateString() + '  ·  ' + (project.pins||[]).length + ' pins';
-    pdf.setTextColor(110); pdf.text(meta, MARGIN, MARGIN + 40); pdf.setTextColor(0);
-
-    const mapImg = await composeMapImage();
-    // Fit image into remaining area below header
-    const topY = MARGIN + 56;
-    const availW = PW - MARGIN*2;
-    const availH = PH - topY - MARGIN;
-    const W = project.plan.width, H = project.plan.height;
-    const r = Math.min(availW / W, availH / H);
-    const dw = W * r, dh = H * r;
-    const dx = MARGIN + (availW - dw)/2;
-    const dy = topY + (availH - dh)/2;
-    pdf.addImage(mapImg, 'JPEG', dx, dy, dw, dh, undefined, 'FAST');
-
-    // ---- Description pages ----
-    const pins = (project.pins||[]).slice().sort((a,b) => a.num - b.num);
-    if (pins.length) {
-      pdf.addPage();
-      let y = MARGIN;
-      pdf.setFont('helvetica','bold'); pdf.setFontSize(14);
-      pdf.text('Picture Key', MARGIN, y); y += 18;
-      pdf.setFont('helvetica','normal'); pdf.setFontSize(10); pdf.setTextColor(110);
-      pdf.text(project.address + '  ·  ' + new Date().toLocaleDateString(), MARGIN, y);
-      pdf.setTextColor(0); y += 18;
-
-      pdf.setFontSize(11);
-      const lineH = 14;
-      const colW = PW - MARGIN*2;
-
-      pins.forEach(p => {
-        const numLabel = '#' + p.num + '.';
-        const photoNote = (p.photos && p.photos.length)
-          ? '   (' + p.photos.length + ' photo' + (p.photos.length===1?'':'s') + ')'
-          : '';
-        const text = (p.description && p.description.trim()) || '(no description)';
-        const wrapped = pdf.splitTextToSize(text, colW - 40);
-        const blockH = Math.max(lineH, wrapped.length*lineH) + 6;
-        if (y + blockH > PH - MARGIN) {
-          pdf.addPage(); y = MARGIN;
-        }
-        pdf.setFont('helvetica','bold');
-        pdf.text(numLabel, MARGIN, y);
-        pdf.setFont('helvetica','normal');
-        pdf.text(wrapped, MARGIN + 28, y);
-        if (photoNote) {
-          pdf.setTextColor(140);
-          const photoY = y + wrapped.length*lineH - lineH;
-          pdf.text(photoNote, MARGIN + 28 + pdf.getTextWidth(wrapped[wrapped.length-1]) + 4, photoY);
-          pdf.setTextColor(0);
-        }
-        y += blockH;
-      });
-    }
-
-    const fname = sanitizeFilename(project.address) + '_picture_map.pdf';
-    pdf.save(fname);
-    toast('PDF downloaded');
-  } catch (err) {
-    console.error(err);
-    alert('Could not generate the PDF: ' + err.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '📄 Download Picture Map (PDF)'; }
-  }
-}
-
-async function exportPhotosZip() {
-  if (!project) return;
-  const btn = event && event.target;
+  const orig = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.textContent = 'Bundling…'; }
   try {
     const zip = new JSZip();
-    let any = false;
-    for (const p of (project.pins||[])) {
-      const photos = p.photos||[];
-      for (let i = 0; i < photos.length; i++) {
-        const dataUrl = await resolvePhoto(photos[i]);
-        if (!dataUrl) continue;
-        const m = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
-        if (!m) continue;
-        const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
-        const name = String(p.num).padStart(2,'0') + '-photo' + (i+1) + '.' + ext;
-        zip.file(name, m[2], { base64: true });
-        any = true;
+    const pins = (project.pins || []).slice().sort((a,b) => a.num - b.num);
+    const isInternal = project.mode === 'internal';
+    const folderName = sanitizeFilename(project.address);
+    const root = zip.folder(folderName);
+
+    // map.png
+    const pngBlob = await composeMapImage('png-blob');
+    root.file('map.png', pngBlob);
+
+    // pins.csv
+    const csvLines = ['Pin,Description,Photos'];
+    pins.forEach(p => {
+      const desc = (p.description || '').trim();
+      const photoCount = (p.photos || []).length;
+      csvLines.push([p.num, csvField(desc), photoCount].join(','));
+    });
+    root.file('pins.csv', csvLines.join('\r\n'));
+
+    // photos/
+    if (isInternal) {
+      const photosFolder = root.folder('photos');
+      let any = false;
+      for (const p of pins) {
+        const photos = p.photos || [];
+        for (let i = 0; i < photos.length; i++) {
+          const dataUrl = await resolvePhoto(photos[i]);
+          if (!dataUrl) continue;
+          const m = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+          if (!m) continue;
+          const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+          const name = String(p.num).padStart(2,'0') + '-photo' + (i+1) + '.' + ext;
+          photosFolder.file(name, m[2], { base64: true });
+          any = true;
+        }
+      }
+      if (!any) {
+        // No photos — drop the empty folder by re-creating zip without it would be complex;
+        // JSZip keeps empty folders, which is fine. Leave as-is.
       }
     }
-    if (!any) {
-      toast('No photos to bundle.');
-      return;
-    }
+
     const blob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = sanitizeFilename(project.address) + '_photos.zip';
+    a.download = folderName + '.zip';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast('Photo ZIP downloaded');
+    toast('Project ZIP downloaded');
   } catch (err) {
     console.error(err);
-    alert('Could not bundle photos: ' + err.message);
+    alert('Could not build the ZIP: ' + err.message);
   } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '🗂 Download Photo Folder (ZIP)'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = orig || '📦 Download Project (ZIP)'; }
   }
 }
 
-function sanitizeFilename(s) {
+function csvField(s) {
+  if (s == null) return '';
+  const str = String(s);
+  if (/[",\r\n]/.test(str)) return '"' + str.replace(/"/g, '""') + '"';
+  return str;
+}
   return (s||'survey').replace(/[^a-z0-9_\-]+/gi,'_').replace(/_+/g,'_').replace(/^_|_$/g,'').slice(0,60) || 'survey';
 }
 function escapeHtml(s) {
