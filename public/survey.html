@@ -1873,7 +1873,18 @@ function resetViewerView() {
   pv.ty = (r.height - pv.natH * pv.scale) / 2;
   applyPvTransform();
 }
+function clampViewerPan() {
+  const stage = document.getElementById('pvStage');
+  const r = stage.getBoundingClientRect();
+  const w = pv.natW * pv.scale;
+  const h = pv.natH * pv.scale;
+  if (w <= r.width) pv.tx = (r.width - w) / 2;
+  else pv.tx = Math.min(0, Math.max(r.width - w, pv.tx));
+  if (h <= r.height) pv.ty = (r.height - h) / 2;
+  else pv.ty = Math.min(0, Math.max(r.height - h, pv.ty));
+}
 function applyPvTransform() {
+  clampViewerPan();
   const c = document.getElementById('pvContent');
   c.style.transform = `translate(${pv.tx}px, ${pv.ty}px) scale(${pv.scale})`;
 }
