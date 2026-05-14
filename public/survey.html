@@ -168,11 +168,6 @@
     padding:6px;border-radius:14px;box-shadow:var(--shadow-lg);
     border:1px solid var(--line);z-index:6;align-items:center}
   .draw-toolbar.show{display:flex}
-  .draw-toolbar.side-right{left:auto;right:8px}
-  .draw-toolbar .dt-flip{width:36px;height:24px;border-radius:8px;border:none;
-    background:transparent;color:var(--muted);font-size:14px;padding:0;
-    display:flex;align-items:center;justify-content:center;cursor:pointer}
-  .draw-toolbar .dt-flip:active{transform:scale(.92)}
   .draw-toolbar .dt-row{display:flex;flex-direction:column;gap:4px;align-items:center}
   .draw-toolbar .dt-sep{width:28px;height:1px;background:var(--line);margin:2px 0}
   .draw-toolbar .dt-btn{width:36px;height:36px;border-radius:8px;border:none;
@@ -193,12 +188,10 @@
     .draw-toolbar{left:50%;top:6px;right:auto;bottom:auto;transform:translateX(-50%);
       flex-direction:row;max-width:calc(100vw - 12px);flex-wrap:nowrap;
       justify-content:center;gap:4px;padding:4px}
-    .draw-toolbar.side-right{left:50%;right:auto;top:auto;bottom:6px;transform:translateX(-50%)}
     .draw-toolbar .dt-row{flex-direction:row;gap:3px}
     .draw-toolbar .dt-sep{width:1px;height:24px;margin:0 2px}
     .draw-toolbar .dt-btn{width:32px;height:32px;font-size:15px}
     .draw-toolbar .dt-color{width:22px;height:22px}
-    .draw-toolbar .dt-flip{width:24px;height:32px}
   }
 
   .pin-list{display:flex;flex-direction:column;gap:4px;max-height:60vh;overflow-y:auto;
@@ -410,7 +403,6 @@
       </svg>
     </div>
     <div class="draw-toolbar" id="drawToolbar">
-      <button class="dt-flip" id="drawToolbarFlip" title="Move toolbar to other side" aria-label="Move toolbar">⇆</button>
       <button class="dt-btn active" data-dtool="pencil" title="Pencil">✏️</button>
       <button class="dt-btn" data-dtool="rect" title="Rectangle">▭</button>
       <button class="dt-btn" data-dtool="circle" title="Circle">◯</button>
@@ -950,16 +942,7 @@ function setupDrawToolbar() {
   const tb = document.getElementById('drawToolbar');
   if (!tb || tb._wired) return;
   tb._wired = true;
-  const flip = document.getElementById('drawToolbarFlip');
-  if (flip) {
-    try { tb.classList.toggle('side-right', localStorage.getItem('drawToolbarSide') === 'right'); } catch(_) {}
-    flip.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const nowRight = !tb.classList.contains('side-right');
-      tb.classList.toggle('side-right', nowRight);
-      try { localStorage.setItem('drawToolbarSide', nowRight ? 'right' : 'left'); } catch(_) {}
-    });
-  }
+  try { localStorage.removeItem('drawToolbarSide'); } catch(_) {}
   tb.addEventListener('click', (e) => {
     const b = e.target.closest('button.dt-btn'); if (!b) return;
     if (b.dataset.dtool) {
@@ -1122,8 +1105,15 @@ function constrainView() {
   const s = Math.max(0.5, Math.min(8, Number(ui.view.scale) || 1));
   const vw = W / s, vh = H / s;
   let vx = -ui.view.tx / s, vy = -ui.view.ty / s;
-  vx = vw >= W ? (W - vw) / 2 : Math.max(0, Math.min(W - vw, vx));
-  vy = vh >= H ? (H - vh) / 2 : Math.max(0, Math.min(H - vh, vy));
+  // Allow overscroll on all four sides so toolbars never permanently block the plan.
+  // Margin is in image units, derived from a screen-pixel allowance (~96px).
+  const svg = document.getElementById('planSvg');
+  const r = svg ? svg.getBoundingClientRect() : { width: 1, height: 1 };
+  const pxAllow = 96;
+  const mx = (pxAllow / Math.max(1, r.width)) * vw;
+  const my = (pxAllow / Math.max(1, r.height)) * vh;
+  vx = Math.max(-mx, Math.min(W - vw + mx, vx));
+  vy = Math.max(-my, Math.min(H - vh + my, vy));
   ui.view.scale = s;
   ui.view.tx = -vx * s;
   ui.view.ty = -vy * s;
