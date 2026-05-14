@@ -1385,6 +1385,18 @@ function onPointerDown(e) {
       _maybeTap = null;
       return;
     }
+    if (ui.drawTool === 'text') {
+      const txt = window.prompt('Add text:', '');
+      if (txt && txt.trim()) {
+        snapshot('draw');
+        project.drawings = project.drawings || [];
+        project.drawings.push({ id: uid(), kind: 'text', color: ui.drawColor, thick: ui.drawThick, x: imgPt.x, y: imgPt.y, text: txt.trim() });
+        saveProject();
+        renderDrawings();
+      }
+      _maybeTap = null;
+      return;
+    }
     snapshot('draw');
     const base = { id: uid(), color: ui.drawColor, thick: ui.drawThick };
     if (ui.drawTool === 'pencil') {
@@ -1393,6 +1405,8 @@ function onPointerDown(e) {
       ui.drawing = { ...base, kind: 'rect', x0: imgPt.x, y0: imgPt.y, x1: imgPt.x, y1: imgPt.y };
     } else if (ui.drawTool === 'circle') {
       ui.drawing = { ...base, kind: 'circle', x0: imgPt.x, y0: imgPt.y, x1: imgPt.x, y1: imgPt.y };
+    } else if (ui.drawTool === 'arrow') {
+      ui.drawing = { ...base, kind: 'arrow', x0: imgPt.x, y0: imgPt.y, x1: imgPt.x, y1: imgPt.y };
     }
     project.drawings = project.drawings || [];
     project.drawings.push(ui.drawing);
