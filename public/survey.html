@@ -1944,6 +1944,34 @@ if (window.visualViewport) {
   window.visualViewport.addEventListener('scroll', updateAppHeight);
 }
 
+// Keep focused inputs/textareas visible above the on-screen keyboard.
+// Some Android/Samsung keyboards don't reliably fire visualViewport resize,
+// so we also re-measure on focus and scroll the field into view.
+function ensureFocusedVisible(el) {
+  if (!el) return;
+  const sheet = el.closest('.sheet');
+  const tryScroll = () => {
+    updateAppHeight();
+    try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch(_) { el.scrollIntoView(); }
+    if (sheet) {
+      const r = el.getBoundingClientRect();
+      const vv = window.visualViewport;
+      const visBottom = vv ? (vv.offsetTop + vv.height) : window.innerHeight;
+      if (r.bottom > visBottom - 12) {
+        sheet.scrollTop += (r.bottom - (visBottom - 12));
+      }
+    }
+  };
+  // Run a few times — keyboard animates in over ~300ms on most devices.
+  setTimeout(tryScroll, 50);
+  setTimeout(tryScroll, 250);
+  setTimeout(tryScroll, 500);
+}
+document.addEventListener('focusin', (e) => {
+  const t = e.target;
+  if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT')) ensureFocusedVisible(t);
+});
+
 // ---------- Boot ----------
 load();
 renderHome();
