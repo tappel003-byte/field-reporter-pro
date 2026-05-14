@@ -519,12 +519,86 @@ function load() {
     if (raw) store = JSON.parse(raw);
   } catch (e) { console.warn('load failed', e); }
   if (!store.projects) store.projects = [];
+  // Migrate any inline photo dataURLs out of localStorage into IndexedDB
+  migratePhotosToIdb();
 }
 function save() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); }
   catch (e) {
-    toast('Storage full — older photos may need to be cleared.');
+    toast('Storage full — try removing some photos or an old project.');
     console.error(e);
+  }
+}
+
+// ---------- Photo storage (IndexedDB, much larger quota than localStorage) ----------
+const IDB_NAME = 'pgg_photos_v1', IDB_STORE = 'photos';
+let _idbP;
+function idb() {
+  if (_idbP) return _idbP;
+  _idbP = new Promise((res, rej) => {
+    const r = indexedDB.open(IDB_NAME, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(IDB_STORE);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+  return _idbP;
+}
+function idbReq(mode, fn) {
+  return idb().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(IDB_STORE, mode);
+    const store = tx.objectStore(IDB_STORE);
+    const r = fn(store);
+    tx.oncomplete = () => res(r && 'result' in r ? r.result : undefined);
+    tx.onerror = () => rej(tx.error);
+    tx.onabort = () => rej(tx.error);
+  }));
+}
+const idbPut = (k, v) => idbReq('readwrite', s => s.put(v, k));
+const idbGet = (k) => idbReq('readonly', s => s.get(k));
+const idbDel = (k) => idbReq('readwrite', s => s.delete(k));
+
+function newPhotoId() { return 'ph_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function isPhotoId(s) { return typeof s === 'string' && s.startsWith('ph_'); }
+function isDataUrl(s)  { return typeof s === 'string' && s.startsWith('data:'); }
+
+async function resolvePhoto(entry) {
+  if (!entry) return null;
+  if (isDataUrl(entry)) return entry; // legacy inline
+  if (isPhotoId(entry)) {
+    try { return await idbGet(entry); } catch { return null; }
+  }
+  return null;
+}
+
+async function storePhotoDataUrl(dataUrl) {
+  const id = newPhotoId();
+  await idbPut(id, dataUrl);
+  return id;
+}
+
+async function migratePhotosToIdb() {
+  if (!store.projects) return;
+  let changed = false;
+  for (const proj of store.projects) {
+    for (const pin of (proj.pins || [])) {
+      if (!pin.photos) continue;
+      for (let i = 0; i < pin.photos.length; i++) {
+        const v = pin.photos[i];
+        if (isDataUrl(v)) {
+          try {
+            const id = await storePhotoDataUrl(v);
+            pin.photos[i] = id;
+            changed = true;
+          } catch (e) { console.warn('photo migrate failed', e); }
+        }
+      }
+    }
+  }
+  if (changed) {
+    save();
+    // Re-render whatever's on screen so thumbs reload from IDB
+    if (typeof renderPhotoStrip === 'function') renderPhotoStrip();
+    if (typeof renderHome === 'function' && document.getElementById('homeScreen')?.style.display !== 'none') renderHome();
   }
 }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
