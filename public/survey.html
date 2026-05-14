@@ -1162,6 +1162,15 @@ function onPointerDown(e) {
         _dragPin = { pinId: pin.id };
         _maybeTap = null;
         try { if (navigator.vibrate) navigator.vibrate(40); } catch(_) {}
+        renderPins();
+        // Visual pulse as haptic substitute (iOS Safari has no vibrate)
+        const g = document.getElementById('gPins');
+        if (g) {
+          const grp = Array.from(g.children).find(c => {
+            const t = c.querySelector('text'); return t && t.textContent == String(pin.num);
+          });
+          if (grp) { grp.classList.add('pulse'); setTimeout(()=>grp.classList.remove('pulse'), 260); }
+        }
       }
     }, 450);
     _maybeTap = tap;
