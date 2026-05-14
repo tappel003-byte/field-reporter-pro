@@ -251,9 +251,9 @@
   /* Photo viewer (full-screen photo + annotate) */
   .pviewer{position:fixed;inset:0;background:#000;z-index:80;display:none;overflow:hidden}
   .pviewer.active{display:block}
-  .pv-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  .pv-stage{position:absolute;inset:0;display:block;
     overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}
-  .pv-content{position:relative;display:inline-block;transform-origin:0 0;will-change:transform;
+  .pv-content{position:absolute;left:0;top:0;display:block;transform-origin:0 0;will-change:transform;
     line-height:0}
   .pv-photo{display:block;-webkit-user-drag:none;-webkit-touch-callout:none;pointer-events:none;
     max-width:none;max-height:none}
