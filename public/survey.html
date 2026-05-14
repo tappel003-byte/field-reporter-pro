@@ -1537,6 +1537,28 @@ function onPointerUp(e) {
   _pointers.delete(e.pointerId);
   if (_pointers.size < 2) _pinchInitial = null;
 
+  if (ui.editingText) {
+    const et = ui.editingText;
+    ui.editingText = null;
+    if (!et.moved) {
+      const t = project.drawings[et.idx];
+      if (t) {
+        const next = window.prompt('Edit text (empty to delete):', t.text || '');
+        if (next !== null) {
+          snapshot('edit text');
+          if (next.trim()) t.text = next.trim();
+          else project.drawings.splice(et.idx, 1);
+          saveProject();
+          renderDrawings();
+        }
+      }
+    } else {
+      saveProject();
+    }
+    ui.panning = null;
+    return;
+  }
+
   if (ui.drawing) {
     const d = ui.drawing;
     let tooSmall = false;
