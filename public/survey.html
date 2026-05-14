@@ -2661,8 +2661,8 @@ function hitTestDrawing(x, y) {
       if (Math.hypot(px - x, py - y) <= t) return i;
     } else if (kind === 'text') {
       const fontPx = d._fontPx || Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.07 : d.thick === 2 ? 0.05 : 0.035), 24);
-      const lines = String(d.text || '').split('\n');
-      const w = Math.max(...lines.map(l => l.length)) * fontPx * 0.6;
+      const lines = d._lines || String(d.text || '').split('\n');
+      const w = d._lineW != null ? d._lineW : Math.max(...lines.map(l => l.length)) * fontPx * 0.55;
       const h = lines.length * fontPx * 1.15;
       if (x >= d.x - t && x <= d.x + w + t && y >= d.y - t && y <= d.y + h + t) return i;
     }
