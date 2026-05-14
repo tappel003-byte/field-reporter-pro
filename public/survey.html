@@ -1900,7 +1900,11 @@ async function composeMapImage() {
         ctx.restore();
       }
 
-      resolve(c.toDataURL('image/jpeg', 0.88));
+      if (format === 'png-blob') {
+        c.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
+      } else {
+        resolve(c.toDataURL('image/jpeg', 0.88));
+      }
     };
     img.onerror = reject;
     img.src = project.plan.dataUrl;
