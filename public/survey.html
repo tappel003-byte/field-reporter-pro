@@ -1816,11 +1816,10 @@ function openExport() {
   }
   _sheetOpenedAt = performance.now();
   const isInternal = project.mode === 'internal';
-  document.getElementById('exportZipBtn').style.display = isInternal ? '' : 'none';
-  document.getElementById('exportZipNote').style.display = isInternal ? '' : 'none';
+  document.getElementById('exportPhotosNote').style.display = isInternal ? '' : 'none';
   document.getElementById('exportSub').textContent = isInternal
-    ? 'Picture map (PDF) + photo folder (ZIP)'
-    : 'Picture map (PDF)';
+    ? 'Map + pin list + photos'
+    : 'Map + pin list';
   document.getElementById('scrim').classList.add('active');
   document.getElementById('exportSheet').classList.add('open');
 }
