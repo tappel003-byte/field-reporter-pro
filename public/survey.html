@@ -1703,6 +1703,10 @@ function removePhoto(i) {
   snapshot('remove photo');
   const removed = p.photos.splice(i,1)[0];
   if (isPhotoId(removed)) { idbDel(removed).catch(()=>{}); }
+  // Clear annotations for the removed photo
+  if (p.photoStrokes && isPhotoId(removed)) {
+    delete p.photoStrokes[removed];
+  }
   recomputeNumbering();
   saveProject();
   renderPhotoStrip();
