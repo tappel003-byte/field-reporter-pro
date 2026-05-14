@@ -2509,6 +2509,19 @@ function hitTestDrawing(x, y) {
       const nx = (x - cx)/rx, ny = (y - cy)/ry;
       const dist = Math.abs(Math.hypot(nx, ny) - 1) * Math.min(rx, ry);
       if (dist <= t) return i;
+    } else if (kind === 'arrow') {
+      const dx = d.x1 - d.x0, dy = d.y1 - d.y0;
+      const len2 = dx*dx + dy*dy;
+      if (len2 < 1) continue;
+      const tt = Math.max(0, Math.min(1, ((x - d.x0)*dx + (y - d.y0)*dy) / len2));
+      const px = d.x0 + tt*dx, py = d.y0 + tt*dy;
+      if (Math.hypot(px - x, py - y) <= t) return i;
+    } else if (kind === 'text') {
+      const fontPx = d._fontPx || Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.04 : d.thick === 2 ? 0.028 : 0.02), 12);
+      const lines = String(d.text || '').split('\n');
+      const w = Math.max(...lines.map(l => l.length)) * fontPx * 0.6;
+      const h = lines.length * fontPx * 1.15;
+      if (x >= d.x - t && x <= d.x + w + t && y >= d.y - t && y <= d.y + h + t) return i;
     }
   }
   return -1;
