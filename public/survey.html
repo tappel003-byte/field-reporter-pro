@@ -1982,6 +1982,30 @@ function drawStrokesOnCtx(ctx, strokes, W, H) {
       ctx.beginPath();
       ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI*2);
       ctx.stroke();
+    } else if (kind === 'arrow') {
+      const sw = ctx.lineWidth;
+      ctx.beginPath();
+      ctx.moveTo(d.x0, d.y0);
+      ctx.lineTo(d.x1, d.y1);
+      ctx.stroke();
+      const ang = Math.atan2(d.y1 - d.y0, d.x1 - d.x0);
+      const head = Math.max(sw * 4, baseSw * 3);
+      const a1 = ang + Math.PI - 0.5, a2 = ang + Math.PI + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(d.x1, d.y1);
+      ctx.lineTo(d.x1 + Math.cos(a1) * head, d.y1 + Math.sin(a1) * head);
+      ctx.lineTo(d.x1 + Math.cos(a2) * head, d.y1 + Math.sin(a2) * head);
+      ctx.closePath();
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.fill();
+    } else if (kind === 'text') {
+      const fontPx = Math.max(baseSw * (d.thick === 3 ? 8 : d.thick === 2 ? 5.5 : 4), 14);
+      ctx.font = `600 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = d.color || '#c14a2b';
+      const lines = String(d.text || '').split('\n');
+      lines.forEach((ln, i) => ctx.fillText(ln, d.x, d.y + i * fontPx * 1.15));
+      d._fontPx = fontPx; // cache for hit-test
     }
   }
 }
