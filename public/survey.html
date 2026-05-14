@@ -290,9 +290,9 @@
 
   /* Drawing toolbar inside the photo viewer — anchored top, horizontal strip */
   .pv-toolbar{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 8px);
-    transform:translateX(-50%);display:none;flex-direction:row;gap:4px;
+    transform:translateX(-50%);display:none;flex-direction:row;gap:4px;row-gap:4px;
     background:rgba(255,250,240,.95);padding:4px;border-radius:14px;box-shadow:var(--shadow-lg);
-    border:1px solid var(--line);z-index:6;max-width:calc(100vw - 16px);flex-wrap:nowrap;
+    border:1px solid var(--line);z-index:6;max-width:calc(100vw - 16px);flex-wrap:wrap;
     align-items:center;justify-content:center}
   .pviewer.annotating .pv-toolbar{display:flex}
   .pv-toolbar .dt-row{display:flex;flex-direction:row;gap:3px;align-items:center}
