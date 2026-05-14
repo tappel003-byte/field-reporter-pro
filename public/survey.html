@@ -2394,7 +2394,7 @@ function pvSetupGestures() {
       const txt = window.prompt('Add text:', '');
       if (txt && txt.trim()) {
         pushAnnotateUndo();
-        pv.workingStrokes.push({ id: uid(), kind: 'text', color: '#1a1a1a', thick: pv.thick, x, y, text: txt.trim() });
+        pv.workingStrokes.push({ id: uid(), kind: 'text', color: pv.color, thick: pv.thick, x, y, text: txt.trim() });
         updatePvUndoBtn();
         renderViewerStrokes();
       }
