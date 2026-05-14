@@ -2587,8 +2587,15 @@ async function exportProjectZip() {
       for (const p of pins) {
         const photos = p.photos || [];
         for (let i = 0; i < photos.length; i++) {
-          const dataUrl = await resolvePhoto(photos[i]);
+          const entry = photos[i];
+          let dataUrl = await resolvePhoto(entry);
           if (!dataUrl) continue;
+          // Flatten any annotations onto the exported photo
+          const strokes = (p.photoStrokes && isPhotoId(entry)) ? (p.photoStrokes[entry] || []) : [];
+          if (strokes.length) {
+            try { dataUrl = await compositePhotoWithStrokes(dataUrl, strokes); }
+            catch (e) { console.warn('annotate composite failed', e); }
+          }
           const m = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
           if (!m) continue;
           const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
