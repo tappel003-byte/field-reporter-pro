@@ -1397,7 +1397,7 @@ function onPointerDown(e) {
       if (txt && txt.trim()) {
         snapshot('draw');
         project.drawings = project.drawings || [];
-        project.drawings.push({ id: uid(), kind: 'text', color: '#1a1a1a', thick: ui.drawThick, x: imgPt.x, y: imgPt.y, text: txt.trim() });
+        project.drawings.push({ id: uid(), kind: 'text', color: ui.drawColor, thick: ui.drawThick, x: imgPt.x, y: imgPt.y, text: txt.trim() });
         saveProject();
         renderDrawings();
       }
