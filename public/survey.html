@@ -1120,6 +1120,7 @@ stageEl.addEventListener('pointermove', onPointerMove);
 stageEl.addEventListener('pointerup', onPointerUp);
 stageEl.addEventListener('pointercancel', onPointerUp);
 stageEl.addEventListener('click', onStageClickFallback, true);
+stageEl.addEventListener('contextmenu', (e)=>e.preventDefault());
 stageEl.addEventListener('wheel', (e) => {
   if (!project) return;
   e.preventDefault();
