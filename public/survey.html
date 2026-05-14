@@ -1983,6 +1983,9 @@ function csvField(s) {
 }
   return (s||'survey').replace(/[^a-z0-9_\-]+/gi,'_').replace(/_+/g,'_').replace(/^_|_$/g,'').slice(0,60) || 'survey';
 }
+function sanitizeFilename(s) {
+  return (s||'survey').replace(/[^a-z0-9_\-]+/gi,'_').replace(/_+/g,'_').replace(/^_|_$/g,'').slice(0,60) || 'survey';
+}
 function escapeHtml(s) {
   return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
