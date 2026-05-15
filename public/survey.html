@@ -753,6 +753,52 @@ async function migratePhotosToIdb() {
 }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
+// ---- Photo text-annotation editor modal ----
+// Resolves with { text, size, deleted? } or null if cancelled.
+function openTextEditor(opts, cb) {
+  const scrim = document.getElementById('txedScrim');
+  const input = document.getElementById('txedInput');
+  const title = document.getElementById('txedTitle');
+  const delBtn = document.getElementById('txedDelete');
+  const cancelBtn = document.getElementById('txedCancel');
+  const saveBtn = document.getElementById('txedSave');
+  const sizeBtns = scrim.querySelectorAll('[data-txsize]');
+
+  const isEdit = !!opts.allowDelete;
+  title.textContent = isEdit ? 'Edit text' : 'Add text';
+  input.value = opts.text || '';
+  delBtn.style.display = opts.allowDelete ? '' : 'none';
+  let size = opts.size || 'lg';
+  sizeBtns.forEach(b => b.classList.toggle('active', b.dataset.txsize === size));
+
+  scrim.classList.add('open');
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+
+  let done = false;
+  const finish = (result) => {
+    if (done) return; done = true;
+    scrim.classList.remove('open');
+    sizeBtns.forEach(b => b.onclick = null);
+    saveBtn.onclick = cancelBtn.onclick = delBtn.onclick = null;
+    input.onkeydown = null;
+    cb(result);
+  };
+  sizeBtns.forEach(b => {
+    b.onclick = () => {
+      size = b.dataset.txsize;
+      sizeBtns.forEach(x => x.classList.toggle('active', x === b));
+    };
+  });
+  saveBtn.onclick = () => finish({ text: input.value.trim(), size });
+  cancelBtn.onclick = () => finish(null);
+  delBtn.onclick = () => finish({ deleted: true, text: '', size });
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveBtn.click(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelBtn.click(); }
+  };
+}
+
+
 // ---------- Toast ----------
 let _toastTimer;
 function toast(msg) {
