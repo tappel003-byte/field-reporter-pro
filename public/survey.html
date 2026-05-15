@@ -1447,6 +1447,8 @@ function onPointerDown(e) {
     };
     _maybeTap = null;
     ui.panning = null;
+    // Cancel any pending text edit/move so pinch doesn't accidentally drag a box
+    ui.editingText = null;
     return;
   }
 
