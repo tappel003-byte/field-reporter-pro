@@ -2274,7 +2274,7 @@ function computeTextBox(ctx, d, W, H) {
   ctx.font = `600 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
   const lines = wrapTextCtx(ctx, d.text, boxW - pad * 2);
   ctx.restore();
-  const boxH = lines.length * fontPx * 1.25 + pad * 2;
+  const boxH = (lines.length * 1.25 - 0.25) * fontPx + pad * 2;
   return { x: d.x, y: d.y, w: boxW, h: boxH, fontPx, pad, border, radius, lines, size };
 }
 
