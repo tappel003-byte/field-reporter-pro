@@ -1195,6 +1195,11 @@ function setupDrawToolbar() {
   tb.addEventListener('click', (e) => {
     const b = e.target.closest('button.dt-btn'); if (!b) return;
     if (b.dataset.dtool) {
+      // Changing drawing tools must cancel any pending text-placement tap.
+      // Otherwise a stale text tap can commit after switching to a shape tool.
+      _maybeTap = null;
+      ui.editingText = null;
+      ui.drawing = null;
       ui.drawTool = b.dataset.dtool;
       tb.querySelectorAll('[data-dtool]').forEach(x => x.classList.toggle('active', x === b));
       if (project) renderDrawings();
