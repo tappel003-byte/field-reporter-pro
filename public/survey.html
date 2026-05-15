@@ -248,6 +248,37 @@
   .sheet-actions{display:flex;justify-content:space-between;align-items:center;
     margin-top:14px;padding-top:12px;border-top:1px solid var(--line);gap:10px}
 
+  /* Location chip + picker */
+  .loc-row{display:flex;align-items:center;gap:8px;margin:2px 0 12px;padding:8px 10px;
+    background:var(--bg);border:1px solid var(--line);border-radius:10px}
+  .loc-row .loc-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--muted);font-weight:600;flex-shrink:0}
+  .loc-chip{flex:1;display:flex;align-items:center;justify-content:space-between;gap:8px;
+    background:var(--paper);border:1px solid var(--line);border-radius:8px;
+    padding:8px 12px;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;
+    text-align:left;min-width:0}
+  .loc-chip.empty{color:var(--muted);font-weight:500}
+  .loc-chip .loc-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+  .loc-chip .loc-arrow{color:var(--muted);font-size:14px;flex-shrink:0}
+  .loc-clear{background:transparent;border:none;color:var(--muted);font-size:18px;
+    width:32px;height:32px;border-radius:50%;cursor:pointer;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center}
+  .loc-clear:active{background:var(--line)}
+
+  .loc-cat{border-top:1px solid var(--line)}
+  .loc-cat:first-child{border-top:none}
+  .loc-cat-head{display:flex;align-items:center;justify-content:space-between;
+    width:100%;background:transparent;border:none;padding:14px 4px;
+    font-size:15px;font-weight:600;color:var(--ink);cursor:pointer;text-align:left}
+  .loc-cat-head .caret{color:var(--muted);font-size:12px;transition:transform .15s}
+  .loc-cat.open .loc-cat-head .caret{transform:rotate(90deg)}
+  .loc-cat-body{display:none;padding:0 0 14px;flex-wrap:wrap;gap:8px}
+  .loc-cat.open .loc-cat-body{display:flex}
+  .loc-room{padding:9px 14px;border-radius:999px;border:1px solid var(--line);
+    background:var(--paper);font-size:14px;font-weight:500;color:var(--ink);cursor:pointer}
+  .loc-room:active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+  .loc-room.selected{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
   /* Photo viewer (full-screen photo + annotate) */
   .pviewer{position:fixed;inset:0;background:#000;z-index:80;display:none;overflow:hidden}
   .pviewer.active{display:block}
@@ -531,6 +562,14 @@
     </div>
     <button class="ghost" onclick="closeSheets()">Done</button>
   </div>
+  <div class="loc-row">
+    <span class="loc-label">📍 Location</span>
+    <button class="loc-chip empty" id="pinLocChip" type="button" onclick="openLocationPicker()">
+      <span class="loc-text">Set location</span>
+      <span class="loc-arrow">›</span>
+    </button>
+    <button class="loc-clear" id="pinLocClear" type="button" onclick="clearPinLocation()" style="display:none" aria-label="Clear location">✕</button>
+  </div>
   <div class="photo-strip" id="photoStrip"></div>
   <input type="file" id="pinPhotoFile" accept="image/*" capture="environment" multiple style="display:none" onchange="onPinPhotoFile(event)" />
   <textarea class="desc-area" id="pinDesc" placeholder="Describe what you see…" oninput="onPinDescInput(event)"></textarea>
@@ -538,6 +577,19 @@
     <button class="ghost danger" onclick="deleteCurrentPin()">🗑 Delete pin</button>
     <button class="primary-btn" style="width:auto;padding:10px 18px;font-size:14px" onclick="closeSheets()">Done</button>
   </div>
+</div>
+
+<!-- ============ LOCATION PICKER SHEET ============ -->
+<div class="sheet" id="locPickerSheet">
+  <div class="grab"></div>
+  <div class="sheet-head">
+    <div>
+      <div class="sheet-title">Choose location</div>
+      <div class="sheet-sub">Tap a category, then a room</div>
+    </div>
+    <button class="ghost" onclick="closeLocationPicker()">Cancel</button>
+  </div>
+  <div id="locPickerList"></div>
 </div>
 
 <!-- ============ EXPORT SHEET ============ -->
@@ -557,7 +609,7 @@
     <div class="sheet-sub" style="margin-top:14px;line-height:1.5">
       One ZIP containing:<br>
       • <code>map.png</code> — floor plan with numbered pins<br>
-      • <code>pins.csv</code> — pin number, description, photo count<br>
+      • <code>pins.csv</code> — pin number, location, category, description, photo count<br>
       <span id="exportPhotosNote">• <code>photos/</code> — every photo as <code>NN-photoN.jpg</code></span>
     </div>
     <button class="ghost" style="margin-top:14px;width:100%" onclick="exportProjectPdf()">
@@ -1828,7 +1880,7 @@ function recomputeNumbering() {
 function createPin(x, y) {
   snapshot('new pin');
   const num = project.nextNum || project.startNum || 1;
-  const p = { id: uid(), num, x, y, photos: [], description: '' };
+  const p = { id: uid(), num, x, y, photos: [], description: '', location: null, category: null };
   project.pins.push(p);
   project.nextNum = num + 1; // reserves 1 until a photo is taken
   saveProject();
@@ -1858,8 +1910,10 @@ function openPinSheet() {
   const p = currentPin();
   if (!p) return;
   _sheetOpenedAt = performance.now();
-  document.getElementById('pinTitle').textContent = 'Pin #' + p.num;
+  document.getElementById('pinTitle').textContent =
+    'Pin #' + p.num + (p.location ? ' — ' + p.location : '');
   document.getElementById('pinDesc').value = p.description || '';
+  renderLocationChip();
   renderPhotoStrip();
   document.getElementById('scrim').classList.add('active');
   document.getElementById('pinSheet').classList.add('open');
@@ -1873,6 +1927,109 @@ function onPinDescInput(e) {
   p.description = e.target.value;
   saveProject();
 }
+
+// ---------- Location picker ----------
+const ROOM_CATALOG = [
+  { name: 'Wet Areas', rooms: ['Kitchen','Pantry','Laundry','Powder Room','Bath (Hall)','Bath (Primary)','Bath (Ensuite)','Bath (Jack & Jill)','Wet Bar'] },
+  { name: 'Bedrooms', rooms: ['Primary Bedroom','Bedroom 2','Bedroom 3','Bedroom 4','Guest Bedroom','Nursery','Closet (Primary)','Closet (Walk-in)'] },
+  { name: 'Living Areas', rooms: ['Living Room','Family Room','Great Room','Dining Room','Breakfast Nook','Den','Office','Library','Media Room','Sunroom'] },
+  { name: 'Entry & Circulation', rooms: ['Entry / Foyer','Mudroom','Hallway','Stairwell','Landing'] },
+  { name: 'Exterior / Site', rooms: ['Front Elevation','Rear Elevation','Side Elevation (L)','Side Elevation (R)','Roof','Garage','Driveway','Porch','Deck','Patio','Yard','Fence','Site/Grading'] },
+  { name: 'Specialty', rooms: ['Basement','Attic','Crawlspace','Mechanical Room','Utility','Storage','Gym','Theater','Wine Room'] },
+  { name: 'Other', rooms: ['Custom…'] },
+];
+let _lastOpenCategory = null;
+
+function renderLocationChip() {
+  const p = currentPin();
+  const chip = document.getElementById('pinLocChip');
+  const clear = document.getElementById('pinLocClear');
+  if (!p) return;
+  if (p.location) {
+    chip.classList.remove('empty');
+    chip.querySelector('.loc-text').textContent = p.location;
+    clear.style.display = 'flex';
+  } else {
+    chip.classList.add('empty');
+    chip.querySelector('.loc-text').textContent = 'Set location';
+    clear.style.display = 'none';
+  }
+}
+function openLocationPicker() {
+  const p = currentPin();
+  if (!p) return;
+  _sheetOpenedAt = performance.now();
+  const list = document.getElementById('locPickerList');
+  list.innerHTML = '';
+  const openCat = p.category || _lastOpenCategory || ROOM_CATALOG[0].name;
+  ROOM_CATALOG.forEach(cat => {
+    const wrap = document.createElement('div');
+    wrap.className = 'loc-cat' + (cat.name === openCat ? ' open' : '');
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'loc-cat-head';
+    head.innerHTML = '<span>' + escapeHtml(cat.name) + '</span><span class="caret">›</span>';
+    head.onclick = () => {
+      const wasOpen = wrap.classList.contains('open');
+      list.querySelectorAll('.loc-cat.open').forEach(el => el.classList.remove('open'));
+      if (!wasOpen) wrap.classList.add('open');
+    };
+    const body = document.createElement('div');
+    body.className = 'loc-cat-body';
+    cat.rooms.forEach(room => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'loc-room' + (p.location === room ? ' selected' : '');
+      btn.textContent = room;
+      btn.onclick = () => {
+        if (room === 'Custom…') {
+          const custom = (prompt('Custom location label:', p.location || '') || '').trim();
+          if (!custom) return;
+          setPinLocation(custom, 'Custom');
+        } else {
+          setPinLocation(room, cat.name);
+        }
+      };
+      body.appendChild(btn);
+    });
+    wrap.appendChild(head);
+    wrap.appendChild(body);
+    list.appendChild(wrap);
+  });
+  document.getElementById('scrim').classList.add('active');
+  document.getElementById('locPickerSheet').classList.add('open');
+}
+function closeLocationPicker() {
+  document.getElementById('locPickerSheet').classList.remove('open');
+  // keep pin sheet open + scrim active
+  if (!document.getElementById('pinSheet').classList.contains('open')) {
+    document.getElementById('scrim').classList.remove('active');
+  }
+}
+function setPinLocation(label, category) {
+  const p = currentPin();
+  if (!p) return;
+  snapshot('set location');
+  p.location = label;
+  p.category = category;
+  _lastOpenCategory = category;
+  saveProject();
+  document.getElementById('pinTitle').textContent =
+    'Pin #' + p.num + ' — ' + label;
+  renderLocationChip();
+  closeLocationPicker();
+}
+function clearPinLocation() {
+  const p = currentPin();
+  if (!p || !p.location) return;
+  snapshot('clear location');
+  p.location = null;
+  p.category = null;
+  saveProject();
+  document.getElementById('pinTitle').textContent = 'Pin #' + p.num;
+  renderLocationChip();
+}
+
 function renderPhotoStrip() {
   const p = currentPin();
   const strip = document.getElementById('photoStrip');
@@ -1970,6 +2127,7 @@ function closeSheets(ev) {
   document.getElementById('pinSheet').classList.remove('open');
   document.getElementById('exportSheet').classList.remove('open');
   document.getElementById('pinPickerSheet').classList.remove('open');
+  document.getElementById('locPickerSheet').classList.remove('open');
   document.getElementById('scrim').classList.remove('active');
   ui.selectedPinId = null;
   renderPins();
@@ -1993,7 +2151,7 @@ function openPinPicker() {
       ? (desc.length > 40 ? desc.slice(0,40) + '…' : desc)
       : (photoCount ? photoCount + ' photo' + (photoCount===1?'':'s') : 'No description');
     btn.innerHTML = '<span class="pli-num">'+p.num+'</span>' +
-      '<span class="pli-body"><div class="pli-title">Pin #'+p.num+'</div>' +
+      '<span class="pli-body"><div class="pli-title">Pin #'+p.num+(p.location?' — '+escapeHtml(p.location):'')+'</div>' +
       '<div class="pli-sub">'+escapeHtml(sub)+'</div></span>';
     btn.onclick = () => {
       document.getElementById('pinPickerSheet').classList.remove('open');
@@ -3231,11 +3389,11 @@ async function exportProjectZip() {
     root.file('map.png', pngBlob);
 
     // pins.csv
-    const csvLines = ['Pin,Description,Photos'];
+    const csvLines = ['Pin,Location,Category,Description,Photos'];
     pins.forEach(p => {
       const desc = (p.description || '').trim();
       const photoCount = (p.photos || []).length;
-      csvLines.push([p.num, csvField(desc), photoCount].join(','));
+      csvLines.push([p.num, csvField(p.location||''), csvField(p.category||''), csvField(desc), photoCount].join(','));
     });
     root.file('pins.csv', csvLines.join('\r\n'));
 
