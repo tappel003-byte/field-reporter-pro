@@ -1688,16 +1688,38 @@ function onPointerUp(e) {
   if (ui.editingText) {
     const et = ui.editingText;
     ui.editingText = null;
+    if (et.mode === 'resize') {
+      if (et.snapshotted) saveProject();
+      ui.panning = null;
+      return;
+    }
     if (!et.moved) {
       const t = project.drawings[et.idx];
       if (t) {
-        const next = window.prompt('Edit text (empty to delete):', t.text || '');
-        if (next !== null) {
-          snapshot('edit text');
-          if (next.trim()) t.text = next.trim();
-          else project.drawings.splice(et.idx, 1);
-          saveProject();
-          renderDrawings();
+        if (t.size) {
+          // New boxed format → modal editor with size toggle + delete
+          openTextEditor({ text: t.text || '', size: t.size || 'lg', allowDelete: true }, (result) => {
+            if (!result) return;
+            snapshot('edit text');
+            if (result.deleted || !result.text) {
+              project.drawings.splice(et.idx, 1);
+            } else {
+              t.text = result.text;
+              t.size = result.size;
+            }
+            saveProject();
+            renderDrawings();
+          });
+        } else {
+          // Legacy plain-text annotations: keep simple prompt edit
+          const next = window.prompt('Edit text (empty to delete):', t.text || '');
+          if (next !== null) {
+            snapshot('edit text');
+            if (next.trim()) t.text = next.trim();
+            else project.drawings.splice(et.idx, 1);
+            saveProject();
+            renderDrawings();
+          }
         }
       }
     } else {
