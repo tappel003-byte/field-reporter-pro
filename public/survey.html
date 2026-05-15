@@ -3404,12 +3404,12 @@ async function composeMapImage(format) {
       const R = Math.max(W, H) * 0.018;
       ctx.font = `700 ${R*1.05}px -apple-system, "Segoe UI", Roboto, sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      (project.pins||[]).forEach(p => {
+      (project.pins||[]).forEach((p, idx) => {
         ctx.beginPath();
         ctx.arc(p.x, p.y, R, 0, Math.PI*2);
         ctx.fillStyle = '#c14a2b'; ctx.fill();
         ctx.lineWidth = R*0.18; ctx.strokeStyle = '#fff'; ctx.stroke();
-        ctx.fillStyle = '#fff'; ctx.fillText(p.num, p.x, p.y + R*0.04);
+        ctx.fillStyle = '#fff'; ctx.fillText(pinPlanLabel(p, idx), p.x, p.y + R*0.04);
       });
 
       // north arrow
