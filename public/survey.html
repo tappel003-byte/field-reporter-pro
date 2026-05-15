@@ -1490,21 +1490,51 @@ function onPointerDown(e) {
       return;
     }
     if (ui.drawTool === 'text') {
-      const idx = hitTestDrawing(imgPt.x, imgPt.y);
-      if (idx >= 0 && (project.drawings[idx].kind === 'text')) {
-        const t = project.drawings[idx];
-        ui.editingText = { idx, startX: imgPt.x, startY: imgPt.y, origX: t.x, origY: t.y, moved: false, snapshotted: false };
+      // First: check if a corner resize handle on an existing boxed text was hit.
+      const W = project.plan.width, H = project.plan.height;
+      const baseSw = Math.max(W, H) * 0.005;
+      const handleTol = Math.max(baseSw * 3, 16);
+      let hitIdx = -1, hitMode = null;
+      for (let i = (project.drawings||[]).length - 1; i >= 0; i--) {
+        const s = project.drawings[i];
+        if (s.kind !== 'text' || !s.size || !s._tb) continue;
+        const tb = s._tb;
+        const onRightEdge = Math.abs(imgPt.x - (tb.x + tb.w)) <= handleTol &&
+                            imgPt.y >= tb.y - handleTol && imgPt.y <= tb.y + tb.h + handleTol;
+        if (onRightEdge) { hitIdx = i; hitMode = 'resize'; break; }
+      }
+      if (hitIdx < 0) {
+        const idx = hitTestDrawing(imgPt.x, imgPt.y);
+        if (idx >= 0 && project.drawings[idx].kind === 'text') { hitIdx = idx; hitMode = 'move'; }
+      }
+      if (hitIdx >= 0) {
+        const t = project.drawings[hitIdx];
+        if (hitMode === 'resize') {
+          const tb = t._tb;
+          ui.editingText = { idx: hitIdx, mode: 'resize', startX: imgPt.x, origW: t.width || tb.w, snapshotted: false };
+        } else {
+          ui.editingText = { idx: hitIdx, mode: 'move', startX: imgPt.x, startY: imgPt.y, origX: t.x, origY: t.y, moved: false, snapshotted: false };
+        }
         _maybeTap = null;
         return;
       }
-      const txt = window.prompt('Add text:', '');
-      if (txt && txt.trim()) {
-        snapshot('draw');
+      // No hit → open editor to add a new boxed text annotation.
+      const defaultW = Math.max(W, H) * 0.3;
+      const ax = imgPt.x, ay = imgPt.y;
+      openTextEditor({ text: '', size: 'lg' }, (result) => {
+        if (!result || !result.text) return;
+        snapshot('add text');
         project.drawings = project.drawings || [];
-        project.drawings.push({ id: uid(), kind: 'text', color: ui.drawColor, thick: ui.drawThick, x: imgPt.x, y: imgPt.y, text: txt.trim() });
+        project.drawings.push({
+          id: uid(), kind: 'text',
+          x: ax, y: ay,
+          text: result.text,
+          size: result.size,
+          width: defaultW,
+        });
         saveProject();
         renderDrawings();
-      }
+      });
       _maybeTap = null;
       return;
     }
