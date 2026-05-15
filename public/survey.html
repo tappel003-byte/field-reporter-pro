@@ -2941,11 +2941,16 @@ function hitTestDrawing(x, y) {
       const px = d.x0 + tt*dx, py = d.y0 + tt*dy;
       if (Math.hypot(px - x, py - y) <= t) return i;
     } else if (kind === 'text') {
-      const fontPx = d._fontPx || Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.05 : d.thick === 2 ? 0.035 : 0.024), 18);
-      const lines = d._lines || String(d.text || '').split('\n');
-      const w = d._lineW != null ? d._lineW : Math.max(...lines.map(l => l.length)) * fontPx * 0.55;
-      const h = lines.length * fontPx * 1.15;
-      if (x >= d.x - t && x <= d.x + w + t && y >= d.y - t && y <= d.y + h + t) return i;
+      if (d.size && d._tb) {
+        const tb = d._tb;
+        if (x >= tb.x - t && x <= tb.x + tb.w + t && y >= tb.y - t && y <= tb.y + tb.h + t) return i;
+      } else {
+        const fontPx = d._fontPx || Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.05 : d.thick === 2 ? 0.035 : 0.024), 18);
+        const lines = d._lines || String(d.text || '').split('\n');
+        const w = d._lineW != null ? d._lineW : Math.max(...lines.map(l => l.length)) * fontPx * 0.55;
+        const h = lines.length * fontPx * 1.15;
+        if (x >= d.x - t && x <= d.x + w + t && y >= d.y - t && y <= d.y + h + t) return i;
+      }
     }
   }
   return -1;
