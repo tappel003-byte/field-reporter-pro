@@ -1,36 +1,34 @@
-## Revert yellow drawing color
+## Goal
 
-Yellow is causing layout breaks (toolbar wraps/crowds on tablet) and is hard to tap. Removing it for now; revisit in phase 2 when we have a dedicated highlighter toolbar.
+Bring the same annotation box you just locked in on photos to the floor plan view. The "T" button already exists on the plan toolbar — today it pops a basic `window.prompt()` and drops plain text on the plan with no box, no sizes, no resize, and only basic drag. We'll replace that with the polished boxed version.
 
-### Changes (`public/survey.html`)
+## What you'll get on the plan
 
-1. Remove the yellow swatch button from the main draw toolbar (line 477).
-2. Remove the yellow swatch button from the photo-viewer annotate toolbar (line 580).
-3. Revert the landscape-phone tightening that was added to fit 6 colors — restore the earlier comfortable sizing (`.dt-color` 30×30, gaps 4px, padding 4px) so the remaining 5 colors are easy to tap on tablet and phone.
+- Tap **T** then tap the plan → modal editor opens (same one as photos)
+- Pick **size** (large title / small annotation), type text, save
+- White box with black text appears at the tap point
+- **Drag** to move
+- **Pinch a corner handle** to resize the box (text rewraps inside)
+- **Tap an existing box** with T active → reopens the editor for that box
+- Eraser tool removes it just like other shapes
 
-No JS changes needed — the color picker reads from the buttons present in the DOM.
+Same look, same feel, same two text sizes — just on the plan instead of a photo.
 
-### Phase 2 note
-When we introduce a separate highlighter/marker tool (distinct stroke style), yellow can live on that secondary toolbar without competing with the primary 5-color row.
+## How it'll work under the hood
 
----
+- Reuse the existing photo-viewer text editor modal (`.txed`) — it's already built and styled
+- Extend the plan's `kind: 'text'` drawing to also store `{ size: 'lg'|'sm', w, h }` like photo annotations do
+- Reuse the box geometry helper (around line 2257 — "Photo text-box geometry helper") so wrap/box math is identical
+- Render path: when drawing the plan overlay, if `kind === 'text'` and it has the new fields, draw the white box + wrapped text exactly like the photo viewer does
+- Pointer logic on the plan: hit-test the box rect (not just a point) so drag picks it up anywhere on the box, and add a corner-handle hit-test for resize
+- Backward compat: old text drawings without `size`/`w`/`h` keep rendering as plain text — no data migration needed
 
-## Decision: photo capture "Use Photo" confirmation — solved by going native
+## Out of scope
 
-**Status:** Not a web-app problem to fix. Resolved by future native wrapper.
+- No changes to photo annotations
+- No new toolbar buttons — reusing the existing **T**
+- No PDF export changes (it'll pick up the new rendering automatically since it draws from the same data)
 
-### Context
-On both iPhone (Safari) and Samsung tablet (Chrome), tapping the camera button opens the native OS camera, which forces a "Use Photo / Retake" confirmation step. This is browser/OS behavior triggered by `<input type="file" capture="environment">` — there is no iOS or Android user setting to disable it.
+## Open question before I build
 
-### Why we're not building a workaround
-- A `getUserMedia` burst overlay was prototyped earlier (May 10) but is not currently in `public/survey.html`. Rebuilding it adds complexity, permission edge cases, and lower image quality than a real camera.
-- For volume / burst shots, the user prefers a dedicated camera + import workflow — better quality, faster, no in-app camera UX needed.
-- This app is intended to ship as a **PWA first, then a native app** (Capacitor or similar). The native camera plugin captures frames directly with no OS confirmation prompt — the "Use Photo" step disappears for free.
-
-### Decision
-- Keep the current single-shot `<input type="file" capture>` flow in the web version. It's acceptable for the PWA phase.
-- Do NOT reintroduce the `getUserMedia` burst overlay.
-- Revisit camera UX when we build the native shell — that's the right layer to solve it.
-
-### Phase 2 / native note
-When wrapping as a native app, swap the camera input for the native camera plugin and add true rapid-capture there. Web version stays simple.
+When the plan view is zoomed/panned, should the text box scale with the plan (so it stays "pinned" at a real size on the floor plan, like the other shapes), or stay a constant on-screen size (like a UI label)? The photo viewer scales it with the image — I'd default to the same behavior here unless you'd rather it stay constant.
