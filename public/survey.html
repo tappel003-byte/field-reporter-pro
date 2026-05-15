@@ -1983,8 +1983,16 @@ function changeExtPhotoCount(delta) {
   renderExtCount();
   renderPins();
   refreshSubtitle();
+}
 function currentPin() {
   return project && project.pins.find(p => p.id === ui.selectedPinId);
+}
+// Label drawn on the plan/canvas. External mode uses sequential pin index
+// to avoid clutter when the starting picture number is high (e.g. 225).
+// Internal mode keeps p.num (matches photo numbering).
+function pinPlanLabel(p, idx) {
+  if (project && project.mode === 'external') return String(idx + 1);
+  return String(p.num);
 }
 function onPinDescInput(e) {
   const p = currentPin();
