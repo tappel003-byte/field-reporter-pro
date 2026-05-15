@@ -2393,6 +2393,7 @@ function initPvToolbar() {
       e.stopPropagation();
       pv.tool = b.dataset.pvtool;
       applyPvToolbarUI();
+      renderViewerStrokes();
     });
   });
   tb.querySelectorAll('[data-pvthick]').forEach(b => {
