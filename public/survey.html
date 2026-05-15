@@ -1614,14 +1614,28 @@ function onPointerMove(e) {
 
   if (ui.editingText) {
     const imgPt = clientToImage(e.clientX, e.clientY);
-    const dx = imgPt.x - ui.editingText.startX, dy = imgPt.y - ui.editingText.startY;
-    if (!ui.editingText.moved && Math.hypot(dx, dy) > 6) {
-      ui.editingText.moved = true;
-      if (!ui.editingText.snapshotted) { snapshot('move text'); ui.editingText.snapshotted = true; }
+    const et = ui.editingText;
+    const t = project.drawings[et.idx];
+    if (!t) { ui.editingText = null; return; }
+    if (et.mode === 'resize') {
+      const dx = imgPt.x - et.startX;
+      if (!et.snapshotted && Math.abs(dx) > 4) { snapshot('resize text'); et.snapshotted = true; }
+      if (et.snapshotted) {
+        const W = project.plan.width, H = project.plan.height;
+        const minW = Math.max(W, H) * 0.06;
+        const maxW = W - t.x - 4;
+        t.width = Math.max(minW, Math.min(maxW, et.origW + dx));
+        renderDrawings();
+      }
+      return;
     }
-    if (ui.editingText.moved) {
-      const t = project.drawings[ui.editingText.idx];
-      if (t) { t.x = ui.editingText.origX + dx; t.y = ui.editingText.origY + dy; renderDrawings(); }
+    const dx = imgPt.x - et.startX, dy = imgPt.y - et.startY;
+    if (!et.moved && Math.hypot(dx, dy) > 6) {
+      et.moved = true;
+      if (!et.snapshotted) { snapshot('move text'); et.snapshotted = true; }
+    }
+    if (et.moved) {
+      t.x = et.origX + dx; t.y = et.origY + dy; renderDrawings();
     }
     return;
   }
