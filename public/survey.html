@@ -1911,7 +1911,7 @@ function openPinSheet() {
   if (!p) return;
   _sheetOpenedAt = performance.now();
   document.getElementById('pinTitle').textContent =
-    'Pin #' + p.num + (p.location ? ' — ' + p.location : '');
+    'Pin #' + p.num + (project.mode==='external' && p.location ? ' — ' + p.location : '');
   document.getElementById('pinDesc').value = p.description || '';
   renderLocationChip();
   renderPhotoStrip();
