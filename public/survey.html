@@ -1141,8 +1141,19 @@ function useGpsCoordsOnly() {
 }
 function commitNewProject() {
   const addr = document.getElementById('fAddress').value.trim();
-  const startNum = Math.max(1, parseInt(document.getElementById('fStartNum').value,10) || 1);
+  let startNum = Math.max(1, parseInt(document.getElementById('fStartNum').value,10) || 1);
   if (!addr || !_setupPlan) return;
+  // Soft reminder for external mode when starting picture # isn't 1.
+  if (_setupMode === 'external' && startNum !== 1) {
+    const reset = confirm(
+      'Heads up: starting picture number is ' + startNum + ' (not 1).\n\n' +
+      'Tap OK to reset to 1, or Cancel to continue with ' + startNum + '.'
+    );
+    if (reset) {
+      startNum = 1;
+      document.getElementById('fStartNum').value = '1';
+    }
+  }
   const now = Date.now();
   project = {
     id: uid(),
