@@ -2228,28 +2228,7 @@ function drawStrokesOnCtx(ctx, strokes, W, H) {
       ctx.fillStyle = ctx.strokeStyle;
       ctx.fill();
     } else if (kind === 'text') {
-      // White box, black border, black text. Always — ignores color picker.
-      const tb = computeTextBox(ctx, d, W, H);
-      d._tb = tb;
-      // Subtle drop shadow for lift over photos
-      ctx.save();
-      ctx.shadowColor = 'rgba(0,0,0,0.25)';
-      ctx.shadowBlur = tb.fontPx * 0.4;
-      ctx.shadowOffsetY = tb.fontPx * 0.08;
-      ctx.fillStyle = '#ffffff';
-      roundRectPath(ctx, tb.x, tb.y, tb.w, tb.h, tb.radius);
-      ctx.fill();
-      ctx.restore();
-      // Border
-      ctx.lineWidth = tb.border;
-      ctx.strokeStyle = '#000000';
-      roundRectPath(ctx, tb.x, tb.y, tb.w, tb.h, tb.radius);
-      ctx.stroke();
-      // Text
-      ctx.font = `600 ${tb.fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-      ctx.textBaseline = 'top';
-      ctx.fillStyle = '#000000';
-      tb.lines.forEach((ln, i) => ctx.fillText(ln, tb.x + tb.pad, tb.y + tb.pad + i * tb.fontPx * 1.25));
+      drawTextBoxOnCtx(ctx, d, W, H);
     }
   }
 }
