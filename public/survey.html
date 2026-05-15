@@ -2607,17 +2607,29 @@ function pvSetupGestures() {
     }
     if (pv.tool === 'text') {
       // Tap on existing text → drag to move/resize (right edge); release without movement → edit
-      const idx = pvHitTestStroke(x, y);
-      if (idx >= 0 && pv.workingStrokes[idx].kind === 'text') {
-        const s = pv.workingStrokes[idx];
+      // Check resize-handle hits FIRST — handle extends past the box's right edge,
+      // so pvHitTestStroke (box bounds only) would miss it and we'd open a new text dialog.
+      let hitIdx = -1, hitMode = null;
+      for (let i = pv.workingStrokes.length - 1; i >= 0; i--) {
+        const s = pv.workingStrokes[i];
+        if (s.kind !== 'text' || !s._tb) continue;
         const tb = s._tb;
-        const handleTol = tb ? Math.max(18, tb.fontPx * 0.7) : 24;
-        const onRightEdge = tb && Math.abs(x - (tb.x + tb.w)) <= handleTol &&
+        const handleTol = Math.max(22, tb.fontPx * 0.8);
+        const onRightEdge = Math.abs(x - (tb.x + tb.w)) <= handleTol &&
                             y >= tb.y - handleTol && y <= tb.y + tb.h + handleTol;
-        if (onRightEdge) {
-          pv.editingText = { idx, mode: 'resize', startX: x, origW: s.width || tb.w, snapshotted: false };
+        if (onRightEdge) { hitIdx = i; hitMode = 'resize'; break; }
+      }
+      if (hitIdx < 0) {
+        const idx = pvHitTestStroke(x, y);
+        if (idx >= 0 && pv.workingStrokes[idx].kind === 'text') { hitIdx = idx; hitMode = 'move'; }
+      }
+      if (hitIdx >= 0) {
+        const s = pv.workingStrokes[hitIdx];
+        const tb = s._tb;
+        if (hitMode === 'resize') {
+          pv.editingText = { idx: hitIdx, mode: 'resize', startX: x, origW: s.width || tb.w, snapshotted: false };
         } else {
-          pv.editingText = { idx, mode: 'move', startX: x, startY: y, origX: s.x, origY: s.y, moved: false, snapshotted: false };
+          pv.editingText = { idx: hitIdx, mode: 'move', startX: x, startY: y, origX: s.x, origY: s.y, moved: false, snapshotted: false };
         }
         return;
       }
