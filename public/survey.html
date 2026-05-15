@@ -1910,8 +1910,10 @@ function openPinSheet() {
   const p = currentPin();
   if (!p) return;
   _sheetOpenedAt = performance.now();
-  document.getElementById('pinTitle').textContent = 'Pin #' + p.num;
+  document.getElementById('pinTitle').textContent =
+    'Pin #' + p.num + (p.location ? ' — ' + p.location : '');
   document.getElementById('pinDesc').value = p.description || '';
+  renderLocationChip();
   renderPhotoStrip();
   document.getElementById('scrim').classList.add('active');
   document.getElementById('pinSheet').classList.add('open');
@@ -1925,6 +1927,109 @@ function onPinDescInput(e) {
   p.description = e.target.value;
   saveProject();
 }
+
+// ---------- Location picker ----------
+const ROOM_CATALOG = [
+  { name: 'Wet Areas', rooms: ['Kitchen','Pantry','Laundry','Powder Room','Bath (Hall)','Bath (Primary)','Bath (Ensuite)','Bath (Jack & Jill)','Wet Bar'] },
+  { name: 'Bedrooms', rooms: ['Primary Bedroom','Bedroom 2','Bedroom 3','Bedroom 4','Guest Bedroom','Nursery','Closet (Primary)','Closet (Walk-in)'] },
+  { name: 'Living Areas', rooms: ['Living Room','Family Room','Great Room','Dining Room','Breakfast Nook','Den','Office','Library','Media Room','Sunroom'] },
+  { name: 'Entry & Circulation', rooms: ['Entry / Foyer','Mudroom','Hallway','Stairwell','Landing'] },
+  { name: 'Exterior / Site', rooms: ['Front Elevation','Rear Elevation','Side Elevation (L)','Side Elevation (R)','Roof','Garage','Driveway','Porch','Deck','Patio','Yard','Fence','Site/Grading'] },
+  { name: 'Specialty', rooms: ['Basement','Attic','Crawlspace','Mechanical Room','Utility','Storage','Gym','Theater','Wine Room'] },
+  { name: 'Other', rooms: ['Custom…'] },
+];
+let _lastOpenCategory = null;
+
+function renderLocationChip() {
+  const p = currentPin();
+  const chip = document.getElementById('pinLocChip');
+  const clear = document.getElementById('pinLocClear');
+  if (!p) return;
+  if (p.location) {
+    chip.classList.remove('empty');
+    chip.querySelector('.loc-text').textContent = p.location;
+    clear.style.display = 'flex';
+  } else {
+    chip.classList.add('empty');
+    chip.querySelector('.loc-text').textContent = 'Set location';
+    clear.style.display = 'none';
+  }
+}
+function openLocationPicker() {
+  const p = currentPin();
+  if (!p) return;
+  _sheetOpenedAt = performance.now();
+  const list = document.getElementById('locPickerList');
+  list.innerHTML = '';
+  const openCat = p.category || _lastOpenCategory || ROOM_CATALOG[0].name;
+  ROOM_CATALOG.forEach(cat => {
+    const wrap = document.createElement('div');
+    wrap.className = 'loc-cat' + (cat.name === openCat ? ' open' : '');
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'loc-cat-head';
+    head.innerHTML = '<span>' + escapeHtml(cat.name) + '</span><span class="caret">›</span>';
+    head.onclick = () => {
+      const wasOpen = wrap.classList.contains('open');
+      list.querySelectorAll('.loc-cat.open').forEach(el => el.classList.remove('open'));
+      if (!wasOpen) wrap.classList.add('open');
+    };
+    const body = document.createElement('div');
+    body.className = 'loc-cat-body';
+    cat.rooms.forEach(room => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'loc-room' + (p.location === room ? ' selected' : '');
+      btn.textContent = room;
+      btn.onclick = () => {
+        if (room === 'Custom…') {
+          const custom = (prompt('Custom location label:', p.location || '') || '').trim();
+          if (!custom) return;
+          setPinLocation(custom, 'Custom');
+        } else {
+          setPinLocation(room, cat.name);
+        }
+      };
+      body.appendChild(btn);
+    });
+    wrap.appendChild(head);
+    wrap.appendChild(body);
+    list.appendChild(wrap);
+  });
+  document.getElementById('scrim').classList.add('active');
+  document.getElementById('locPickerSheet').classList.add('open');
+}
+function closeLocationPicker() {
+  document.getElementById('locPickerSheet').classList.remove('open');
+  // keep pin sheet open + scrim active
+  if (!document.getElementById('pinSheet').classList.contains('open')) {
+    document.getElementById('scrim').classList.remove('active');
+  }
+}
+function setPinLocation(label, category) {
+  const p = currentPin();
+  if (!p) return;
+  snapshot('set location');
+  p.location = label;
+  p.category = category;
+  _lastOpenCategory = category;
+  saveProject();
+  document.getElementById('pinTitle').textContent =
+    'Pin #' + p.num + ' — ' + label;
+  renderLocationChip();
+  closeLocationPicker();
+}
+function clearPinLocation() {
+  const p = currentPin();
+  if (!p || !p.location) return;
+  snapshot('clear location');
+  p.location = null;
+  p.category = null;
+  saveProject();
+  document.getElementById('pinTitle').textContent = 'Pin #' + p.num;
+  renderLocationChip();
+}
+
 function renderPhotoStrip() {
   const p = currentPin();
   const strip = document.getElementById('photoStrip');
