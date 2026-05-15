@@ -2260,7 +2260,7 @@ function computeTextBox(ctx, d, W, H) {
   const baseSw = Math.max(W, H) * 0.005;
   // Back-compat: derive size from old `thick` field if missing
   const size = d.size || (d.thick === 3 ? 'lg' : 'sm');
-  const fontPx = Math.max(baseSw * (size === 'lg' ? 12 : 7), size === 'lg' ? 32 : 20);
+  const fontPx = Math.max(baseSw * (size === 'lg' ? 7 : 5), size === 'lg' ? 20 : 14);
   const pad = Math.round(fontPx * 0.4);
   const border = Math.max(2, Math.round(fontPx * 0.08));
   const radius = Math.round(fontPx * 0.3);
