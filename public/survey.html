@@ -2925,7 +2925,7 @@ function renderDrawings() {
       if (d.size) {
         // New boxed format: white box, black border, black text.
         const mctx = getMeasureCtx();
-        const tb = computeTextBox(mctx, d, W, H);
+        const tb = computeTextBox(mctx, d, W, H, 'plan');
         d._tb = tb;
         // Box (with shadow filter)
         g.appendChild(svgEl('rect', {
