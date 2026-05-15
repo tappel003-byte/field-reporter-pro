@@ -3136,13 +3136,17 @@ async function composeMapImage(format) {
           ctx.fillStyle = ctx.strokeStyle;
           ctx.fill();
         } else if (kind === 'text') {
-          const fontPx = Math.max(Math.max(W, H) * (d.thick === 3 ? 0.028 : d.thick === 2 ? 0.02 : 0.014), 10);
-          ctx.font = `600 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-          ctx.textBaseline = 'top';
-          ctx.fillStyle = d.color || '#1a1a1a';
-          const maxW = Math.max(60, Math.min(W - d.x, W * 0.5));
-          const lines = wrapTextCtx(ctx, d.text, maxW);
-          lines.forEach((ln, i) => ctx.fillText(ln, d.x, d.y + i * fontPx * 1.15));
+          if (d.size) {
+            drawTextBoxOnCtx(ctx, d, W, H);
+          } else {
+            const fontPx = Math.max(Math.max(W, H) * (d.thick === 3 ? 0.028 : d.thick === 2 ? 0.02 : 0.014), 10);
+            ctx.font = `600 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = d.color || '#1a1a1a';
+            const maxW = Math.max(60, Math.min(W - d.x, W * 0.5));
+            const lines = wrapTextCtx(ctx, d.text, maxW);
+            lines.forEach((ln, i) => ctx.fillText(ln, d.x, d.y + i * fontPx * 1.15));
+          }
         }
       });
 
