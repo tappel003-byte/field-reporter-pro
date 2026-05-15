@@ -279,6 +279,18 @@
   .loc-room:active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
   .loc-room.selected{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 
+  /* External-camera photo counter */
+  .ext-count-row{display:flex;align-items:center;gap:10px;margin:2px 0 12px;padding:10px 12px;
+    background:var(--bg);border:1px solid var(--line);border-radius:10px}
+  .ext-count-label{flex:1;font-size:12px;color:var(--muted);font-weight:600;line-height:1.3}
+  .ext-count-label .ext-count-pic{display:block;font-size:13px;color:var(--ink);font-weight:700;margin-top:2px}
+  .ext-count-ctrl{display:flex;align-items:center;gap:6px;flex-shrink:0}
+  .ext-count-btn{width:36px;height:36px;border-radius:8px;border:1px solid var(--line);
+    background:var(--paper);font-size:20px;font-weight:700;color:var(--ink);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;line-height:1}
+  .ext-count-btn:active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+  .ext-count-val{min-width:30px;text-align:center;font-size:18px;font-weight:700;color:var(--ink)}
+
   /* Photo viewer (full-screen photo + annotate) */
   .pviewer{position:fixed;inset:0;background:#000;z-index:80;display:none;overflow:hidden}
   .pviewer.active{display:block}
@@ -570,8 +582,21 @@
     </button>
     <button class="loc-clear" id="pinLocClear" type="button" onclick="clearPinLocation()" style="display:none" aria-label="Clear location">✕</button>
   </div>
-  <div class="photo-strip" id="photoStrip"></div>
-  <input type="file" id="pinPhotoFile" accept="image/*" capture="environment" multiple style="display:none" onchange="onPinPhotoFile(event)" />
+  <div class="ext-count-row" id="extCountRow" style="display:none">
+    <div class="ext-count-label">
+      External camera photos for this pin
+      <span class="ext-count-pic" id="extCountPic">Picture #1</span>
+    </div>
+    <div class="ext-count-ctrl">
+      <button type="button" class="ext-count-btn" onclick="changeExtPhotoCount(-1)" aria-label="Decrease">−</button>
+      <div class="ext-count-val" id="extCountVal">0</div>
+      <button type="button" class="ext-count-btn" onclick="changeExtPhotoCount(1)" aria-label="Increase">+</button>
+    </div>
+  </div>
+  <div id="internalPhotoWrap">
+    <div class="photo-strip" id="photoStrip"></div>
+    <input type="file" id="pinPhotoFile" accept="image/*" capture="environment" multiple style="display:none" onchange="onPinPhotoFile(event)" />
+  </div>
   <textarea class="desc-area" id="pinDesc" placeholder="Describe what you see…" oninput="onPinDescInput(event)"></textarea>
   <div class="sheet-actions">
     <button class="ghost danger" onclick="deleteCurrentPin()">🗑 Delete pin</button>
@@ -1164,7 +1189,8 @@ function refreshSubtitle() {
   if (!project) return;
   const pins = project.pins || [];
   const n = pins.length;
-  const pics = pins.reduce((a,p) => a + ((p.photos||[]).length), 0);
+  const isExternal = project.mode === 'external';
+  const pics = pins.reduce((a,p) => a + (isExternal ? (p.extPhotoCount||0) : (p.photos||[]).length), 0);
   const pinLabel = n + ' pin' + (n===1?'':'s');
   const picLabel = pics + ' pic' + (pics===1?'':'s');
   document.getElementById('wSub').textContent = project.mode + ' · ' + pinLabel + ' · ' + picLabel;
@@ -1873,19 +1899,22 @@ function hitTestPin(x, y, cx, cy) {
 
 // ---------- Pins ----------
 function recomputeNumbering() {
-  // Each pin reserves max(1, photos.length) numbers. Pins keep creation order.
+  // Each pin reserves max(1, photo count) numbers. Pins keep creation order.
+  // Internal mode counts attached photos; external mode counts the manual extPhotoCount.
+  const isExternal = project && project.mode === 'external';
   const start = project.startNum || 1;
   let n = start;
   project.pins.forEach(p => {
     p.num = n;
-    n += Math.max(1, (p.photos || []).length);
+    const c = isExternal ? (p.extPhotoCount || 0) : ((p.photos || []).length);
+    n += Math.max(1, c);
   });
   project.nextNum = n;
 }
 function createPin(x, y) {
   snapshot('new pin');
   const num = project.nextNum || project.startNum || 1;
-  const p = { id: uid(), num, x, y, photos: [], description: '', location: null, category: null };
+  const p = { id: uid(), num, x, y, photos: [], description: '', location: null, category: null, extPhotoCount: 0 };
   project.pins.push(p);
   project.nextNum = num + 1; // reserves 1 until a photo is taken
   saveProject();
@@ -1915,14 +1944,45 @@ function openPinSheet() {
   const p = currentPin();
   if (!p) return;
   _sheetOpenedAt = performance.now();
+  const isExternal = project && project.mode === 'external';
   document.getElementById('pinTitle').textContent =
-    'Pin #' + p.num + (project.mode==='external' && p.location ? ' — ' + p.location : '');
+    'Pin #' + p.num + (isExternal && p.location ? ' — ' + p.location : '');
   document.getElementById('pinDesc').value = p.description || '';
+  // External mode: show counter, hide photo upload. Internal mode: opposite.
+  document.getElementById('extCountRow').style.display = isExternal ? '' : 'none';
+  document.getElementById('internalPhotoWrap').style.display = isExternal ? 'none' : '';
   renderLocationChip();
-  renderPhotoStrip();
+  if (isExternal) renderExtCount(); else renderPhotoStrip();
   document.getElementById('scrim').classList.add('active');
   document.getElementById('pinSheet').classList.add('open');
 }
+
+function renderExtCount() {
+  const p = currentPin();
+  if (!p) return;
+  const c = p.extPhotoCount || 0;
+  document.getElementById('extCountVal').textContent = c;
+  // The next picture the user should be on = this pin's starting num + current count.
+  const picNum = (p.num || 1) + c;
+  document.getElementById('extCountPic').textContent =
+    'You should be on external camera picture #' + picNum;
+}
+
+function changeExtPhotoCount(delta) {
+  const p = currentPin();
+  if (!p || project.mode !== 'external') return;
+  const next = Math.max(0, (p.extPhotoCount || 0) + delta);
+  if (next === (p.extPhotoCount || 0)) return;
+  snapshot('change photo count');
+  p.extPhotoCount = next;
+  recomputeNumbering();
+  saveProject();
+  // Title num may have shifted if this changed reservations
+  document.getElementById('pinTitle').textContent =
+    'Pin #' + p.num + (p.location ? ' — ' + p.location : '');
+  renderExtCount();
+  renderPins();
+  refreshSubtitle();
 function currentPin() {
   return project && project.pins.find(p => p.id === ui.selectedPinId);
 }
@@ -3401,7 +3461,7 @@ async function exportProjectZip() {
     const csvLines = [isInternal ? 'Pin,Description,Photos' : 'Pin,Location,Category,Description,Photos'];
     pins.forEach(p => {
       const desc = (p.description || '').trim();
-      const photoCount = (p.photos || []).length;
+      const photoCount = isInternal ? (p.photos || []).length : (p.extPhotoCount || 0);
       csvLines.push(isInternal
         ? [p.num, csvField(desc), photoCount].join(',')
         : [p.num, csvField(p.location||''), csvField(p.category||''), csvField(desc), photoCount].join(','));
