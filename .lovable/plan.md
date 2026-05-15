@@ -1,25 +1,14 @@
-## Shrink floor-plan text annotations
+## Revert yellow drawing color
 
-Looking at your screenshot ("I wonder how this is going to work"), the text is overlapping the pin and dominating the plan. Photo-viewer text sizing is fine — only floor-plan text needs trimming.
+Yellow is causing layout breaks (toolbar wraps/crowds on tablet) and is hard to tap. Removing it for now; revisit in phase 2 when we have a dedicated highlighter toolbar.
 
-### Change
+### Changes (`public/survey.html`)
 
-In `public/survey.html`, reduce the floor-plan text size multipliers by ~30%:
+1. Remove the yellow swatch button from the main draw toolbar (line 477).
+2. Remove the yellow swatch button from the photo-viewer annotate toolbar (line 580).
+3. Revert the landscape-phone tightening that was added to fit 6 colors — restore the earlier comfortable sizing (`.dt-color` 30×30, gaps 4px, padding 4px) so the remaining 5 colors are easy to tap on tablet and phone.
 
-- Thick 3 (large):  `0.07` → `0.05`
-- Thick 2 (medium): `0.05` → `0.035`
-- Thick 1 (small):  `0.035` → `0.024`
-- Minimum floor:    `24px` → `18px`
+No JS changes needed — the color picker reads from the buttons present in the DOM.
 
-Apply in three spots that must stay in sync:
-1. Line 2606 — SVG render
-2. Line 2663 — hit-test fallback
-3. Line 2785 — PDF export render (currently `0.04 / 0.028 / 0.02` min `12` — shrink proportionally to `0.028 / 0.02 / 0.014`, min `10`)
-
-Net effect: medium (default) text on a typical plan goes from ~5% to ~3.5% of the plan's longest side — readable but no longer covering pins. Users who want bigger text can still tap the thick-3 swatch.
-
-### Out of scope
-
-- Photo-viewer text sizes (unchanged — those looked right)
-- Wrapping logic, color, font family
-- Adding a free-form size slider
+### Phase 2 note
+When we introduce a separate highlighter/marker tool (distinct stroke style), yellow can live on that secondary toolbar without competing with the primary 5-color row.
