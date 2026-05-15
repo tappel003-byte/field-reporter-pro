@@ -1145,6 +1145,7 @@ function setupDrawToolbar() {
     if (b.dataset.dtool) {
       ui.drawTool = b.dataset.dtool;
       tb.querySelectorAll('[data-dtool]').forEach(x => x.classList.toggle('active', x === b));
+      if (project) renderDrawings();
     } else if (b.dataset.dthick) {
       ui.drawThick = parseInt(b.dataset.dthick, 10);
       tb.querySelectorAll('[data-dthick]').forEach(x => x.classList.toggle('active', x === b));
