@@ -2391,11 +2391,14 @@ function pvHitTestStroke(x, y) {
       const px = d.x0 + t*dx, py = d.y0 + t*dy;
       if (Math.hypot(px - x, py - y) <= tol) return i;
     } else if (kind === 'text') {
-      const fontPx = d._fontPx || Math.max(baseSw * (d.thick === 3 ? 14 : d.thick === 2 ? 10 : 7), 28);
-      const lines = d._lines || String(d.text || '').split('\n');
-      const w = d._lineW != null ? d._lineW : Math.max(...lines.map(l => l.length)) * fontPx * 0.6;
-      const h = lines.length * fontPx * 1.15;
-      if (x >= d.x - tol && x <= d.x + w + tol && y >= d.y - tol && y <= d.y + h + tol) return i;
+      const tb = d._tb;
+      if (tb) {
+        if (x >= tb.x - tol && x <= tb.x + tb.w + tol && y >= tb.y - tol && y <= tb.y + tb.h + tol) return i;
+      } else {
+        // Fallback before first render: generous bounding box
+        const fb = Math.max(W, H) * 0.3;
+        if (x >= d.x - tol && x <= d.x + (d.width || fb) + tol && y >= d.y - tol && y <= d.y + fb + tol) return i;
+      }
     }
   }
   return -1;
