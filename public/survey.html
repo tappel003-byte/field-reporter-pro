@@ -1898,12 +1898,15 @@ function hitTestPin(x, y, cx, cy) {
 
 // ---------- Pins ----------
 function recomputeNumbering() {
-  // Each pin reserves max(1, photos.length) numbers. Pins keep creation order.
+  // Each pin reserves max(1, photo count) numbers. Pins keep creation order.
+  // Internal mode counts attached photos; external mode counts the manual extPhotoCount.
+  const isExternal = project && project.mode === 'external';
   const start = project.startNum || 1;
   let n = start;
   project.pins.forEach(p => {
     p.num = n;
-    n += Math.max(1, (p.photos || []).length);
+    const c = isExternal ? (p.extPhotoCount || 0) : ((p.photos || []).length);
+    n += Math.max(1, c);
   });
   project.nextNum = n;
 }
