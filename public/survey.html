@@ -1447,6 +1447,8 @@ function onPointerDown(e) {
     };
     _maybeTap = null;
     ui.panning = null;
+    // Cancel any pending text edit/move so pinch doesn't accidentally drag a box
+    ui.editingText = null;
     return;
   }
 
@@ -1520,24 +1522,14 @@ function onPointerDown(e) {
         _maybeTap = null;
         return;
       }
-      // No hit → open editor to add a new boxed text annotation.
-      const defaultW = Math.max(W, H) * 0.3;
-      const ax = imgPt.x, ay = imgPt.y;
-      openTextEditor({ text: '', size: 'lg' }, (result) => {
-        if (!result || !result.text) return;
-        snapshot('add text');
-        project.drawings = project.drawings || [];
-        project.drawings.push({
-          id: uid(), kind: 'text',
-          x: ax, y: ay,
-          text: result.text,
-          size: result.size,
-          width: defaultW,
-        });
-        saveProject();
-        renderDrawings();
-      });
-      _maybeTap = null;
+      // No hit → defer creating a new text box until pointerup confirms a single tap
+      // (so a 2-finger pinch on the plan doesn't accidentally drop a box).
+      _maybeTap = {
+        kind: 'newText',
+        startX: e.clientX, startY: e.clientY,
+        ax: imgPt.x, ay: imgPt.y,
+        moved: false,
+      };
       return;
     }
     snapshot('draw');
@@ -1573,6 +1565,26 @@ function commitTapAction(tap) {
     const p = createPin(tap.imgPt.x, tap.imgPt.y);
     selectPin(p.id);
     openPinSheet();
+    return true;
+  }
+  if (tap.kind === 'newText' && ui.tool === 'draw' && ui.drawTool === 'text') {
+    const W = project.plan.width, H = project.plan.height;
+    const defaultW = Math.max(W, H) * 0.3;
+    const ax = tap.ax, ay = tap.ay;
+    openTextEditor({ text: '', size: 'lg' }, (result) => {
+      if (!result || !result.text) return;
+      snapshot('add text');
+      project.drawings = project.drawings || [];
+      project.drawings.push({
+        id: uid(), kind: 'text',
+        x: ax, y: ay,
+        text: result.text,
+        size: result.size,
+        width: defaultW,
+      });
+      saveProject();
+      renderDrawings();
+    });
     return true;
   }
   return false;
@@ -2316,7 +2328,7 @@ function computeTextBox(ctx, d, W, H) {
   const baseSw = Math.max(W, H) * 0.005;
   // Back-compat: derive size from old `thick` field if missing
   const size = d.size || (d.thick === 3 ? 'lg' : 'sm');
-  const fontPx = Math.max(baseSw * (size === 'lg' ? 7 : 4), size === 'lg' ? 20 : 11);
+  const fontPx = Math.max(baseSw * (size === 'lg' ? 4 : 2.6), size === 'lg' ? 14 : 9);
   const pad = Math.round(fontPx * 0.4);
   const border = Math.max(2, Math.round(fontPx * 0.08));
   const radius = Math.round(fontPx * 0.3);
