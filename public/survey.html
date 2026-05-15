@@ -1567,6 +1567,26 @@ function commitTapAction(tap) {
     openPinSheet();
     return true;
   }
+  if (tap.kind === 'newText' && ui.tool === 'draw' && ui.drawTool === 'text') {
+    const W = project.plan.width, H = project.plan.height;
+    const defaultW = Math.max(W, H) * 0.3;
+    const ax = tap.ax, ay = tap.ay;
+    openTextEditor({ text: '', size: 'lg' }, (result) => {
+      if (!result || !result.text) return;
+      snapshot('add text');
+      project.drawings = project.drawings || [];
+      project.drawings.push({
+        id: uid(), kind: 'text',
+        x: ax, y: ay,
+        text: result.text,
+        size: result.size,
+        width: defaultW,
+      });
+      saveProject();
+      renderDrawings();
+    });
+    return true;
+  }
   return false;
 }
 function onPointerMove(e) {
