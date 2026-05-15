@@ -2324,11 +2324,14 @@ function drawStrokesOnCtx(ctx, strokes, W, H) {
 
 // ---- Photo text-box geometry helper ----
 // Always-black-on-white spec, with two sizes (sm/lg) and a draggable width.
-function computeTextBox(ctx, d, W, H) {
+function computeTextBox(ctx, d, W, H, context) {
   const baseSw = Math.max(W, H) * 0.005;
   // Back-compat: derive size from old `thick` field if missing
   const size = d.size || (d.thick === 3 ? 'lg' : 'sm');
-  const fontPx = Math.max(baseSw * (size === 'lg' ? 4 : 2.6), size === 'lg' ? 14 : 9);
+  const isPlan = context === 'plan';
+  const fontPx = isPlan
+    ? Math.max(baseSw * (size === 'lg' ? 4 : 2.6), size === 'lg' ? 14 : 9)
+    : Math.max(baseSw * (size === 'lg' ? 7 : 4), size === 'lg' ? 20 : 11);
   const pad = Math.round(fontPx * 0.4);
   const border = Math.max(2, Math.round(fontPx * 0.08));
   const radius = Math.round(fontPx * 0.3);
@@ -2358,8 +2361,8 @@ function roundRectPath(ctx, x, y, w, h, r) {
 }
 
 // Shared boxed-text renderer (canvas). Used by photo annotation, plan PDF export.
-function drawTextBoxOnCtx(ctx, d, W, H) {
-  const tb = computeTextBox(ctx, d, W, H);
+function drawTextBoxOnCtx(ctx, d, W, H, context) {
+  const tb = computeTextBox(ctx, d, W, H, context);
   d._tb = tb;
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,0.25)';
@@ -2922,7 +2925,7 @@ function renderDrawings() {
       if (d.size) {
         // New boxed format: white box, black border, black text.
         const mctx = getMeasureCtx();
-        const tb = computeTextBox(mctx, d, W, H);
+        const tb = computeTextBox(mctx, d, W, H, 'plan');
         d._tb = tb;
         // Box (with shadow filter)
         g.appendChild(svgEl('rect', {
@@ -3149,7 +3152,7 @@ async function composeMapImage(format) {
           ctx.fill();
         } else if (kind === 'text') {
           if (d.size) {
-            drawTextBoxOnCtx(ctx, d, W, H);
+            drawTextBoxOnCtx(ctx, d, W, H, 'plan');
           } else {
             const fontPx = Math.max(Math.max(W, H) * (d.thick === 3 ? 0.028 : d.thick === 2 ? 0.02 : 0.014), 10);
             ctx.font = `600 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;

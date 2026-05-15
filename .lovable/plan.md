@@ -1,34 +1,21 @@
-## Goal
+## Problem
 
-Bring the same annotation box you just locked in on photos to the floor plan view. The "T" button already exists on the plan toolbar — today it pops a basic `window.prompt()` and drops plain text on the plan with no box, no sizes, no resize, and only basic drag. We'll replace that with the polished boxed version.
+The previous change shrank text in the shared `boxGeom` helper, which is used by both photo annotations and plan annotations. That unintentionally shrank photo text too. Photos should go back to their original sizing; only the plan should render smaller.
 
-## What you'll get on the plan
+## Fix
 
-- Tap **T** then tap the plan → modal editor opens (same one as photos)
-- Pick **size** (large title / small annotation), type text, save
-- White box with black text appears at the tap point
-- **Drag** to move
-- **Pinch a corner handle** to resize the box (text rewraps inside)
-- **Tap an existing box** with T active → reopens the editor for that box
-- Eraser tool removes it just like other shapes
+Make the size calculation context-aware so photo annotations are unchanged and plan annotations stay smaller.
 
-Same look, same feel, same two text sizes — just on the plan instead of a photo.
-
-## How it'll work under the hood
-
-- Reuse the existing photo-viewer text editor modal (`.txed`) — it's already built and styled
-- Extend the plan's `kind: 'text'` drawing to also store `{ size: 'lg'|'sm', w, h }` like photo annotations do
-- Reuse the box geometry helper (around line 2257 — "Photo text-box geometry helper") so wrap/box math is identical
-- Render path: when drawing the plan overlay, if `kind === 'text'` and it has the new fields, draw the white box + wrapped text exactly like the photo viewer does
-- Pointer logic on the plan: hit-test the box rect (not just a point) so drag picks it up anywhere on the box, and add a corner-handle hit-test for resize
-- Backward compat: old text drawings without `size`/`w`/`h` keep rendering as plain text — no data migration needed
+- Add an optional `context` parameter to the box geometry helper (`'photo'` default, `'plan'` for the plan view).
+- Photo path keeps the original multipliers: `Math.max(baseSw * (lg ? 7 : 4), lg ? 20 : 11)`.
+- Plan path uses the reduced multipliers: `Math.max(baseSw * (lg ? 4 : 2.6), lg ? 14 : 9)`.
+- Update the plan render + hit-test call sites to pass `'plan'`; photo call sites stay as-is (default).
 
 ## Out of scope
 
-- No changes to photo annotations
-- No new toolbar buttons — reusing the existing **T**
-- No PDF export changes (it'll pick up the new rendering automatically since it draws from the same data)
+- No changes to drag/resize, modal editor, pinch handling, or PDF export logic — those already read whatever the geom helper returns.
+- No data migration; existing annotations re-render with the correct sizing automatically.
 
-## Open question before I build
+## Open question
 
-When the plan view is zoomed/panned, should the text box scale with the plan (so it stays "pinned" at a real size on the floor plan, like the other shapes), or stay a constant on-screen size (like a UI label)? The photo viewer scales it with the image — I'd default to the same behavior here unless you'd rather it stay constant.
+Does the current plan-view text size feel right to you, or do you want it a bit bigger / smaller before I lock it in? I'll use whatever you've got on screen now as the baseline unless you say otherwise.
