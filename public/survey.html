@@ -615,6 +615,25 @@
   </div>
 </div>
 
+<!-- ============ PHOTO TEXT EDITOR MODAL ============ -->
+<div class="txed-scrim" id="txedScrim">
+  <div class="txed" role="dialog" aria-label="Edit text annotation">
+    <h3 id="txedTitle">Add text</h3>
+    <textarea id="txedInput" placeholder="Type label…" rows="3"></textarea>
+    <div class="txed-row">
+      <div class="txed-sizes" role="group" aria-label="Text size">
+        <button type="button" class="txed-size sm" data-txsize="sm" aria-label="Small text">T</button>
+        <button type="button" class="txed-size lg active" data-txsize="lg" aria-label="Large text">T</button>
+      </div>
+      <div class="txed-actions">
+        <button type="button" class="txed-cancel" id="txedCancel">Cancel</button>
+        <button type="button" class="txed-delete" id="txedDelete" style="display:none">Delete</button>
+        <button type="button" class="txed-save" id="txedSave">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
