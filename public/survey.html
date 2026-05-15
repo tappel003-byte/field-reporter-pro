@@ -2324,11 +2324,14 @@ function drawStrokesOnCtx(ctx, strokes, W, H) {
 
 // ---- Photo text-box geometry helper ----
 // Always-black-on-white spec, with two sizes (sm/lg) and a draggable width.
-function computeTextBox(ctx, d, W, H) {
+function computeTextBox(ctx, d, W, H, context) {
   const baseSw = Math.max(W, H) * 0.005;
   // Back-compat: derive size from old `thick` field if missing
   const size = d.size || (d.thick === 3 ? 'lg' : 'sm');
-  const fontPx = Math.max(baseSw * (size === 'lg' ? 4 : 2.6), size === 'lg' ? 14 : 9);
+  const isPlan = context === 'plan';
+  const fontPx = isPlan
+    ? Math.max(baseSw * (size === 'lg' ? 4 : 2.6), size === 'lg' ? 14 : 9)
+    : Math.max(baseSw * (size === 'lg' ? 7 : 4), size === 'lg' ? 20 : 11);
   const pad = Math.round(fontPx * 0.4);
   const border = Math.max(2, Math.round(fontPx * 0.08));
   const radius = Math.round(fontPx * 0.3);
