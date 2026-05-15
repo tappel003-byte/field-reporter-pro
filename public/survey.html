@@ -2361,8 +2361,8 @@ function roundRectPath(ctx, x, y, w, h, r) {
 }
 
 // Shared boxed-text renderer (canvas). Used by photo annotation, plan PDF export.
-function drawTextBoxOnCtx(ctx, d, W, H) {
-  const tb = computeTextBox(ctx, d, W, H);
+function drawTextBoxOnCtx(ctx, d, W, H, context) {
+  const tb = computeTextBox(ctx, d, W, H, context);
   d._tb = tb;
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,0.25)';
