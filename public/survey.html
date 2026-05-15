@@ -1943,14 +1943,45 @@ function openPinSheet() {
   const p = currentPin();
   if (!p) return;
   _sheetOpenedAt = performance.now();
+  const isExternal = project && project.mode === 'external';
   document.getElementById('pinTitle').textContent =
-    'Pin #' + p.num + (project.mode==='external' && p.location ? ' — ' + p.location : '');
+    'Pin #' + p.num + (isExternal && p.location ? ' — ' + p.location : '');
   document.getElementById('pinDesc').value = p.description || '';
+  // External mode: show counter, hide photo upload. Internal mode: opposite.
+  document.getElementById('extCountRow').style.display = isExternal ? '' : 'none';
+  document.getElementById('internalPhotoWrap').style.display = isExternal ? 'none' : '';
   renderLocationChip();
-  renderPhotoStrip();
+  if (isExternal) renderExtCount(); else renderPhotoStrip();
   document.getElementById('scrim').classList.add('active');
   document.getElementById('pinSheet').classList.add('open');
 }
+
+function renderExtCount() {
+  const p = currentPin();
+  if (!p) return;
+  const c = p.extPhotoCount || 0;
+  document.getElementById('extCountVal').textContent = c;
+  // The next picture the user should be on = this pin's starting num + current count.
+  const picNum = (p.num || 1) + c;
+  document.getElementById('extCountPic').textContent =
+    'You should be on external camera picture #' + picNum;
+}
+
+function changeExtPhotoCount(delta) {
+  const p = currentPin();
+  if (!p || project.mode !== 'external') return;
+  const next = Math.max(0, (p.extPhotoCount || 0) + delta);
+  if (next === (p.extPhotoCount || 0)) return;
+  snapshot('change photo count');
+  p.extPhotoCount = next;
+  recomputeNumbering();
+  saveProject();
+  // Title num may have shifted if this changed reservations
+  document.getElementById('pinTitle').textContent =
+    'Pin #' + p.num + (p.location ? ' — ' + p.location : '');
+  renderExtCount();
+  renderPins();
+  refreshSubtitle();
 function currentPin() {
   return project && project.pins.find(p => p.id === ui.selectedPinId);
 }
