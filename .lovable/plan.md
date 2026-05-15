@@ -1,21 +1,84 @@
-## Problem
+## Goal
 
-The previous change shrank text in the shared `boxGeom` helper, which is used by both photo annotations and plan annotations. That unintentionally shrank photo text too. Photos should go back to their original sizing; only the plan should render smaller.
+Add a **Location** field to each pin so reports say "Pin #4 — Bath Primary" instead of just "Pin #4". Phone-first, accordion picker grouped by category. No search box, no predictive text — we'll add those later only if they're missed.
 
-## Fix
+## UX (in the existing pin sheet)
 
-Make the size calculation context-aware so photo annotations are unchanged and plan annotations stay smaller.
+Above the photo strip and description, add a single tappable row:
 
-- Add an optional `context` parameter to the box geometry helper (`'photo'` default, `'plan'` for the plan view).
-- Photo path keeps the original multipliers: `Math.max(baseSw * (lg ? 7 : 4), lg ? 20 : 11)`.
-- Plan path uses the reduced multipliers: `Math.max(baseSw * (lg ? 4 : 2.6), lg ? 14 : 9)`.
-- Update the plan render + hit-test call sites to pass `'plan'`; photo call sites stay as-is (default).
+```text
+┌─ Pin #4 ───────────────────── Done ┐
+│  📍 Location:  [ Set location › ]  │  ← when empty
+│  📍 Location:  [ Bath Primary  ✕ ] │  ← when set, ✕ clears
+├────────────────────────────────────┤
+│  [photo strip]                     │
+│  [description textarea]            │
+└────────────────────────────────────┘
+```
 
-## Out of scope
+Tapping the chip opens a **Location picker sheet** (replaces the pin sheet temporarily, same bottom-sheet pattern already used by the pin picker / export sheets):
 
-- No changes to drag/resize, modal editor, pinch handling, or PDF export logic — those already read whatever the geom helper returns.
-- No data migration; existing annotations re-render with the correct sizing automatically.
+```text
+┌─ Choose location ─────────── Cancel ┐
+│ ▾ Wet Areas                         │
+│   [Kitchen] [Pantry] [Laundry]      │
+│   [Powder] [Bath Hall]              │
+│   [Bath Primary] [Bath Ensuite]     │
+│ ▸ Bedrooms                          │
+│ ▸ Living Areas                      │
+│ ▸ Entry & Circulation               │
+│ ▸ Exterior / Site                   │
+│ ▸ Specialty                         │
+│ ▸ Other                             │
+└─────────────────────────────────────┘
+```
+
+- Only one category open at a time (single-open accordion).
+- Tap a room chip → sets location, closes picker, returns to pin sheet.
+- "Other" category contains a single "Custom…" chip that prompts for a free-text label (covers anything we haven't catalogued).
+- Last-used category remembered per session and pre-opened on next pin.
+
+## Room catalogue (v1)
+
+Plain list, easy to extend later. Names match what an inspector would actually write.
+
+- **Wet Areas** — Kitchen, Pantry, Laundry, Powder Room, Bath (Hall), Bath (Primary), Bath (Ensuite), Bath (Jack & Jill), Wet Bar
+- **Bedrooms** — Primary Bedroom, Bedroom 2, Bedroom 3, Bedroom 4, Guest Bedroom, Nursery, Closet (Primary), Closet (Walk-in)
+- **Living Areas** — Living Room, Family Room, Great Room, Dining Room, Breakfast Nook, Den, Office, Library, Media Room, Sunroom
+- **Entry & Circulation** — Entry / Foyer, Mudroom, Hallway, Stairwell, Landing
+- **Exterior / Site** — Front Elevation, Rear Elevation, Side Elevation (L), Side Elevation (R), Roof, Garage, Driveway, Porch, Deck, Patio, Yard, Fence, Site/Grading
+- **Specialty** — Basement, Attic, Crawlspace, Mechanical Room, Utility, Storage, Gym, Theater, Wine Room
+- **Other** — Custom… (free-text)
+
+## Data model
+
+Extend each pin:
+
+```text
+{ id, num, x, y, photos[], description,
+  location:  string | null,    // display label, e.g. "Bath Primary"
+  category:  string | null }   // e.g. "Wet Areas" or "Custom"
+```
+
+Backwards compatible — existing saved projects load fine; missing fields render as empty.
+
+## Export wiring
+
+- **`pins.csv`** — add two columns: `location`, `category`. Place them right after `pin_number`.
+- **PDF / map exports** — pin numbers on the plan stay unchanged. The descriptions list (already rendered alongside the map in the export flow) shows `Pin #4 — Bath Primary` as the heading, with description underneath.
+- **Pin picker sheet** (the one that lists all pins) — show the location next to the pin number so it's easy to find.
+
+## Out of scope (deferred until we feel the pain)
+
+- Search box / predictive text inside the picker.
+- Per-project custom catalogue.
+- Reordering or favoriting categories.
+- Tablet-specific side panel layout — bottom sheet works fine on tablet for v1.
+
+## Files touched
+
+- `public/survey.html` only — markup for the chip + picker sheet, JS for the catalogue + open/close + save, CSV column addition, pin-list rendering tweak.
 
 ## Open question
 
-Does the current plan-view text size feel right to you, or do you want it a bit bigger / smaller before I lock it in? I'll use whatever you've got on screen now as the baseline unless you say otherwise.
+Anything missing from the room catalogue that you know you'll want on day one? Easier to add now than to discover mid-walkthrough.
