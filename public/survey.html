@@ -1189,7 +1189,8 @@ function refreshSubtitle() {
   if (!project) return;
   const pins = project.pins || [];
   const n = pins.length;
-  const pics = pins.reduce((a,p) => a + ((p.photos||[]).length), 0);
+  const isExternal = project.mode === 'external';
+  const pics = pins.reduce((a,p) => a + (isExternal ? (p.extPhotoCount||0) : (p.photos||[]).length), 0);
   const pinLabel = n + ' pin' + (n===1?'':'s');
   const picLabel = pics + ' pic' + (pics===1?'':'s');
   document.getElementById('wSub').textContent = project.mode + ' · ' + pinLabel + ' · ' + picLabel;
