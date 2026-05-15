@@ -1942,6 +1942,10 @@ let _lastOpenCategory = null;
 
 function renderLocationChip() {
   const p = currentPin();
+  const row = document.querySelector('.loc-row');
+  const isExternal = project && project.mode === 'external';
+  if (row) row.style.display = isExternal ? '' : 'none';
+  if (!isExternal) return;
   const chip = document.getElementById('pinLocChip');
   const clear = document.getElementById('pinLocClear');
   if (!p) return;
