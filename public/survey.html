@@ -323,9 +323,37 @@
   .menu button:active,.menu button:hover{background:var(--bg)}
   .menu button.danger{color:var(--bad)}
   .menu .sep{height:1px;background:var(--line);margin:4px 0}
+
+  /* Photo text-annotation editor modal */
+  .txed-scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:none;
+    align-items:center;justify-content:center;padding:16px}
+  .txed-scrim.open{display:flex}
+  .txed{width:100%;max-width:420px;background:var(--paper);border-radius:14px;
+    box-shadow:var(--shadow-lg);padding:14px;display:flex;flex-direction:column;gap:12px}
+  .txed h3{margin:0;font-size:14px;font-weight:700;color:var(--ink);
+    text-transform:uppercase;letter-spacing:.06em}
+  .txed textarea{width:100%;min-height:96px;resize:vertical;padding:10px 12px;
+    border:1px solid var(--line);border-radius:8px;font-size:16px;font-family:inherit;
+    background:var(--paper);color:var(--ink);box-sizing:border-box}
+  .txed textarea:focus{outline:none;border-color:var(--ink)}
+  .txed-row{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .txed-sizes{display:flex;gap:6px}
+  .txed-size{width:42px;height:42px;border-radius:8px;border:1px solid var(--line);
+    background:var(--paper);color:var(--ink);font-weight:800;font-family:Georgia,serif;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1}
+  .txed-size.sm{font-size:14px}
+  .txed-size.lg{font-size:24px}
+  .txed-size.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .txed-actions{display:flex;gap:8px}
+  .txed-actions button{border:none;border-radius:8px;padding:10px 14px;font-size:14px;
+    font-weight:700;cursor:pointer}
+  .txed-cancel{background:transparent;color:var(--muted)}
+  .txed-delete{background:transparent;color:var(--bad)}
+  .txed-save{background:var(--ink);color:var(--paper)}
 </style>
 </head>
 <body>
+
 
 <!-- ============ HOME ============ -->
 <div id="screenHome" class="screen active">
