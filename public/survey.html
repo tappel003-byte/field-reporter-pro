@@ -2540,21 +2540,37 @@ function pvSetupGestures() {
       return;
     }
     if (pv.tool === 'text') {
-      // Tap on existing text → drag to move; release without movement → edit
+      // Tap on existing text → drag to move/resize (right edge); release without movement → edit
       const idx = pvHitTestStroke(x, y);
       if (idx >= 0 && pv.workingStrokes[idx].kind === 'text') {
-        pv.editingText = { idx, startX: x, startY: y, origX: pv.workingStrokes[idx].x, origY: pv.workingStrokes[idx].y, moved: false, snapshotted: false };
+        const s = pv.workingStrokes[idx];
+        const tb = s._tb;
+        const handleTol = tb ? Math.max(18, tb.fontPx * 0.7) : 24;
+        const onRightEdge = tb && Math.abs(x - (tb.x + tb.w)) <= handleTol &&
+                            y >= tb.y - handleTol && y <= tb.y + tb.h + handleTol;
+        if (onRightEdge) {
+          pv.editingText = { idx, mode: 'resize', startX: x, origW: s.width || tb.w, snapshotted: false };
+        } else {
+          pv.editingText = { idx, mode: 'move', startX: x, startY: y, origX: s.x, origY: s.y, moved: false, snapshotted: false };
+        }
         return;
       }
       drawPointerId = null;
       try { canvas.releasePointerCapture(e.pointerId); } catch(_) {}
-      const txt = window.prompt('Add text:', '');
-      if (txt && txt.trim()) {
+      const defaultW = Math.max(pv.natW, pv.natH) * 0.3;
+      openTextEditor({ text: '', size: 'lg' }, (result) => {
+        if (!result || !result.text) return;
         pushAnnotateUndo();
-        pv.workingStrokes.push({ id: uid(), kind: 'text', color: pv.color, thick: pv.thick, x, y, text: txt.trim() });
+        pv.workingStrokes.push({
+          id: uid(), kind: 'text',
+          x, y,
+          text: result.text,
+          size: result.size,
+          width: defaultW
+        });
         updatePvUndoBtn();
         renderViewerStrokes();
-      }
+      });
       return;
     }
     pushAnnotateUndo();
@@ -2572,14 +2588,28 @@ function pvSetupGestures() {
     e.stopPropagation();
     const [x, y] = canvasPoint(e.clientX, e.clientY);
     if (pv.editingText) {
-      const dx = x - pv.editingText.startX, dy = y - pv.editingText.startY;
-      if (!pv.editingText.moved && Math.hypot(dx, dy) > 6) {
-        pv.editingText.moved = true;
-        if (!pv.editingText.snapshotted) { pushAnnotateUndo(); pv.editingText.snapshotted = true; }
+      const et = pv.editingText;
+      const s = pv.workingStrokes[et.idx];
+      if (!s) return;
+      if (et.mode === 'resize') {
+        const dx = x - et.startX;
+        if (!et.snapshotted && Math.abs(dx) > 4) { pushAnnotateUndo(); et.snapshotted = true; }
+        if (et.snapshotted) {
+          const minW = Math.max(pv.natW, pv.natH) * 0.06;
+          const maxW = pv.natW - s.x - 4;
+          s.width = Math.max(minW, Math.min(maxW, et.origW + dx));
+          renderViewerStrokes();
+        }
+        return;
       }
-      if (pv.editingText.moved) {
-        const s = pv.workingStrokes[pv.editingText.idx];
-        if (s) { s.x = pv.editingText.origX + dx; s.y = pv.editingText.origY + dy; renderViewerStrokes(); }
+      const dx = x - et.startX, dy = y - et.startY;
+      if (!et.moved && Math.hypot(dx, dy) > 6) {
+        et.moved = true;
+        if (!et.snapshotted) { pushAnnotateUndo(); et.snapshotted = true; }
+      }
+      if (et.moved) {
+        s.x = et.origX + dx; s.y = et.origY + dy;
+        renderViewerStrokes();
       }
       return;
     }
@@ -2602,17 +2632,25 @@ function pvSetupGestures() {
     if (pv.editingText) {
       const et = pv.editingText;
       pv.editingText = null;
+      if (et.mode === 'resize') {
+        if (et.snapshotted) updatePvUndoBtn();
+        return;
+      }
       if (!et.moved) {
-        // Tap without drag → edit/delete prompt
         const s = pv.workingStrokes[et.idx];
         if (s) {
-          const next = window.prompt('Edit text (empty to delete):', s.text || '');
-          if (next === null) return; // cancelled
-          pushAnnotateUndo();
-          if (next.trim()) s.text = next.trim();
-          else pv.workingStrokes.splice(et.idx, 1);
-          updatePvUndoBtn();
-          renderViewerStrokes();
+          openTextEditor({ text: s.text || '', size: s.size || 'lg', allowDelete: true }, (result) => {
+            if (!result) return;
+            pushAnnotateUndo();
+            if (result.deleted || !result.text) {
+              pv.workingStrokes.splice(et.idx, 1);
+            } else {
+              s.text = result.text;
+              s.size = result.size;
+            }
+            updatePvUndoBtn();
+            renderViewerStrokes();
+          });
         }
       } else {
         updatePvUndoBtn();
