@@ -2838,20 +2838,66 @@ function renderDrawings() {
       g.appendChild(svgEl('polygon', { fill: stroke, stroke, 'stroke-width': sw * 0.5, 'stroke-linejoin':'round',
         points: `${d.x1},${d.y1} ${hx1},${hy1} ${hx2},${hy2}` }));
     } else if (kind === 'text') {
-      const fontPx = Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.05 : d.thick === 2 ? 0.035 : 0.024), 18);
-      // Char-width estimate ~0.55*fontPx; cap line width at ~50% of plan
-      const maxChars = Math.max(8, Math.floor((Math.min(project.plan.width - d.x, project.plan.width * 0.5)) / (fontPx * 0.55)));
-      const lines = wrapTextChars(d.text, maxChars);
-      lines.forEach((ln, i) => {
-        const t = svgEl('text', { x: d.x, y: d.y + (i + 0.85) * fontPx * 1.15, fill: stroke,
-          'font-size': fontPx, 'font-weight': '700',
-          'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' });
-        t.textContent = ln;
-        g.appendChild(t);
-      });
-      d._fontPx = fontPx;
-      d._lines = lines;
-      d._lineW = Math.max(...lines.map(l => l.length)) * fontPx * 0.55;
+      const W = project.plan.width, H = project.plan.height;
+      if (d.size) {
+        // New boxed format: white box, black border, black text.
+        const mctx = getMeasureCtx();
+        const tb = computeTextBox(mctx, d, W, H);
+        d._tb = tb;
+        // Box (with shadow filter)
+        g.appendChild(svgEl('rect', {
+          x: tb.x, y: tb.y, width: tb.w, height: tb.h, rx: tb.radius, ry: tb.radius,
+          fill: '#ffffff', stroke: '#000000', 'stroke-width': tb.border,
+          filter: 'url(#textBoxShadow)'
+        }));
+        // Text lines
+        tb.lines.forEach((ln, i) => {
+          const t = svgEl('text', {
+            x: tb.x + tb.pad,
+            y: tb.y + tb.pad + i * tb.fontPx * 1.25,
+            fill: '#000000',
+            'font-size': tb.fontPx,
+            'font-weight': '600',
+            'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            'dominant-baseline': 'hanging',
+          });
+          t.textContent = ln;
+          g.appendChild(t);
+        });
+        // Resize handle (right edge mid-Y) when text tool is active
+        if (ui.tool === 'draw' && ui.drawTool === 'text') {
+          const baseSw = Math.max(W, H) * 0.005;
+          const r = Math.max(baseSw * 1.6, 8);
+          const hx = tb.x + tb.w, hy = tb.y + tb.h / 2;
+          g.appendChild(svgEl('circle', {
+            cx: hx, cy: hy, r,
+            fill: '#000', stroke: '#fff', 'stroke-width': Math.max(1.5, r * 0.2),
+          }));
+          const glyph = svgEl('text', {
+            x: hx, y: hy, fill: '#fff',
+            'font-size': r * 1.2, 'font-weight': '700',
+            'font-family': '-apple-system, sans-serif',
+            'text-anchor': 'middle', 'dominant-baseline': 'central',
+          });
+          glyph.textContent = '⇔';
+          g.appendChild(glyph);
+        }
+      } else {
+        // Legacy plain-text format (back-compat)
+        const fontPx = Math.max(Math.max(W, H) * (d.thick === 3 ? 0.05 : d.thick === 2 ? 0.035 : 0.024), 18);
+        const maxChars = Math.max(8, Math.floor((Math.min(W - d.x, W * 0.5)) / (fontPx * 0.55)));
+        const lines = wrapTextChars(d.text, maxChars);
+        lines.forEach((ln, i) => {
+          const t = svgEl('text', { x: d.x, y: d.y + (i + 0.85) * fontPx * 1.15, fill: stroke,
+            'font-size': fontPx, 'font-weight': '700',
+            'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' });
+          t.textContent = ln;
+          g.appendChild(t);
+        });
+        d._fontPx = fontPx;
+        d._lines = lines;
+        d._lineW = Math.max(...lines.map(l => l.length)) * fontPx * 0.55;
+      }
     }
   });
 }
