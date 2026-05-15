@@ -2111,7 +2111,29 @@ function renderViewerStrokes() {
   if (pv.annotating && pv.drawing) {
     drawStrokesOnCtx(ctx, [pv.drawing], pv.natW, pv.natH);
   }
+  // Resize handles for text boxes — only when text tool is active
+  if (pv.annotating && pv.tool === 'text') {
+    const baseSw = Math.max(pv.natW, pv.natH) * 0.005;
+    for (const d of list) {
+      if (d.kind !== 'text' || !d._tb) continue;
+      const tb = d._tb;
+      const hx = tb.x + tb.w, hy = tb.y + tb.h / 2;
+      const r = Math.max(baseSw * 1.6, 8);
+      ctx.save();
+      ctx.fillStyle = '#000';
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = Math.max(1.5, r * 0.2);
+      ctx.beginPath(); ctx.arc(hx, hy, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      // Tiny ↔ glyph
+      ctx.fillStyle = '#fff';
+      ctx.font = `700 ${r * 1.2}px -apple-system, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('⇔', hx, hy + r * 0.05);
+      ctx.restore();
+    }
+  }
 }
+
 // Word-wrap helpers used by text annotations.
 // Canvas variant: measures with the current ctx font.
 function wrapTextCtx(ctx, text, maxWidth) {
