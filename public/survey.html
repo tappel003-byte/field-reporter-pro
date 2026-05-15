@@ -248,6 +248,37 @@
   .sheet-actions{display:flex;justify-content:space-between;align-items:center;
     margin-top:14px;padding-top:12px;border-top:1px solid var(--line);gap:10px}
 
+  /* Location chip + picker */
+  .loc-row{display:flex;align-items:center;gap:8px;margin:2px 0 12px;padding:8px 10px;
+    background:var(--bg);border:1px solid var(--line);border-radius:10px}
+  .loc-row .loc-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--muted);font-weight:600;flex-shrink:0}
+  .loc-chip{flex:1;display:flex;align-items:center;justify-content:space-between;gap:8px;
+    background:var(--paper);border:1px solid var(--line);border-radius:8px;
+    padding:8px 12px;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;
+    text-align:left;min-width:0}
+  .loc-chip.empty{color:var(--muted);font-weight:500}
+  .loc-chip .loc-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+  .loc-chip .loc-arrow{color:var(--muted);font-size:14px;flex-shrink:0}
+  .loc-clear{background:transparent;border:none;color:var(--muted);font-size:18px;
+    width:32px;height:32px;border-radius:50%;cursor:pointer;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center}
+  .loc-clear:active{background:var(--line)}
+
+  .loc-cat{border-top:1px solid var(--line)}
+  .loc-cat:first-child{border-top:none}
+  .loc-cat-head{display:flex;align-items:center;justify-content:space-between;
+    width:100%;background:transparent;border:none;padding:14px 4px;
+    font-size:15px;font-weight:600;color:var(--ink);cursor:pointer;text-align:left}
+  .loc-cat-head .caret{color:var(--muted);font-size:12px;transition:transform .15s}
+  .loc-cat.open .loc-cat-head .caret{transform:rotate(90deg)}
+  .loc-cat-body{display:none;padding:0 0 14px;flex-wrap:wrap;gap:8px}
+  .loc-cat.open .loc-cat-body{display:flex}
+  .loc-room{padding:9px 14px;border-radius:999px;border:1px solid var(--line);
+    background:var(--paper);font-size:14px;font-weight:500;color:var(--ink);cursor:pointer}
+  .loc-room:active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+  .loc-room.selected{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
   /* Photo viewer (full-screen photo + annotate) */
   .pviewer{position:fixed;inset:0;background:#000;z-index:80;display:none;overflow:hidden}
   .pviewer.active{display:block}
