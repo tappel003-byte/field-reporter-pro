@@ -323,9 +323,37 @@
   .menu button:active,.menu button:hover{background:var(--bg)}
   .menu button.danger{color:var(--bad)}
   .menu .sep{height:1px;background:var(--line);margin:4px 0}
+
+  /* Photo text-annotation editor modal */
+  .txed-scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:none;
+    align-items:center;justify-content:center;padding:16px}
+  .txed-scrim.open{display:flex}
+  .txed{width:100%;max-width:420px;background:var(--paper);border-radius:14px;
+    box-shadow:var(--shadow-lg);padding:14px;display:flex;flex-direction:column;gap:12px}
+  .txed h3{margin:0;font-size:14px;font-weight:700;color:var(--ink);
+    text-transform:uppercase;letter-spacing:.06em}
+  .txed textarea{width:100%;min-height:96px;resize:vertical;padding:10px 12px;
+    border:1px solid var(--line);border-radius:8px;font-size:16px;font-family:inherit;
+    background:var(--paper);color:var(--ink);box-sizing:border-box}
+  .txed textarea:focus{outline:none;border-color:var(--ink)}
+  .txed-row{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .txed-sizes{display:flex;gap:6px}
+  .txed-size{width:42px;height:42px;border-radius:8px;border:1px solid var(--line);
+    background:var(--paper);color:var(--ink);font-weight:800;font-family:Georgia,serif;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1}
+  .txed-size.sm{font-size:14px}
+  .txed-size.lg{font-size:24px}
+  .txed-size.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .txed-actions{display:flex;gap:8px}
+  .txed-actions button{border:none;border-radius:8px;padding:10px 14px;font-size:14px;
+    font-weight:700;cursor:pointer}
+  .txed-cancel{background:transparent;color:var(--muted)}
+  .txed-delete{background:transparent;color:var(--bad)}
+  .txed-save{background:var(--ink);color:var(--paper)}
 </style>
 </head>
 <body>
+
 
 <!-- ============ HOME ============ -->
 <div id="screenHome" class="screen active">
@@ -587,6 +615,25 @@
   </div>
 </div>
 
+<!-- ============ PHOTO TEXT EDITOR MODAL ============ -->
+<div class="txed-scrim" id="txedScrim">
+  <div class="txed" role="dialog" aria-label="Edit text annotation">
+    <h3 id="txedTitle">Add text</h3>
+    <textarea id="txedInput" placeholder="Type label…" rows="3"></textarea>
+    <div class="txed-row">
+      <div class="txed-sizes" role="group" aria-label="Text size">
+        <button type="button" class="txed-size sm" data-txsize="sm" aria-label="Small text">T</button>
+        <button type="button" class="txed-size lg active" data-txsize="lg" aria-label="Large text">T</button>
+      </div>
+      <div class="txed-actions">
+        <button type="button" class="txed-cancel" id="txedCancel">Cancel</button>
+        <button type="button" class="txed-delete" id="txedDelete" style="display:none">Delete</button>
+        <button type="button" class="txed-save" id="txedSave">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -705,6 +752,52 @@ async function migratePhotosToIdb() {
   }
 }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+// ---- Photo text-annotation editor modal ----
+// Resolves with { text, size, deleted? } or null if cancelled.
+function openTextEditor(opts, cb) {
+  const scrim = document.getElementById('txedScrim');
+  const input = document.getElementById('txedInput');
+  const title = document.getElementById('txedTitle');
+  const delBtn = document.getElementById('txedDelete');
+  const cancelBtn = document.getElementById('txedCancel');
+  const saveBtn = document.getElementById('txedSave');
+  const sizeBtns = scrim.querySelectorAll('[data-txsize]');
+
+  const isEdit = !!opts.allowDelete;
+  title.textContent = isEdit ? 'Edit text' : 'Add text';
+  input.value = opts.text || '';
+  delBtn.style.display = opts.allowDelete ? '' : 'none';
+  let size = opts.size || 'lg';
+  sizeBtns.forEach(b => b.classList.toggle('active', b.dataset.txsize === size));
+
+  scrim.classList.add('open');
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+
+  let done = false;
+  const finish = (result) => {
+    if (done) return; done = true;
+    scrim.classList.remove('open');
+    sizeBtns.forEach(b => b.onclick = null);
+    saveBtn.onclick = cancelBtn.onclick = delBtn.onclick = null;
+    input.onkeydown = null;
+    cb(result);
+  };
+  sizeBtns.forEach(b => {
+    b.onclick = () => {
+      size = b.dataset.txsize;
+      sizeBtns.forEach(x => x.classList.toggle('active', x === b));
+    };
+  });
+  saveBtn.onclick = () => finish({ text: input.value.trim(), size });
+  cancelBtn.onclick = () => finish(null);
+  delBtn.onclick = () => finish({ deleted: true, text: '', size });
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveBtn.click(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelBtn.click(); }
+  };
+}
+
 
 // ---------- Toast ----------
 let _toastTimer;
@@ -2018,7 +2111,29 @@ function renderViewerStrokes() {
   if (pv.annotating && pv.drawing) {
     drawStrokesOnCtx(ctx, [pv.drawing], pv.natW, pv.natH);
   }
+  // Resize handles for text boxes — only when text tool is active
+  if (pv.annotating && pv.tool === 'text') {
+    const baseSw = Math.max(pv.natW, pv.natH) * 0.005;
+    for (const d of list) {
+      if (d.kind !== 'text' || !d._tb) continue;
+      const tb = d._tb;
+      const hx = tb.x + tb.w, hy = tb.y + tb.h / 2;
+      const r = Math.max(baseSw * 1.6, 8);
+      ctx.save();
+      ctx.fillStyle = '#000';
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = Math.max(1.5, r * 0.2);
+      ctx.beginPath(); ctx.arc(hx, hy, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      // Tiny ↔ glyph
+      ctx.fillStyle = '#fff';
+      ctx.font = `700 ${r * 1.2}px -apple-system, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('⇔', hx, hy + r * 0.05);
+      ctx.restore();
+    }
+  }
 }
+
 // Word-wrap helpers used by text annotations.
 // Canvas variant: measures with the current ctx font.
 function wrapTextCtx(ctx, text, maxWidth) {
@@ -2113,18 +2228,65 @@ function drawStrokesOnCtx(ctx, strokes, W, H) {
       ctx.fillStyle = ctx.strokeStyle;
       ctx.fill();
     } else if (kind === 'text') {
-      const fontPx = Math.max(baseSw * (d.thick === 3 ? 14 : d.thick === 2 ? 10 : 7), 28);
-      ctx.font = `700 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      // White box, black border, black text. Always — ignores color picker.
+      const tb = computeTextBox(ctx, d, W, H);
+      d._tb = tb;
+      // Subtle drop shadow for lift over photos
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.25)';
+      ctx.shadowBlur = tb.fontPx * 0.4;
+      ctx.shadowOffsetY = tb.fontPx * 0.08;
+      ctx.fillStyle = '#ffffff';
+      roundRectPath(ctx, tb.x, tb.y, tb.w, tb.h, tb.radius);
+      ctx.fill();
+      ctx.restore();
+      // Border
+      ctx.lineWidth = tb.border;
+      ctx.strokeStyle = '#000000';
+      roundRectPath(ctx, tb.x, tb.y, tb.w, tb.h, tb.radius);
+      ctx.stroke();
+      // Text
+      ctx.font = `600 ${tb.fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       ctx.textBaseline = 'top';
-      ctx.fillStyle = d.color || '#1a1a1a';
-      const maxW = Math.max(60, Math.min(W - d.x - baseSw * 2, W * 0.85));
-      const lines = wrapTextCtx(ctx, d.text, maxW);
-      lines.forEach((ln, i) => ctx.fillText(ln, d.x, d.y + i * fontPx * 1.15));
-      d._fontPx = fontPx;
-      d._lines = lines;
-      d._lineW = lines.reduce((m, ln) => Math.max(m, ctx.measureText(ln).width), 0);
+      ctx.fillStyle = '#000000';
+      tb.lines.forEach((ln, i) => ctx.fillText(ln, tb.x + tb.pad, tb.y + tb.pad + i * tb.fontPx * 1.25));
     }
   }
+}
+
+// ---- Photo text-box geometry helper ----
+// Always-black-on-white spec, with two sizes (sm/lg) and a draggable width.
+function computeTextBox(ctx, d, W, H) {
+  const baseSw = Math.max(W, H) * 0.005;
+  // Back-compat: derive size from old `thick` field if missing
+  const size = d.size || (d.thick === 3 ? 'lg' : 'sm');
+  const fontPx = Math.max(baseSw * (size === 'lg' ? 12 : 7), size === 'lg' ? 32 : 20);
+  const pad = Math.round(fontPx * 0.4);
+  const border = Math.max(2, Math.round(fontPx * 0.08));
+  const radius = Math.round(fontPx * 0.3);
+  // Default width if unset (back-compat for old shapes): ~30% of photo's larger dim
+  const defaultW = Math.max(W, H) * 0.3;
+  const minW = fontPx * 4 + pad * 2;
+  const maxW = W - d.x - 4;
+  const boxW = Math.max(minW, Math.min(maxW, d.width || defaultW));
+  // Wrap text within content area
+  ctx.save();
+  ctx.font = `600 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  const lines = wrapTextCtx(ctx, d.text, boxW - pad * 2);
+  ctx.restore();
+  const boxH = lines.length * fontPx * 1.25 + pad * 2;
+  return { x: d.x, y: d.y, w: boxW, h: boxH, fontPx, pad, border, radius, lines, size };
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
 }
 
 // ---- Composite photo + strokes to a JPEG blob (for export) ----
@@ -2228,6 +2390,7 @@ function initPvToolbar() {
       e.stopPropagation();
       pv.tool = b.dataset.pvtool;
       applyPvToolbarUI();
+      renderViewerStrokes();
     });
   });
   tb.querySelectorAll('[data-pvthick]').forEach(b => {
@@ -2294,11 +2457,14 @@ function pvHitTestStroke(x, y) {
       const px = d.x0 + t*dx, py = d.y0 + t*dy;
       if (Math.hypot(px - x, py - y) <= tol) return i;
     } else if (kind === 'text') {
-      const fontPx = d._fontPx || Math.max(baseSw * (d.thick === 3 ? 14 : d.thick === 2 ? 10 : 7), 28);
-      const lines = d._lines || String(d.text || '').split('\n');
-      const w = d._lineW != null ? d._lineW : Math.max(...lines.map(l => l.length)) * fontPx * 0.6;
-      const h = lines.length * fontPx * 1.15;
-      if (x >= d.x - tol && x <= d.x + w + tol && y >= d.y - tol && y <= d.y + h + tol) return i;
+      const tb = d._tb;
+      if (tb) {
+        if (x >= tb.x - tol && x <= tb.x + tb.w + tol && y >= tb.y - tol && y <= tb.y + tb.h + tol) return i;
+      } else {
+        // Fallback before first render: generous bounding box
+        const fb = Math.max(W, H) * 0.3;
+        if (x >= d.x - tol && x <= d.x + (d.width || fb) + tol && y >= d.y - tol && y <= d.y + fb + tol) return i;
+      }
     }
   }
   return -1;
@@ -2440,21 +2606,37 @@ function pvSetupGestures() {
       return;
     }
     if (pv.tool === 'text') {
-      // Tap on existing text → drag to move; release without movement → edit
+      // Tap on existing text → drag to move/resize (right edge); release without movement → edit
       const idx = pvHitTestStroke(x, y);
       if (idx >= 0 && pv.workingStrokes[idx].kind === 'text') {
-        pv.editingText = { idx, startX: x, startY: y, origX: pv.workingStrokes[idx].x, origY: pv.workingStrokes[idx].y, moved: false, snapshotted: false };
+        const s = pv.workingStrokes[idx];
+        const tb = s._tb;
+        const handleTol = tb ? Math.max(18, tb.fontPx * 0.7) : 24;
+        const onRightEdge = tb && Math.abs(x - (tb.x + tb.w)) <= handleTol &&
+                            y >= tb.y - handleTol && y <= tb.y + tb.h + handleTol;
+        if (onRightEdge) {
+          pv.editingText = { idx, mode: 'resize', startX: x, origW: s.width || tb.w, snapshotted: false };
+        } else {
+          pv.editingText = { idx, mode: 'move', startX: x, startY: y, origX: s.x, origY: s.y, moved: false, snapshotted: false };
+        }
         return;
       }
       drawPointerId = null;
       try { canvas.releasePointerCapture(e.pointerId); } catch(_) {}
-      const txt = window.prompt('Add text:', '');
-      if (txt && txt.trim()) {
+      const defaultW = Math.max(pv.natW, pv.natH) * 0.3;
+      openTextEditor({ text: '', size: 'lg' }, (result) => {
+        if (!result || !result.text) return;
         pushAnnotateUndo();
-        pv.workingStrokes.push({ id: uid(), kind: 'text', color: pv.color, thick: pv.thick, x, y, text: txt.trim() });
+        pv.workingStrokes.push({
+          id: uid(), kind: 'text',
+          x, y,
+          text: result.text,
+          size: result.size,
+          width: defaultW
+        });
         updatePvUndoBtn();
         renderViewerStrokes();
-      }
+      });
       return;
     }
     pushAnnotateUndo();
@@ -2472,14 +2654,28 @@ function pvSetupGestures() {
     e.stopPropagation();
     const [x, y] = canvasPoint(e.clientX, e.clientY);
     if (pv.editingText) {
-      const dx = x - pv.editingText.startX, dy = y - pv.editingText.startY;
-      if (!pv.editingText.moved && Math.hypot(dx, dy) > 6) {
-        pv.editingText.moved = true;
-        if (!pv.editingText.snapshotted) { pushAnnotateUndo(); pv.editingText.snapshotted = true; }
+      const et = pv.editingText;
+      const s = pv.workingStrokes[et.idx];
+      if (!s) return;
+      if (et.mode === 'resize') {
+        const dx = x - et.startX;
+        if (!et.snapshotted && Math.abs(dx) > 4) { pushAnnotateUndo(); et.snapshotted = true; }
+        if (et.snapshotted) {
+          const minW = Math.max(pv.natW, pv.natH) * 0.06;
+          const maxW = pv.natW - s.x - 4;
+          s.width = Math.max(minW, Math.min(maxW, et.origW + dx));
+          renderViewerStrokes();
+        }
+        return;
       }
-      if (pv.editingText.moved) {
-        const s = pv.workingStrokes[pv.editingText.idx];
-        if (s) { s.x = pv.editingText.origX + dx; s.y = pv.editingText.origY + dy; renderViewerStrokes(); }
+      const dx = x - et.startX, dy = y - et.startY;
+      if (!et.moved && Math.hypot(dx, dy) > 6) {
+        et.moved = true;
+        if (!et.snapshotted) { pushAnnotateUndo(); et.snapshotted = true; }
+      }
+      if (et.moved) {
+        s.x = et.origX + dx; s.y = et.origY + dy;
+        renderViewerStrokes();
       }
       return;
     }
@@ -2502,17 +2698,25 @@ function pvSetupGestures() {
     if (pv.editingText) {
       const et = pv.editingText;
       pv.editingText = null;
+      if (et.mode === 'resize') {
+        if (et.snapshotted) updatePvUndoBtn();
+        return;
+      }
       if (!et.moved) {
-        // Tap without drag → edit/delete prompt
         const s = pv.workingStrokes[et.idx];
         if (s) {
-          const next = window.prompt('Edit text (empty to delete):', s.text || '');
-          if (next === null) return; // cancelled
-          pushAnnotateUndo();
-          if (next.trim()) s.text = next.trim();
-          else pv.workingStrokes.splice(et.idx, 1);
-          updatePvUndoBtn();
-          renderViewerStrokes();
+          openTextEditor({ text: s.text || '', size: s.size || 'lg', allowDelete: true }, (result) => {
+            if (!result) return;
+            pushAnnotateUndo();
+            if (result.deleted || !result.text) {
+              pv.workingStrokes.splice(et.idx, 1);
+            } else {
+              s.text = result.text;
+              s.size = result.size;
+            }
+            updatePvUndoBtn();
+            renderViewerStrokes();
+          });
         }
       } else {
         updatePvUndoBtn();
