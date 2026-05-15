@@ -187,12 +187,12 @@
      max-height:500px catches all phones (≤430px tall) but excludes tablets (iPad mini ~744px). */
   @media (orientation: landscape) and (max-height: 500px) {
     .draw-toolbar{left:50%;top:6px;right:auto;bottom:auto;transform:translateX(-50%);
-      flex-direction:row;max-width:calc(100vw - 12px);flex-wrap:wrap;row-gap:4px;
-      justify-content:center;gap:4px;padding:4px}
-    .draw-toolbar .dt-row{flex-direction:row;gap:3px;flex-wrap:wrap;justify-content:center}
+      flex-direction:row;max-width:calc(100vw - 12px);flex-wrap:nowrap;
+      justify-content:center;gap:2px;padding:3px}
+    .draw-toolbar .dt-row{flex-direction:row;gap:2px;flex-wrap:nowrap;justify-content:center}
     .draw-toolbar .dt-sep{width:1px;height:24px;margin:0 2px}
-    .draw-toolbar .dt-btn{width:32px;height:32px;font-size:15px}
-    .draw-toolbar .dt-color{width:30px;height:30px}
+    .draw-toolbar .dt-btn{width:30px;height:30px;font-size:14px}
+    .draw-toolbar .dt-color{width:28px;height:28px;border-width:1.5px}
   }
 
   .pin-list{display:flex;flex-direction:column;gap:4px;max-height:60vh;overflow-y:auto;
