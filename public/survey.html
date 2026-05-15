@@ -3460,7 +3460,7 @@ async function exportProjectZip() {
     const csvLines = [isInternal ? 'Pin,Description,Photos' : 'Pin,Location,Category,Description,Photos'];
     pins.forEach(p => {
       const desc = (p.description || '').trim();
-      const photoCount = (p.photos || []).length;
+      const photoCount = isInternal ? (p.photos || []).length : (p.extPhotoCount || 0);
       csvLines.push(isInternal
         ? [p.num, csvField(desc), photoCount].join(',')
         : [p.num, csvField(p.location||''), csvField(p.category||''), csvField(desc), photoCount].join(','));
