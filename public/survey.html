@@ -1133,6 +1133,7 @@ function setTool(t) {
   document.getElementById('drawToolbar').classList.toggle('show', t === 'draw');
   refreshSubtitle();
   closeMenu();
+  if (project) renderDrawings();
 }
 function setupDrawToolbar() {
   const tb = document.getElementById('drawToolbar');
