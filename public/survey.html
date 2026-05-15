@@ -1133,6 +1133,7 @@ function setTool(t) {
   document.getElementById('drawToolbar').classList.toggle('show', t === 'draw');
   refreshSubtitle();
   closeMenu();
+  if (project) renderDrawings();
 }
 function setupDrawToolbar() {
   const tb = document.getElementById('drawToolbar');
@@ -1144,6 +1145,7 @@ function setupDrawToolbar() {
     if (b.dataset.dtool) {
       ui.drawTool = b.dataset.dtool;
       tb.querySelectorAll('[data-dtool]').forEach(x => x.classList.toggle('active', x === b));
+      if (project) renderDrawings();
     } else if (b.dataset.dthick) {
       ui.drawThick = parseInt(b.dataset.dthick, 10);
       tb.querySelectorAll('[data-dthick]').forEach(x => x.classList.toggle('active', x === b));
@@ -1269,6 +1271,15 @@ function mountPlan() {
   const W = project.plan.width, H = project.plan.height;
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  // defs (shadow filter for text boxes)
+  const defs = svgEl('defs');
+  defs.innerHTML = '<filter id="textBoxShadow" x="-20%" y="-20%" width="140%" height="160%">' +
+    '<feGaussianBlur in="SourceAlpha" stdDeviation="' + (Math.max(W, H) * 0.003).toFixed(2) + '"/>' +
+    '<feOffset dy="' + (Math.max(W, H) * 0.0015).toFixed(2) + '" result="o"/>' +
+    '<feComponentTransfer><feFuncA type="linear" slope="0.35"/></feComponentTransfer>' +
+    '<feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>' +
+    '</filter>';
+  svg.appendChild(defs);
   // image
   const img = svgEl('image', { x:0, y:0, width:W, height:H });
   img.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', project.plan.dataUrl);
@@ -1277,7 +1288,7 @@ function mountPlan() {
   // groups
   svg.appendChild(svgEl('g', { id:'gDrawings' }));
   svg.appendChild(svgEl('g', { id:'gPins' }));
-  
+
 }
 
 // ---------- View transform (pan/zoom) ----------
@@ -1481,21 +1492,51 @@ function onPointerDown(e) {
       return;
     }
     if (ui.drawTool === 'text') {
-      const idx = hitTestDrawing(imgPt.x, imgPt.y);
-      if (idx >= 0 && (project.drawings[idx].kind === 'text')) {
-        const t = project.drawings[idx];
-        ui.editingText = { idx, startX: imgPt.x, startY: imgPt.y, origX: t.x, origY: t.y, moved: false, snapshotted: false };
+      // First: check if a corner resize handle on an existing boxed text was hit.
+      const W = project.plan.width, H = project.plan.height;
+      const baseSw = Math.max(W, H) * 0.005;
+      const handleTol = Math.max(baseSw * 3, 16);
+      let hitIdx = -1, hitMode = null;
+      for (let i = (project.drawings||[]).length - 1; i >= 0; i--) {
+        const s = project.drawings[i];
+        if (s.kind !== 'text' || !s.size || !s._tb) continue;
+        const tb = s._tb;
+        const onRightEdge = Math.abs(imgPt.x - (tb.x + tb.w)) <= handleTol &&
+                            imgPt.y >= tb.y - handleTol && imgPt.y <= tb.y + tb.h + handleTol;
+        if (onRightEdge) { hitIdx = i; hitMode = 'resize'; break; }
+      }
+      if (hitIdx < 0) {
+        const idx = hitTestDrawing(imgPt.x, imgPt.y);
+        if (idx >= 0 && project.drawings[idx].kind === 'text') { hitIdx = idx; hitMode = 'move'; }
+      }
+      if (hitIdx >= 0) {
+        const t = project.drawings[hitIdx];
+        if (hitMode === 'resize') {
+          const tb = t._tb;
+          ui.editingText = { idx: hitIdx, mode: 'resize', startX: imgPt.x, origW: t.width || tb.w, snapshotted: false };
+        } else {
+          ui.editingText = { idx: hitIdx, mode: 'move', startX: imgPt.x, startY: imgPt.y, origX: t.x, origY: t.y, moved: false, snapshotted: false };
+        }
         _maybeTap = null;
         return;
       }
-      const txt = window.prompt('Add text:', '');
-      if (txt && txt.trim()) {
-        snapshot('draw');
+      // No hit → open editor to add a new boxed text annotation.
+      const defaultW = Math.max(W, H) * 0.3;
+      const ax = imgPt.x, ay = imgPt.y;
+      openTextEditor({ text: '', size: 'lg' }, (result) => {
+        if (!result || !result.text) return;
+        snapshot('add text');
         project.drawings = project.drawings || [];
-        project.drawings.push({ id: uid(), kind: 'text', color: ui.drawColor, thick: ui.drawThick, x: imgPt.x, y: imgPt.y, text: txt.trim() });
+        project.drawings.push({
+          id: uid(), kind: 'text',
+          x: ax, y: ay,
+          text: result.text,
+          size: result.size,
+          width: defaultW,
+        });
         saveProject();
         renderDrawings();
-      }
+      });
       _maybeTap = null;
       return;
     }
@@ -1575,14 +1616,28 @@ function onPointerMove(e) {
 
   if (ui.editingText) {
     const imgPt = clientToImage(e.clientX, e.clientY);
-    const dx = imgPt.x - ui.editingText.startX, dy = imgPt.y - ui.editingText.startY;
-    if (!ui.editingText.moved && Math.hypot(dx, dy) > 6) {
-      ui.editingText.moved = true;
-      if (!ui.editingText.snapshotted) { snapshot('move text'); ui.editingText.snapshotted = true; }
+    const et = ui.editingText;
+    const t = project.drawings[et.idx];
+    if (!t) { ui.editingText = null; return; }
+    if (et.mode === 'resize') {
+      const dx = imgPt.x - et.startX;
+      if (!et.snapshotted && Math.abs(dx) > 4) { snapshot('resize text'); et.snapshotted = true; }
+      if (et.snapshotted) {
+        const W = project.plan.width, H = project.plan.height;
+        const minW = Math.max(W, H) * 0.06;
+        const maxW = W - t.x - 4;
+        t.width = Math.max(minW, Math.min(maxW, et.origW + dx));
+        renderDrawings();
+      }
+      return;
     }
-    if (ui.editingText.moved) {
-      const t = project.drawings[ui.editingText.idx];
-      if (t) { t.x = ui.editingText.origX + dx; t.y = ui.editingText.origY + dy; renderDrawings(); }
+    const dx = imgPt.x - et.startX, dy = imgPt.y - et.startY;
+    if (!et.moved && Math.hypot(dx, dy) > 6) {
+      et.moved = true;
+      if (!et.snapshotted) { snapshot('move text'); et.snapshotted = true; }
+    }
+    if (et.moved) {
+      t.x = et.origX + dx; t.y = et.origY + dy; renderDrawings();
     }
     return;
   }
@@ -1635,16 +1690,38 @@ function onPointerUp(e) {
   if (ui.editingText) {
     const et = ui.editingText;
     ui.editingText = null;
+    if (et.mode === 'resize') {
+      if (et.snapshotted) saveProject();
+      ui.panning = null;
+      return;
+    }
     if (!et.moved) {
       const t = project.drawings[et.idx];
       if (t) {
-        const next = window.prompt('Edit text (empty to delete):', t.text || '');
-        if (next !== null) {
-          snapshot('edit text');
-          if (next.trim()) t.text = next.trim();
-          else project.drawings.splice(et.idx, 1);
-          saveProject();
-          renderDrawings();
+        if (t.size) {
+          // New boxed format → modal editor with size toggle + delete
+          openTextEditor({ text: t.text || '', size: t.size || 'lg', allowDelete: true }, (result) => {
+            if (!result) return;
+            snapshot('edit text');
+            if (result.deleted || !result.text) {
+              project.drawings.splice(et.idx, 1);
+            } else {
+              t.text = result.text;
+              t.size = result.size;
+            }
+            saveProject();
+            renderDrawings();
+          });
+        } else {
+          // Legacy plain-text annotations: keep simple prompt edit
+          const next = window.prompt('Edit text (empty to delete):', t.text || '');
+          if (next !== null) {
+            snapshot('edit text');
+            if (next.trim()) t.text = next.trim();
+            else project.drawings.splice(et.idx, 1);
+            saveProject();
+            renderDrawings();
+          }
         }
       }
     } else {
@@ -2228,28 +2305,7 @@ function drawStrokesOnCtx(ctx, strokes, W, H) {
       ctx.fillStyle = ctx.strokeStyle;
       ctx.fill();
     } else if (kind === 'text') {
-      // White box, black border, black text. Always — ignores color picker.
-      const tb = computeTextBox(ctx, d, W, H);
-      d._tb = tb;
-      // Subtle drop shadow for lift over photos
-      ctx.save();
-      ctx.shadowColor = 'rgba(0,0,0,0.25)';
-      ctx.shadowBlur = tb.fontPx * 0.4;
-      ctx.shadowOffsetY = tb.fontPx * 0.08;
-      ctx.fillStyle = '#ffffff';
-      roundRectPath(ctx, tb.x, tb.y, tb.w, tb.h, tb.radius);
-      ctx.fill();
-      ctx.restore();
-      // Border
-      ctx.lineWidth = tb.border;
-      ctx.strokeStyle = '#000000';
-      roundRectPath(ctx, tb.x, tb.y, tb.w, tb.h, tb.radius);
-      ctx.stroke();
-      // Text
-      ctx.font = `600 ${tb.fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-      ctx.textBaseline = 'top';
-      ctx.fillStyle = '#000000';
-      tb.lines.forEach((ln, i) => ctx.fillText(ln, tb.x + tb.pad, tb.y + tb.pad + i * tb.fontPx * 1.25));
+      drawTextBoxOnCtx(ctx, d, W, H);
     }
   }
 }
@@ -2289,7 +2345,36 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// ---- Composite photo + strokes to a JPEG blob (for export) ----
+// Shared boxed-text renderer (canvas). Used by photo annotation, plan PDF export.
+function drawTextBoxOnCtx(ctx, d, W, H) {
+  const tb = computeTextBox(ctx, d, W, H);
+  d._tb = tb;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.25)';
+  ctx.shadowBlur = tb.fontPx * 0.4;
+  ctx.shadowOffsetY = tb.fontPx * 0.08;
+  ctx.fillStyle = '#ffffff';
+  roundRectPath(ctx, tb.x, tb.y, tb.w, tb.h, tb.radius);
+  ctx.fill();
+  ctx.restore();
+  ctx.lineWidth = tb.border;
+  ctx.strokeStyle = '#000000';
+  roundRectPath(ctx, tb.x, tb.y, tb.w, tb.h, tb.radius);
+  ctx.stroke();
+  ctx.font = `600 ${tb.fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#000000';
+  tb.lines.forEach((ln, i) => ctx.fillText(ln, tb.x + tb.pad, tb.y + tb.pad + i * tb.fontPx * 1.25));
+  return tb;
+}
+
+// Offscreen 2d ctx used for SVG text measurement.
+let _measureCanvas;
+function getMeasureCtx() {
+  if (!_measureCanvas) _measureCanvas = document.createElement('canvas');
+  return _measureCanvas.getContext('2d');
+}
+
 function compositePhotoWithStrokes(dataUrl, strokes) {
   return new Promise((resolve, reject) => {
     if (!strokes || !strokes.length) { resolve(dataUrl); return; }
@@ -2821,20 +2906,66 @@ function renderDrawings() {
       g.appendChild(svgEl('polygon', { fill: stroke, stroke, 'stroke-width': sw * 0.5, 'stroke-linejoin':'round',
         points: `${d.x1},${d.y1} ${hx1},${hy1} ${hx2},${hy2}` }));
     } else if (kind === 'text') {
-      const fontPx = Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.05 : d.thick === 2 ? 0.035 : 0.024), 18);
-      // Char-width estimate ~0.55*fontPx; cap line width at ~50% of plan
-      const maxChars = Math.max(8, Math.floor((Math.min(project.plan.width - d.x, project.plan.width * 0.5)) / (fontPx * 0.55)));
-      const lines = wrapTextChars(d.text, maxChars);
-      lines.forEach((ln, i) => {
-        const t = svgEl('text', { x: d.x, y: d.y + (i + 0.85) * fontPx * 1.15, fill: stroke,
-          'font-size': fontPx, 'font-weight': '700',
-          'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' });
-        t.textContent = ln;
-        g.appendChild(t);
-      });
-      d._fontPx = fontPx;
-      d._lines = lines;
-      d._lineW = Math.max(...lines.map(l => l.length)) * fontPx * 0.55;
+      const W = project.plan.width, H = project.plan.height;
+      if (d.size) {
+        // New boxed format: white box, black border, black text.
+        const mctx = getMeasureCtx();
+        const tb = computeTextBox(mctx, d, W, H);
+        d._tb = tb;
+        // Box (with shadow filter)
+        g.appendChild(svgEl('rect', {
+          x: tb.x, y: tb.y, width: tb.w, height: tb.h, rx: tb.radius, ry: tb.radius,
+          fill: '#ffffff', stroke: '#000000', 'stroke-width': tb.border,
+          filter: 'url(#textBoxShadow)'
+        }));
+        // Text lines
+        tb.lines.forEach((ln, i) => {
+          const t = svgEl('text', {
+            x: tb.x + tb.pad,
+            y: tb.y + tb.pad + i * tb.fontPx * 1.25,
+            fill: '#000000',
+            'font-size': tb.fontPx,
+            'font-weight': '600',
+            'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            'dominant-baseline': 'hanging',
+          });
+          t.textContent = ln;
+          g.appendChild(t);
+        });
+        // Resize handle (right edge mid-Y) when text tool is active
+        if (ui.tool === 'draw' && ui.drawTool === 'text') {
+          const baseSw = Math.max(W, H) * 0.005;
+          const r = Math.max(baseSw * 1.6, 8);
+          const hx = tb.x + tb.w, hy = tb.y + tb.h / 2;
+          g.appendChild(svgEl('circle', {
+            cx: hx, cy: hy, r,
+            fill: '#000', stroke: '#fff', 'stroke-width': Math.max(1.5, r * 0.2),
+          }));
+          const glyph = svgEl('text', {
+            x: hx, y: hy, fill: '#fff',
+            'font-size': r * 1.2, 'font-weight': '700',
+            'font-family': '-apple-system, sans-serif',
+            'text-anchor': 'middle', 'dominant-baseline': 'central',
+          });
+          glyph.textContent = '⇔';
+          g.appendChild(glyph);
+        }
+      } else {
+        // Legacy plain-text format (back-compat)
+        const fontPx = Math.max(Math.max(W, H) * (d.thick === 3 ? 0.05 : d.thick === 2 ? 0.035 : 0.024), 18);
+        const maxChars = Math.max(8, Math.floor((Math.min(W - d.x, W * 0.5)) / (fontPx * 0.55)));
+        const lines = wrapTextChars(d.text, maxChars);
+        lines.forEach((ln, i) => {
+          const t = svgEl('text', { x: d.x, y: d.y + (i + 0.85) * fontPx * 1.15, fill: stroke,
+            'font-size': fontPx, 'font-weight': '700',
+            'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' });
+          t.textContent = ln;
+          g.appendChild(t);
+        });
+        d._fontPx = fontPx;
+        d._lines = lines;
+        d._lineW = Math.max(...lines.map(l => l.length)) * fontPx * 0.55;
+      }
     }
   });
 }
@@ -2878,11 +3009,16 @@ function hitTestDrawing(x, y) {
       const px = d.x0 + tt*dx, py = d.y0 + tt*dy;
       if (Math.hypot(px - x, py - y) <= t) return i;
     } else if (kind === 'text') {
-      const fontPx = d._fontPx || Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.05 : d.thick === 2 ? 0.035 : 0.024), 18);
-      const lines = d._lines || String(d.text || '').split('\n');
-      const w = d._lineW != null ? d._lineW : Math.max(...lines.map(l => l.length)) * fontPx * 0.55;
-      const h = lines.length * fontPx * 1.15;
-      if (x >= d.x - t && x <= d.x + w + t && y >= d.y - t && y <= d.y + h + t) return i;
+      if (d.size && d._tb) {
+        const tb = d._tb;
+        if (x >= tb.x - t && x <= tb.x + tb.w + t && y >= tb.y - t && y <= tb.y + tb.h + t) return i;
+      } else {
+        const fontPx = d._fontPx || Math.max(Math.max(project.plan.width, project.plan.height) * (d.thick === 3 ? 0.05 : d.thick === 2 ? 0.035 : 0.024), 18);
+        const lines = d._lines || String(d.text || '').split('\n');
+        const w = d._lineW != null ? d._lineW : Math.max(...lines.map(l => l.length)) * fontPx * 0.55;
+        const h = lines.length * fontPx * 1.15;
+        if (x >= d.x - t && x <= d.x + w + t && y >= d.y - t && y <= d.y + h + t) return i;
+      }
     }
   }
   return -1;
@@ -3000,13 +3136,17 @@ async function composeMapImage(format) {
           ctx.fillStyle = ctx.strokeStyle;
           ctx.fill();
         } else if (kind === 'text') {
-          const fontPx = Math.max(Math.max(W, H) * (d.thick === 3 ? 0.028 : d.thick === 2 ? 0.02 : 0.014), 10);
-          ctx.font = `600 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-          ctx.textBaseline = 'top';
-          ctx.fillStyle = d.color || '#1a1a1a';
-          const maxW = Math.max(60, Math.min(W - d.x, W * 0.5));
-          const lines = wrapTextCtx(ctx, d.text, maxW);
-          lines.forEach((ln, i) => ctx.fillText(ln, d.x, d.y + i * fontPx * 1.15));
+          if (d.size) {
+            drawTextBoxOnCtx(ctx, d, W, H);
+          } else {
+            const fontPx = Math.max(Math.max(W, H) * (d.thick === 3 ? 0.028 : d.thick === 2 ? 0.02 : 0.014), 10);
+            ctx.font = `600 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = d.color || '#1a1a1a';
+            const maxW = Math.max(60, Math.min(W - d.x, W * 0.5));
+            const lines = wrapTextCtx(ctx, d.text, maxW);
+            lines.forEach((ln, i) => ctx.fillText(ln, d.x, d.y + i * fontPx * 1.15));
+          }
         }
       });
 
