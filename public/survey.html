@@ -3508,29 +3508,49 @@ async function exportProjectZip() {
     const pngBlob = await composeMapImage('png-blob');
     root.file('map.png', pngBlob);
 
+    // Photo numbering: each pin's num is also its starting photo number.
+    // Build per-pin range strings + figure out the total for filename padding.
+    let totalPhotos = 0;
+    const photoRangeFor = (p) => {
+      const n = (p.photos || []).length;
+      if (!n) return '';
+      const start = p.num;
+      const end = p.num + n - 1;
+      if (end > totalPhotos) totalPhotos = end;
+      return n === 1 ? String(start) : (start + '-' + end);
+    };
+    // First pass to fill totalPhotos (so pad width is right for the CSV too — though only filenames use pad).
+    if (isInternal) pins.forEach(p => photoRangeFor(p));
+    const padW = String(Math.max(totalPhotos, 1)).length >= 3 ? 3 : 2;
+    const pad = (n) => String(n).padStart(padW, '0');
+
     // pins.csv
-    const csvLines = [isInternal ? 'Pin,Type,Description,Photos' : 'Pin,Location,Category,Description,Photos'];
+    const csvLines = [isInternal
+      ? 'Location,Type,Description,Photo Count,Photo Numbers'
+      : 'Pin,Location,Category,Description,Photos'];
     pins.forEach(p => {
       const desc = (p.description || '').trim();
-      const photoCount = isInternal ? (p.photos || []).length : (p.extPhotoCount || 0);
       const type = p.isExterior ? 'Exterior' : 'Interior';
-      csvLines.push(isInternal
-        ? [p.num, type, csvField(desc), photoCount].join(',')
-        : [p.num, csvField(p.location||''), csvField(p.category||''), csvField(desc), photoCount].join(','));
+      if (isInternal) {
+        const photoCount = (p.photos || []).length;
+        const range = photoRangeFor(p);
+        csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range)].join(','));
+      } else {
+        const photoCount = p.extPhotoCount || 0;
+        csvLines.push([p.num, csvField(p.location||''), csvField(p.category||''), csvField(desc), photoCount].join(','));
+      }
     });
     root.file('pins.csv', csvLines.join('\r\n'));
 
-    // photos/
+    // photos/  — global numbering: filename = photo-{pin.num + offset}.{ext}
     if (isInternal) {
       const photosFolder = root.folder('photos');
-      let any = false;
       for (const p of pins) {
         const photos = p.photos || [];
         for (let i = 0; i < photos.length; i++) {
           const entry = photos[i];
           let dataUrl = await resolvePhoto(entry);
           if (!dataUrl) continue;
-          // Flatten any annotations onto the exported photo
           const strokes = (p.photoStrokes && isPhotoId(entry)) ? (p.photoStrokes[entry] || []) : [];
           if (strokes.length) {
             try { dataUrl = await compositePhotoWithStrokes(dataUrl, strokes); }
@@ -3539,14 +3559,10 @@ async function exportProjectZip() {
           const m = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
           if (!m) continue;
           const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
-          const name = String(p.num).padStart(2,'0') + '-photo' + (i+1) + '.' + ext;
+          const photoNum = p.num + i;
+          const name = 'photo-' + pad(photoNum) + '.' + ext;
           photosFolder.file(name, m[2], { base64: true });
-          any = true;
         }
-      }
-      if (!any) {
-        // No photos — drop the empty folder by re-creating zip without it would be complex;
-        // JSZip keeps empty folders, which is fine. Leave as-is.
       }
     }
 
