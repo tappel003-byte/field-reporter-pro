@@ -1935,7 +1935,7 @@ function recomputeNumbering() {
 function createPin(x, y) {
   snapshot('new pin');
   const num = project.nextNum || project.startNum || 1;
-  const p = { id: uid(), num, x, y, photos: [], description: '', location: null, category: null, extPhotoCount: 0 };
+  const p = { id: uid(), num, x, y, photos: [], description: '', location: null, category: null, extPhotoCount: 0, isExterior: !!ui.lastIsExterior };
   project.pins.push(p);
   project.nextNum = num + 1; // reserves 1 until a photo is taken
   saveProject();
