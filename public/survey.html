@@ -2266,7 +2266,7 @@ function openPinPicker() {
     const desc = (p.description||'').trim();
     const photoCount = (p.photos||[]).length;
     const sub = desc
-      ? (desc.length > 40 ? desc.slice(0,40) + '…' : desc)
+      ? desc
       : (photoCount ? photoCount + ' photo' + (photoCount===1?'':'s') : 'No description');
     btn.innerHTML = '<span class="pli-num">'+p.num+'</span>' +
       '<span class="pli-body"><div class="pli-title">Pin #'+p.num+(project.mode==='external'&&p.location?' — '+escapeHtml(p.location):'')+'</div>' +
