@@ -599,6 +599,10 @@
     </div>
   </div>
   <div id="internalPhotoWrap">
+    <div class="int-ext-row" id="intExtRow">
+      <button type="button" class="iex-btn int active" id="iexInt" onclick="setPinExterior(false)">Interior</button>
+      <button type="button" class="iex-btn ext" id="iexExt" onclick="setPinExterior(true)">Exterior</button>
+    </div>
     <div class="photo-strip" id="photoStrip"></div>
     <input type="file" id="pinPhotoFile" accept="image/*" capture="environment" multiple style="display:none" onchange="onPinPhotoFile(event)" />
   </div>
