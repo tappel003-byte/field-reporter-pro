@@ -2269,9 +2269,10 @@ function openPinPicker() {
     const sub = desc
       ? desc
       : (photoCount ? photoCount + ' photo' + (photoCount===1?'':'s') : 'No description');
+    const subClass = desc ? 'pli-sub' : 'pli-sub empty';
     btn.innerHTML = '<span class="pli-num">'+p.num+'</span>' +
       '<span class="pli-body"><div class="pli-title">Pin #'+p.num+(project.mode==='external'&&p.location?' — '+escapeHtml(p.location):'')+'</div>' +
-      '<div class="pli-sub">'+escapeHtml(sub)+'</div></span>';
+      '<div class="'+subClass+'">'+escapeHtml(sub)+'</div></span>';
     btn.onclick = () => {
       document.getElementById('pinPickerSheet').classList.remove('open');
       selectPin(p.id);
