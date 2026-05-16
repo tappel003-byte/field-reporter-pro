@@ -1973,9 +1973,29 @@ function openPinSheet() {
   document.getElementById('extCountRow').style.display = isExternal ? '' : 'none';
   document.getElementById('internalPhotoWrap').style.display = isExternal ? 'none' : '';
   renderLocationChip();
-  if (isExternal) renderExtCount(); else renderPhotoStrip();
+  if (isExternal) renderExtCount(); else { renderPhotoStrip(); renderIntExtToggle(); }
   document.getElementById('scrim').classList.add('active');
   document.getElementById('pinSheet').classList.add('open');
+}
+
+function renderIntExtToggle() {
+  const p = currentPin();
+  if (!p) return;
+  const ext = !!p.isExterior;
+  document.getElementById('iexInt').classList.toggle('active', !ext);
+  document.getElementById('iexExt').classList.toggle('active', ext);
+}
+
+function setPinExterior(ext) {
+  const p = currentPin();
+  if (!p) return;
+  if (!!p.isExterior === !!ext) return;
+  snapshot('toggle exterior');
+  p.isExterior = !!ext;
+  ui.lastIsExterior = !!ext;        // sticky default for next new pin
+  saveProject();
+  renderIntExtToggle();
+  renderPins();
 }
 
 function renderExtCount() {
