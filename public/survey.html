@@ -572,7 +572,7 @@
       <div class="sheet-title" id="pinTitle">Pin #1</div>
       <div class="sheet-sub">Tap photo or description · auto-saves</div>
     </div>
-    <button class="ghost" onclick="closeSheets()">Done</button>
+    <button class="ghost" ontouchstart="event.preventDefault(); closeSheets();" onpointerdown="if(event.pointerType!=='touch'){closeSheets();}" onclick="closeSheets()">Done</button>
   </div>
   <div class="loc-row">
     <span class="loc-label">📍 Location</span>
