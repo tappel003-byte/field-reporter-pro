@@ -390,8 +390,9 @@
   .txed-size{width:42px;height:42px;border-radius:8px;border:1px solid var(--line);
     background:var(--paper);color:var(--ink);font-weight:800;font-family:Georgia,serif;
     display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1}
-  .txed-size.sm{font-size:14px}
   .txed-size.lg{font-size:24px}
+  .txed-size.md{font-size:14px}
+  .txed-size.sm{font-size:11px}
   .txed-size.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
   .txed-actions{display:flex;gap:8px}
   .txed-actions button{border:none;border-radius:8px;padding:10px 14px;font-size:14px;
@@ -709,8 +710,9 @@
     <textarea id="txedInput" placeholder="Type label…" rows="3"></textarea>
     <div class="txed-row">
       <div class="txed-sizes" role="group" aria-label="Text size">
-        <button type="button" class="txed-size sm" data-txsize="sm" aria-label="Small text">T</button>
         <button type="button" class="txed-size lg active" data-txsize="lg" aria-label="Large text">T</button>
+        <button type="button" class="txed-size md" data-txsize="md" aria-label="Medium text">T</button>
+        <button type="button" class="txed-size sm" data-txsize="sm" aria-label="Small text">T</button>
       </div>
       <div class="txed-actions">
         <button type="button" class="txed-cancel" id="txedCancel">Cancel</button>
@@ -2607,9 +2609,11 @@ function computeTextBox(ctx, d, W, H, context) {
   // Back-compat: derive size from old `thick` field if missing
   const size = d.size || (d.thick === 3 ? 'lg' : 'sm');
   const isPlan = context === 'plan';
-  const fontPx = isPlan
-    ? Math.max(baseSw * (size === 'lg' ? 4 : 2.6), size === 'lg' ? 14 : 9)
-    : Math.max(baseSw * (size === 'lg' ? 7 : 4), size === 'lg' ? 20 : 11);
+  // multiplier × baseSw, floored at min px — tuned per size tier
+  const tier = size === 'lg' ? { m: isPlan ? 4 : 7,   min: isPlan ? 14 : 20 }
+             : size === 'md' ? { m: isPlan ? 3.2 : 5, min: isPlan ? 11 : 14 }
+             :                  { m: isPlan ? 2.4 : 3.6, min: isPlan ? 8 : 11 };
+  const fontPx = Math.max(baseSw * tier.m, tier.min);
   const pad = Math.round(fontPx * 0.4);
   const border = Math.max(2, Math.round(fontPx * 0.08));
   const radius = Math.round(fontPx * 0.3);
