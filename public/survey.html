@@ -2609,9 +2609,11 @@ function computeTextBox(ctx, d, W, H, context) {
   // Back-compat: derive size from old `thick` field if missing
   const size = d.size || (d.thick === 3 ? 'lg' : 'sm');
   const isPlan = context === 'plan';
-  const fontPx = isPlan
-    ? Math.max(baseSw * (size === 'lg' ? 4 : 2.6), size === 'lg' ? 14 : 9)
-    : Math.max(baseSw * (size === 'lg' ? 7 : 4), size === 'lg' ? 20 : 11);
+  // multiplier × baseSw, floored at min px — tuned per size tier
+  const tier = size === 'lg' ? { m: isPlan ? 4 : 7,   min: isPlan ? 14 : 20 }
+             : size === 'md' ? { m: isPlan ? 3.2 : 5, min: isPlan ? 11 : 14 }
+             :                  { m: isPlan ? 2.4 : 3.6, min: isPlan ? 8 : 11 };
+  const fontPx = Math.max(baseSw * tier.m, tier.min);
   const pad = Math.round(fontPx * 0.4);
   const border = Math.max(2, Math.round(fontPx * 0.08));
   const radius = Math.round(fontPx * 0.3);
