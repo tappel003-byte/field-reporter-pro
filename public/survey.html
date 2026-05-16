@@ -3509,12 +3509,13 @@ async function exportProjectZip() {
     root.file('map.png', pngBlob);
 
     // pins.csv
-    const csvLines = [isInternal ? 'Pin,Description,Photos' : 'Pin,Location,Category,Description,Photos'];
+    const csvLines = [isInternal ? 'Pin,Type,Description,Photos' : 'Pin,Location,Category,Description,Photos'];
     pins.forEach(p => {
       const desc = (p.description || '').trim();
       const photoCount = isInternal ? (p.photos || []).length : (p.extPhotoCount || 0);
+      const type = p.isExterior ? 'Exterior' : 'Interior';
       csvLines.push(isInternal
-        ? [p.num, csvField(desc), photoCount].join(',')
+        ? [p.num, type, csvField(desc), photoCount].join(',')
         : [p.num, csvField(p.location||''), csvField(p.category||''), csvField(desc), photoCount].join(','));
     });
     root.file('pins.csv', csvLines.join('\r\n'));
