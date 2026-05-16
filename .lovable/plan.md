@@ -1,84 +1,53 @@
-## Goal
+# Separate location numbers from photo numbers
 
-Add a **Location** field to each pin so reports say "Pin #4 — Bath Primary" instead of just "Pin #4". Phone-first, accordion picker grouped by category. No search box, no predictive text — we'll add those later only if they're missed.
+## Concept
+- **Pin number on the plan** = a **location** (1, 2, 3, … 34). Stays unchanged.
+- **Photo number** = a **global sequential count** across the whole survey (1, 2, 3, … 60).
+- These two numbering systems are independent. The plan never shows photo numbers; the export filenames never show location numbers.
 
-## UX (in the existing pin sheet)
+## What changes
 
-Above the photo strip and description, add a single tappable row:
+### 1. Exported photo filenames (internal mode)
+Today: `01-photo1.jpg`, `01-photo2.jpg`, `02-photo1.jpg` …
+After: `photo-01.jpg`, `photo-02.jpg`, … `photo-60.jpg`
 
-```text
-┌─ Pin #4 ───────────────────── Done ┐
-│  📍 Location:  [ Set location › ]  │  ← when empty
-│  📍 Location:  [ Bath Primary  ✕ ] │  ← when set, ✕ clears
-├────────────────────────────────────┤
-│  [photo strip]                     │
-│  [description textarea]            │
-└────────────────────────────────────┘
+Numbering order: walk pins in pin-number order, and within each pin walk photos in the order they were taken. So:
+- Location 1 has 3 photos → `photo-01.jpg`, `photo-02.jpg`, `photo-03.jpg`
+- Location 2 has 1 photo → `photo-04.jpg`
+- Location 3 has 2 photos → `photo-05.jpg`, `photo-06.jpg`
+- …continues through location 34
+
+Zero-padding width auto-sized to the total (2 digits for ≤99, 3 digits for ≤999).
+
+### 2. `pins.csv` gets a "Photos" range column
+Today (internal): `Pin, Type, Description, Photos` — where `Photos` is just a count.
+After (internal): `Location, Type, Description, Photo Count, Photo Numbers`
+
+Example row:
+```
+1, Interior, "Kitchen leak under sink", 3, 1-3
+2, Interior, "Hallway", 1, 4
+3, Exterior, "North wall crack", 2, 5-6
 ```
 
-Tapping the chip opens a **Location picker sheet** (replaces the pin sheet temporarily, same bottom-sheet pattern already used by the pin picker / export sheets):
+`Photo Numbers` uses compact ranges when consecutive (`1-3`), comma-list when not (`4, 7, 9`). Rename header `Pin` → `Location` to reinforce the concept.
 
-```text
-┌─ Choose location ─────────── Cancel ┐
-│ ▾ Wet Areas                         │
-│   [Kitchen] [Pantry] [Laundry]      │
-│   [Powder] [Bath Hall]              │
-│   [Bath Primary] [Bath Ensuite]     │
-│ ▸ Bedrooms                          │
-│ ▸ Living Areas                      │
-│ ▸ Entry & Circulation               │
-│ ▸ Exterior / Site                   │
-│ ▸ Specialty                         │
-│ ▸ Other                             │
-└─────────────────────────────────────┘
-```
+### 3. Wording cleanup in the UI
+- Pin sheet title stays `Pin #N` (this is the location number — no change needed).
+- "Photos" label on the photo strip stays as-is — these are still photos under a location, just no longer numbered per-pin in the export.
+- No change to the plan rendering: pins still show their location number 1..N.
 
-- Only one category open at a time (single-open accordion).
-- Tap a room chip → sets location, closes picker, returns to pin sheet.
-- "Other" category contains a single "Custom…" chip that prompts for a free-text label (covers anything we haven't catalogued).
-- Last-used category remembered per session and pre-opened on next pin.
+### 4. External mode is untouched
+External mode is already a separate counting model (the user manages a real camera, pins reference picture-number ranges). No changes there.
 
-## Room catalogue (v1)
+## Files affected
+- `public/survey.html` only.
+  - Photo export loop (~line 3523): switch from per-pin filename to global counter.
+  - CSV header + row builder (~line 3512–3519): add Photo Numbers column, rename Pin → Location, compute ranges.
+  - `Pin, Description, Photos` header in the "What you'll get" help text (~line 637): update to match.
 
-Plain list, easy to extend later. Names match what an inspector would actually write.
-
-- **Wet Areas** — Kitchen, Pantry, Laundry, Powder Room, Bath (Hall), Bath (Primary), Bath (Ensuite), Bath (Jack & Jill), Wet Bar
-- **Bedrooms** — Primary Bedroom, Bedroom 2, Bedroom 3, Bedroom 4, Guest Bedroom, Nursery, Closet (Primary), Closet (Walk-in)
-- **Living Areas** — Living Room, Family Room, Great Room, Dining Room, Breakfast Nook, Den, Office, Library, Media Room, Sunroom
-- **Entry & Circulation** — Entry / Foyer, Mudroom, Hallway, Stairwell, Landing
-- **Exterior / Site** — Front Elevation, Rear Elevation, Side Elevation (L), Side Elevation (R), Roof, Garage, Driveway, Porch, Deck, Patio, Yard, Fence, Site/Grading
-- **Specialty** — Basement, Attic, Crawlspace, Mechanical Room, Utility, Storage, Gym, Theater, Wine Room
-- **Other** — Custom… (free-text)
-
-## Data model
-
-Extend each pin:
-
-```text
-{ id, num, x, y, photos[], description,
-  location:  string | null,    // display label, e.g. "Bath Primary"
-  category:  string | null }   // e.g. "Wet Areas" or "Custom"
-```
-
-Backwards compatible — existing saved projects load fine; missing fields render as empty.
-
-## Export wiring
-
-- **`pins.csv`** — add two columns: `location`, `category`. Place them right after `pin_number`.
-- **PDF / map exports** — pin numbers on the plan stay unchanged. The descriptions list (already rendered alongside the map in the export flow) shows `Pin #4 — Bath Primary` as the heading, with description underneath.
-- **Pin picker sheet** (the one that lists all pins) — show the location next to the pin number so it's easy to find.
-
-## Out of scope (deferred until we feel the pain)
-
-- Search box / predictive text inside the picker.
-- Per-project custom catalogue.
-- Reordering or favoriting categories.
-- Tablet-specific side panel layout — bottom sheet works fine on tablet for v1.
-
-## Files touched
-
-- `public/survey.html` only — markup for the chip + picker sheet, JS for the catalogue + open/close + save, CSV column addition, pin-list rendering tweak.
-
-## Open question
-
-Anything missing from the room catalogue that you know you'll want on day one? Easier to add now than to discover mid-walkthrough.
+## Out of scope
+- No changes to how pins are created, dragged, deleted, or rendered on the plan.
+- No changes to the interior/exterior toggle or its grey rendering.
+- No changes to external mode.
+- No change to the PDF export's pin labels (still location numbers).
