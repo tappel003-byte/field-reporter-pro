@@ -3149,7 +3149,8 @@ function renderPins() {
   const R = Math.max(project.plan.width, project.plan.height) * 0.018;
   (project.pins||[]).forEach((p, idx) => {
     const isDragging = _dragPin && _dragPin.pinId === p.id;
-    const grp = svgEl('g', { class: 'pin' + (p.id===ui.selectedPinId?' selected':'') + (isDragging?' dragging':'') });
+    const isExt = !!p.isExterior && project.mode !== 'external';
+    const grp = svgEl('g', { class: 'pin' + (p.id===ui.selectedPinId?' selected':'') + (isDragging?' dragging':'') + (isExt?' exterior':'') });
     grp.appendChild(svgEl('circle', { class:'pin-bg', cx:p.x, cy:p.y, r:R }));
     const t = svgEl('text', { class:'pin-txt', x:p.x, y:p.y });
     t.style.fontSize = (R*1.05) + 'px';
