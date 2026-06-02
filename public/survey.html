@@ -3378,9 +3378,11 @@ function openExport() {
   _sheetOpenedAt = performance.now();
   const isInternal = project.mode === 'internal';
   document.getElementById('exportPhotosNote').style.display = isInternal ? '' : 'none';
+  const qcCount = (project.quickCapture || []).length;
+  document.getElementById('exportQcNote').style.display = qcCount ? '' : 'none';
   document.getElementById('exportSub').textContent = isInternal
-    ? 'Map + pin list + photos'
-    : 'Map + pin list';
+    ? ('Map + pin list + photos' + (qcCount ? ' + ' + qcCount + ' Quick Capture' : ''))
+    : ('Map + pin list' + (qcCount ? ' + ' + qcCount + ' Quick Capture' : ''));
   document.getElementById('scrim').classList.add('active');
   document.getElementById('exportSheet').classList.add('open');
 }
