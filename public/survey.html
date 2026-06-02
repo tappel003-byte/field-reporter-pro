@@ -3679,6 +3679,167 @@ document.addEventListener('focusin', (e) => {
   if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT')) ensureFocusedVisible(t);
 });
 
+// ---------- Quick Capture ----------
+// Untethered burst photos: not tied to any pin. Walk-around / overview shots.
+// Saved to project.quickCapture[] = [{id, ts, lat?, lng?}]; bytes in IDB via newPhotoId().
+(function setupQuickCapture(){
+  const css = `
+  .qc-overlay{position:fixed;inset:0;z-index:1200;background:#000;display:none;flex-direction:column}
+  .qc-overlay.open{display:flex}
+  .qc-video{flex:1;width:100%;height:100%;object-fit:cover;background:#000;-webkit-tap-highlight-color:transparent}
+  .qc-top{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;
+    padding:14px 16px;background:linear-gradient(180deg,rgba(0,0,0,.55),transparent);color:#fff;z-index:2}
+  .qc-top .qc-title{font-weight:700;font-size:16px;letter-spacing:.3px}
+  .qc-top .qc-count{font-size:14px;opacity:.9}
+  .qc-bottom{position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;
+    padding:18px 22px calc(22px + env(safe-area-inset-bottom));background:linear-gradient(0deg,rgba(0,0,0,.55),transparent);z-index:2}
+  .qc-btn{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:999px;
+    padding:10px 16px;font-weight:600;font-size:14px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  .qc-btn.primary{background:#fff;color:#111;border-color:#fff}
+  .qc-tap-hint{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;color:#fff;
+    font-size:13px;opacity:.7;letter-spacing:.4px;pointer-events:none;z-index:1}
+  .qc-flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:3;transition:opacity .12s}
+  .qc-flash.fire{opacity:.85;transition:opacity 0s}
+  .qc-err{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;
+    padding:24px;text-align:center;font-size:15px;line-height:1.5}
+  `;
+  const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s);
+
+  const html = `
+    <div class="qc-overlay" id="qcOverlay">
+      <div class="qc-top">
+        <div>
+          <div class="qc-title">Quick Capture</div>
+          <div class="qc-count" id="qcCount">0 this session · 0 total</div>
+        </div>
+        <button class="qc-btn" id="qcDone">Done</button>
+      </div>
+      <video class="qc-video" id="qcVideo" playsinline muted autoplay></video>
+      <div class="qc-tap-hint" id="qcHint">Tap anywhere to capture</div>
+      <div class="qc-flash" id="qcFlash"></div>
+      <div class="qc-bottom">
+        <button class="qc-btn" id="qcSwap">↺ Camera</button>
+        <button class="qc-btn primary" id="qcShoot">● Capture</button>
+        <span style="width:90px"></span>
+      </div>
+    </div>
+  `;
+  const wrap = document.createElement('div'); wrap.innerHTML = html.trim();
+  document.body.appendChild(wrap.firstChild);
+})();
+
+let _qc = { stream: null, facing: 'environment', sessionCount: 0, gps: null, busy: false };
+
+async function openQuickCapture(){
+  closeMenu();
+  if (!project) return;
+  project.quickCapture = project.quickCapture || [];
+  _qc.sessionCount = 0;
+  updateQcCount();
+  document.getElementById('qcOverlay').classList.add('open');
+  // GPS once per session (silent if denied)
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => { _qc.gps = { lat: pos.coords.latitude, lng: pos.coords.longitude }; },
+      () => { _qc.gps = null; },
+      { enableHighAccuracy: true, maximumAge: 60000, timeout: 8000 }
+    );
+  }
+  await startQcStream();
+}
+
+async function startQcStream(){
+  const v = document.getElementById('qcVideo');
+  stopQcStream();
+  try {
+    _qc.stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: _qc.facing }, width: { ideal: 3840 }, height: { ideal: 2160 } },
+      audio: false
+    });
+    v.srcObject = _qc.stream;
+    await v.play().catch(()=>{});
+  } catch (err) {
+    showQcError(err && err.message ? err.message : 'Camera unavailable');
+  }
+}
+
+function stopQcStream(){
+  if (_qc.stream) {
+    try { _qc.stream.getTracks().forEach(t => t.stop()); } catch {}
+    _qc.stream = null;
+  }
+  const v = document.getElementById('qcVideo'); if (v) v.srcObject = null;
+}
+
+function closeQuickCapture(){
+  stopQcStream();
+  document.getElementById('qcOverlay').classList.remove('open');
+  const e = document.querySelector('.qc-err'); if (e) e.remove();
+  if (_qc.sessionCount > 0) toast(_qc.sessionCount + ' photo' + (_qc.sessionCount===1?'':'s') + ' added');
+}
+
+function showQcError(msg){
+  const o = document.getElementById('qcOverlay');
+  const old = o.querySelector('.qc-err'); if (old) old.remove();
+  const d = document.createElement('div'); d.className = 'qc-err';
+  d.textContent = 'Camera error: ' + msg + '. Close and try again.';
+  o.appendChild(d);
+}
+
+async function qcCaptureFrame(){
+  if (_qc.busy || !_qc.stream) return;
+  _qc.busy = true;
+  try {
+    const v = document.getElementById('qcVideo');
+    const w = v.videoWidth, h = v.videoHeight;
+    if (!w || !h) return;
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(v, 0, 0, w, h);
+    const dataUrl = c.toDataURL('image/jpeg', 0.88);
+    const id = await storePhotoDataUrl(dataUrl);
+    project.quickCapture = project.quickCapture || [];
+    project.quickCapture.push({
+      id, ts: Date.now(),
+      lat: _qc.gps ? _qc.gps.lat : null,
+      lng: _qc.gps ? _qc.gps.lng : null,
+    });
+    saveProject();
+    _qc.sessionCount++;
+    updateQcCount();
+    // flash + haptic
+    const f = document.getElementById('qcFlash');
+    f.classList.add('fire');
+    requestAnimationFrame(() => requestAnimationFrame(() => f.classList.remove('fire')));
+    if (navigator.vibrate) navigator.vibrate(15);
+    const hint = document.getElementById('qcHint'); if (hint) hint.style.display = 'none';
+  } catch (err) {
+    console.error(err);
+    toast('Capture failed — storage may be full.');
+  } finally {
+    _qc.busy = false;
+  }
+}
+
+function updateQcCount(){
+  const total = (project && project.quickCapture) ? project.quickCapture.length : 0;
+  const el = document.getElementById('qcCount');
+  if (el) el.textContent = _qc.sessionCount + ' this session · ' + total + ' total';
+}
+
+// Wire overlay events (delegated, so they survive any DOM rerender)
+document.addEventListener('click', (e) => {
+  if (e.target.closest('#qcDone')) { closeQuickCapture(); return; }
+  if (e.target.closest('#qcSwap')) {
+    _qc.facing = _qc.facing === 'environment' ? 'user' : 'environment';
+    startQcStream();
+    return;
+  }
+  if (e.target.closest('#qcShoot') || e.target.closest('#qcVideo')) {
+    qcCaptureFrame();
+  }
+}, true);
+
 // ---------- Boot ----------
 load();
 renderHome();
