@@ -1975,11 +1975,13 @@ function openPinSheet() {
   document.getElementById('pinTitle').textContent =
     'Pin #' + p.num + (isExternal && p.location ? ' — ' + p.location : '');
   document.getElementById('pinDesc').value = p.description || '';
-  // External mode: show counter, hide photo upload. Internal mode: opposite.
+  // External mode: show counter + photo strip (upload only), hide int/ext toggle. Internal mode: full strip + toggle.
   document.getElementById('extCountRow').style.display = isExternal ? '' : 'none';
-  document.getElementById('internalPhotoWrap').style.display = isExternal ? 'none' : '';
+  document.getElementById('internalPhotoWrap').style.display = '';
+  document.getElementById('intExtRow').style.display = isExternal ? 'none' : '';
   renderLocationChip();
-  if (isExternal) renderExtCount(); else { renderPhotoStrip(); renderIntExtToggle(); }
+  if (isExternal) { renderExtCount(); renderPhotoStrip(); }
+  else { renderPhotoStrip(); renderIntExtToggle(); }
   document.getElementById('scrim').classList.add('active');
   document.getElementById('pinSheet').classList.add('open');
 }
