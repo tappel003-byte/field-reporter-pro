@@ -3548,7 +3548,7 @@ async function exportProjectZip() {
     // pins.csv
     const csvLines = [isInternal
       ? 'Location,Type,Description,Photo Count,Photo Numbers'
-      : 'Pin,Location,Category,Description,Photos'];
+      : 'Pin,Location,Category,Description,External Photos,Uploaded Photos'];
     pins.forEach(p => {
       const desc = (p.description || '').trim();
       const type = p.isExterior ? 'Exterior' : 'Interior';
@@ -3557,8 +3557,9 @@ async function exportProjectZip() {
         const range = photoRangeFor(p);
         csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range)].join(','));
       } else {
-        const photoCount = p.extPhotoCount || 0;
-        csvLines.push([p.num, csvField(p.location||''), csvField(p.category||''), csvField(desc), photoCount].join(','));
+        const extCount = p.extPhotoCount || 0;
+        const upCount = (p.photos || []).length;
+        csvLines.push([p.num, csvField(p.location||''), csvField(p.category||''), csvField(desc), extCount, upCount].join(','));
       }
     });
     root.file('pins.csv', csvLines.join('\r\n'));
