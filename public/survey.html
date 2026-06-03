@@ -3626,7 +3626,8 @@ async function exportProjectZip() {
       }
       qcFolder.file('quick-capture.csv', qcLines.join('\r\n'));
     }
-    }
+
+
 
     const blob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(blob);
