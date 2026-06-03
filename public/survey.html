@@ -608,6 +608,7 @@
     </div>
     <div class="photo-strip" id="photoStrip"></div>
     <input type="file" id="pinPhotoFile" accept="image/*" capture="environment" multiple style="display:none" onchange="onPinPhotoFile(event)" />
+    <input type="file" id="pinPhotoUpload" accept="image/*" multiple style="display:none" onchange="onPinPhotoFile(event)" />
   </div>
   <textarea class="desc-area" id="pinDesc" placeholder="Describe what you see…" oninput="onPinDescInput(event)"></textarea>
   <div class="sheet-actions">
@@ -1974,11 +1975,13 @@ function openPinSheet() {
   document.getElementById('pinTitle').textContent =
     'Pin #' + p.num + (isExternal && p.location ? ' — ' + p.location : '');
   document.getElementById('pinDesc').value = p.description || '';
-  // External mode: show counter, hide photo upload. Internal mode: opposite.
+  // External mode: show counter + photo strip (upload only), hide int/ext toggle. Internal mode: full strip + toggle.
   document.getElementById('extCountRow').style.display = isExternal ? '' : 'none';
-  document.getElementById('internalPhotoWrap').style.display = isExternal ? 'none' : '';
+  document.getElementById('internalPhotoWrap').style.display = '';
+  document.getElementById('intExtRow').style.display = isExternal ? 'none' : '';
   renderLocationChip();
-  if (isExternal) renderExtCount(); else { renderPhotoStrip(); renderIntExtToggle(); }
+  if (isExternal) { renderExtCount(); renderPhotoStrip(); }
+  else { renderPhotoStrip(); renderIntExtToggle(); }
   document.getElementById('scrim').classList.add('active');
   document.getElementById('pinSheet').classList.add('open');
 }
@@ -2180,11 +2183,19 @@ function renderPhotoStrip() {
     div.appendChild(x);
     strip.appendChild(div);
   });
-  const add = document.createElement('button');
-  add.className = 'add-photo';
-  add.innerHTML = '<span class="ic">📷</span><span>Add</span>';
-  add.onclick = () => document.getElementById('pinPhotoFile').click();
-  strip.appendChild(add);
+  const isExternal = project && project.mode === 'external';
+  if (!isExternal) {
+    const add = document.createElement('button');
+    add.className = 'add-photo';
+    add.innerHTML = '<span class="ic">📷</span><span>Add</span>';
+    add.onclick = () => document.getElementById('pinPhotoFile').click();
+    strip.appendChild(add);
+  }
+  const up = document.createElement('button');
+  up.className = 'add-photo';
+  up.innerHTML = '<span class="ic">📁</span><span>Upload</span>';
+  up.onclick = () => document.getElementById('pinPhotoUpload').click();
+  strip.appendChild(up);
 }
 function hasAnnotations(pin, photoEntry) {
   if (!pin || !pin.photoStrokes || !isPhotoId(photoEntry)) return false;
@@ -3537,7 +3548,7 @@ async function exportProjectZip() {
     // pins.csv
     const csvLines = [isInternal
       ? 'Location,Type,Description,Photo Count,Photo Numbers'
-      : 'Pin,Location,Category,Description,Photos'];
+      : 'Pin,Location,Category,Description,External Photos,Uploaded Photos'];
     pins.forEach(p => {
       const desc = (p.description || '').trim();
       const type = p.isExterior ? 'Exterior' : 'Interior';
@@ -3546,8 +3557,9 @@ async function exportProjectZip() {
         const range = photoRangeFor(p);
         csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range)].join(','));
       } else {
-        const photoCount = p.extPhotoCount || 0;
-        csvLines.push([p.num, csvField(p.location||''), csvField(p.category||''), csvField(desc), photoCount].join(','));
+        const extCount = p.extPhotoCount || 0;
+        const upCount = (p.photos || []).length;
+        csvLines.push([p.num, csvField(p.location||''), csvField(p.category||''), csvField(desc), extCount, upCount].join(','));
       }
     });
     root.file('pins.csv', csvLines.join('\r\n'));
@@ -3573,6 +3585,25 @@ async function exportProjectZip() {
           const name = 'photo-' + pad(photoNum) + '.' + ext;
           photosFolder.file(name, m[2], { base64: true });
         }
+      }
+    } else {
+      // External mode: bundle any photos the user uploaded from their library.
+      const upPins = pins.filter(p => (p.photos || []).length);
+      if (upPins.length) {
+        const upFolder = root.folder('photos');
+        for (const p of upPins) {
+          for (let i = 0; i < p.photos.length; i++) {
+            const entry = p.photos[i];
+            const dataUrl = await resolvePhoto(entry);
+            if (!dataUrl) continue;
+            const m = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+            if (!m) continue;
+            const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+            const name = 'pin-' + p.num + '-' + String(i+1).padStart(2,'0') + '.' + ext;
+            upFolder.file(name, m[2], { base64: true });
+          }
+        }
+      }
     }
 
     // quick-capture/  — untethered burst photos (Quick Capture)
@@ -3595,7 +3626,8 @@ async function exportProjectZip() {
       }
       qcFolder.file('quick-capture.csv', qcLines.join('\r\n'));
     }
-    }
+
+
 
     const blob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(blob);
