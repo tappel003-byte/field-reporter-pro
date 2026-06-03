@@ -3585,6 +3585,25 @@ async function exportProjectZip() {
           const name = 'photo-' + pad(photoNum) + '.' + ext;
           photosFolder.file(name, m[2], { base64: true });
         }
+      }
+    } else {
+      // External mode: bundle any photos the user uploaded from their library.
+      const upPins = pins.filter(p => (p.photos || []).length);
+      if (upPins.length) {
+        const upFolder = root.folder('photos');
+        for (const p of upPins) {
+          for (let i = 0; i < p.photos.length; i++) {
+            const entry = p.photos[i];
+            const dataUrl = await resolvePhoto(entry);
+            if (!dataUrl) continue;
+            const m = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+            if (!m) continue;
+            const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+            const name = 'pin-' + p.num + '-' + String(i+1).padStart(2,'0') + '.' + ext;
+            upFolder.file(name, m[2], { base64: true });
+          }
+        }
+      }
     }
 
     // quick-capture/  — untethered burst photos (Quick Capture)
