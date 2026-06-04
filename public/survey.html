@@ -3483,31 +3483,7 @@ async function composeMapImage(format) {
         ctx.fillStyle = '#fff'; ctx.fillText(pinPlanLabel(p, idx), p.x, p.y + R*0.04);
       });
 
-      // north arrow
-      const n = project.north;
-      if (n) {
-        const NR = Math.max(W, H) * 0.04;
-        const NX = W - NR * 1.6;
-        const NY = NR * 1.6;
-        ctx.save();
-        ctx.translate(NX, NY);
-        ctx.rotate((n.rotation || 0) * Math.PI/180);
-
-        ctx.beginPath(); ctx.arc(0,0,NR,0,Math.PI*2);
-        ctx.fillStyle = '#fffaf0'; ctx.fill();
-        ctx.lineWidth = NR*0.05; ctx.strokeStyle = '#1a1a1a'; ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(0, -NR*0.85);
-        ctx.lineTo(NR*0.45, NR*0.55);
-        ctx.lineTo(0, NR*0.2);
-        ctx.lineTo(-NR*0.45, NR*0.55);
-        ctx.closePath();
-        ctx.fillStyle = '#c14a2b'; ctx.fill();
-        ctx.font = `700 ${NR*0.55}px -apple-system, "Segoe UI", Roboto, sans-serif`;
-        ctx.fillStyle = '#1a1a1a'; ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText('N', 0, NR*0.78);
-        ctx.restore();
-      }
+      // north arrow intentionally omitted from export
 
       if (format === 'png-blob') {
         c.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
