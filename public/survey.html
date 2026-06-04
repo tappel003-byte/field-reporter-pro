@@ -3404,10 +3404,17 @@ async function composeMapImage(format) {
     const img = new Image();
     img.onload = () => {
       const W = project.plan.width, H = project.plan.height;
+      // Pad the canvas so pins / drawings near the plan edges aren't clipped.
+      const R = Math.max(W, H) * 0.011;
+      const pad = Math.ceil(R * 1.8);
       const c = document.createElement('canvas');
-      c.width = W; c.height = H;
+      c.width = W + pad * 2; c.height = H + pad * 2;
       const ctx = c.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.translate(pad, pad);
       ctx.drawImage(img, 0, 0, W, H);
+
 
       // drawings
       const baseSw = Math.max(W, H) * 0.004;
