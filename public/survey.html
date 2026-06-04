@@ -3464,7 +3464,7 @@ async function composeMapImage(format) {
       });
 
       // pins
-      const R = Math.max(W, H) * 0.018;
+      const R = Math.max(W, H) * 0.011;
       ctx.font = `700 ${R*1.05}px -apple-system, "Segoe UI", Roboto, sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       (project.pins||[]).forEach((p, idx) => {
@@ -3679,7 +3679,7 @@ async function exportProjectPdf() {
     });
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
-    const margin = 0.4;
+    const margin = 0.15;
     const maxW = pageW - margin*2;
     const maxH = pageH - margin*2;
     const scale = Math.min(maxW / W, maxH / H);
