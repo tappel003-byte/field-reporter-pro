@@ -3492,7 +3492,7 @@ async function composeMapImage(format) {
         ctx.save();
         ctx.translate(NX, NY);
         ctx.rotate((n.rotation || 0) * Math.PI/180);
-        ctx.rotate(n.rotation * Math.PI/180);
+
         ctx.beginPath(); ctx.arc(0,0,NR,0,Math.PI*2);
         ctx.fillStyle = '#fffaf0'; ctx.fill();
         ctx.lineWidth = NR*0.05; ctx.strokeStyle = '#1a1a1a'; ctx.stroke();
