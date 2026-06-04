@@ -3679,7 +3679,7 @@ async function exportProjectPdf() {
     });
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
-    const margin = 0.4;
+    const margin = 0.15;
     const maxW = pageW - margin*2;
     const maxH = pageH - margin*2;
     const scale = Math.min(maxW / W, maxH / H);
