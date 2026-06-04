@@ -3538,7 +3538,7 @@ async function exportProjectZip() {
       const start = p.num;
       const end = p.num + n - 1;
       if (end > totalPhotos) totalPhotos = end;
-      return n === 1 ? String(start) : (start + '-' + end);
+      return n === 1 ? String(start) : (start + ' to ' + end);
     };
     // First pass to fill totalPhotos (so pad width is right for the CSV too — though only filenames use pad).
     if (isInternal) pins.forEach(p => photoRangeFor(p));
