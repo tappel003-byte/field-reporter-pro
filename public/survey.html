@@ -3515,6 +3515,23 @@ async function exportProjectZip() {
     const pngBlob = await composeMapImage('png-blob');
     root.file('map.png', pngBlob);
 
+    // plan.png — clean plan, no pins/drawings, native dimensions
+    if (isInternal) {
+      const planBlob = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas');
+          c.width = project.plan.width; c.height = project.plan.height;
+          const ctx = c.getContext('2d');
+          ctx.drawImage(img, 0, 0, c.width, c.height);
+          c.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
+        };
+        img.onerror = reject;
+        img.src = project.plan.dataUrl;
+      });
+      root.file('plan.png', planBlob);
+    }
+
     // Photo numbering: each pin's num is also its starting photo number.
     // Build per-pin range strings + figure out the total for filename padding.
     let totalPhotos = 0;
@@ -3533,15 +3550,17 @@ async function exportProjectZip() {
 
     // pins.csv
     const csvLines = [isInternal
-      ? 'Location,Type,Description,Photo Count,Photo Numbers'
+      ? 'Location,Type,Description,Photo Count,Photo Numbers,X,Y'
       : 'Pin,Location,Category,Description,External Photos,Uploaded Photos'];
+    const planW = project.plan.width, planH = project.plan.height;
+    const norm = (v, dim) => (typeof v === 'number' && isFinite(v) && dim) ? (Math.round((v / dim) * 1e5) / 1e5).toString() : '';
     pins.forEach(p => {
       const desc = (p.description || '').trim();
       const type = p.isExterior ? 'Exterior' : 'Interior';
       if (isInternal) {
         const photoCount = (p.photos || []).length;
         const range = photoRangeFor(p);
-        csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range)].join(','));
+        csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range), norm(p.x, planW), norm(p.y, planH)].join(','));
       } else {
         const extCount = p.extPhotoCount || 0;
         const upCount = (p.photos || []).length;
