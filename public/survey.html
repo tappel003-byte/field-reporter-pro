@@ -63,6 +63,35 @@
   .ri-btn{background:transparent;border:none;color:var(--muted);font-size:18px;
     width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center}
   .ri-btn:active{background:var(--line)}
+  .ri-move{background:transparent;border:none;color:var(--muted);font-size:12px;
+    padding:6px 10px;border-radius:8px;text-decoration:underline;cursor:pointer}
+  .ri-move:active{background:var(--line)}
+  /* Trash FAB (bottom-right of home) */
+  .fab-trash{position:fixed;right:18px;bottom:calc(18px + var(--app-bottom-offset,0px));
+    width:56px;height:56px;border-radius:50%;border:1px solid var(--line);
+    background:var(--paper);color:var(--ink);font-size:24px;display:flex;align-items:center;
+    justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.15);cursor:pointer;z-index:50}
+  .fab-trash.empty{opacity:.35;cursor:default}
+  .fab-trash .fab-badge{position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;
+    padding:0 5px;border-radius:10px;background:var(--accent);color:#fff;font-size:11px;
+    font-weight:700;display:flex;align-items:center;justify-content:center}
+  /* Trash screen */
+  #screenTrash{padding:0;overflow-y:auto;align-items:stretch}
+  #screenTrash.active{display:flex;flex-direction:column}
+  .trash-head{padding:14px 16px;border-bottom:1px solid var(--line);background:var(--paper);
+    display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:5}
+  .trash-head h2{margin:0;font-size:16px;flex:1}
+  .trash-body{padding:16px;flex:1}
+  .trash-item{display:flex;align-items:center;gap:10px;background:var(--paper);
+    border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px}
+  .trash-item .ti-body{flex:1;min-width:0}
+  .trash-item .ti-title{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .trash-item .ti-sub{font-size:11px;color:var(--muted);margin-top:2px}
+  .trash-item button{background:transparent;border:1px solid var(--line);border-radius:8px;
+    padding:6px 10px;font-size:12px;cursor:pointer}
+  .trash-item .ti-restore{color:var(--ink)}
+  .trash-item .ti-forever{color:var(--accent);border-color:var(--accent)}
+  .trash-empty{color:var(--muted);text-align:center;padding:40px 20px;font-size:13px}
 
   /* ---------- SETUP ---------- */
   #screenSetup{display:none;flex-direction:column;height:100vh;height:var(--app-height,100dvh)}
