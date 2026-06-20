@@ -968,7 +968,11 @@ function relTime(t) {
   return new Date(t).toLocaleDateString();
 }
 function deleteProject(id) {
-  if (!confirm('Delete this project? This cannot be undone.')) return;
+  const proj = (store.projects||[]).find(p => p.id === id);
+  const name = proj ? (proj.address || 'this project') : 'this project';
+  if (!confirm('Delete "' + name + '"?\n\nStep 1 of 3 — This cannot be undone.')) return;
+  if (!confirm('Are you sure?\n\nStep 2 of 3 — All pins, photos, drawings, and voice memos will be erased.')) return;
+  if (!confirm('Final confirmation.\n\nStep 3 of 3 — Press OK to permanently delete "' + name + '".')) return;
   const proj = (store.projects||[]).find(p => p.id === id);
   if (proj) {
     for (const pin of (proj.pins||[])) {
