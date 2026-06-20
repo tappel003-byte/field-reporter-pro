@@ -807,6 +807,8 @@ function load() {
     if (raw) store = JSON.parse(raw);
   } catch (e) { console.warn('load failed', e); }
   if (!store.projects) store.projects = [];
+  if (!store.trash) store.trash = [];
+  purgeOldTrash();
   // Migrate any inline photo dataURLs out of localStorage into IndexedDB
   migratePhotosToIdb();
 }
