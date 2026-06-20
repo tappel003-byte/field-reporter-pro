@@ -1972,6 +1972,14 @@ function deleteCurrentPin() {
   renderPins();
   refreshSubtitle();
 }
+function addStackedPin() {
+  const cur = currentPin();
+  if (!cur) return;
+  const np = createPin(cur.x, cur.y);
+  selectPin(np.id);
+  openPinSheet();
+}
+
 
 // ---------- Pin sheet ----------
 function openPinSheet() {
