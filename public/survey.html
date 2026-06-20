@@ -1909,11 +1909,12 @@ function onStageClickFallback(e) {
 
 function hitTestPin(x, y, cx, cy) {
   if (!project || !project.pins) return null;
-  const visualR = Math.max(project.plan.width, project.plan.height) * 0.018;
-  // Generous finger-friendly tap target (~48px on screen, no smaller than the visual)
+  const visualR = Math.max(project.plan.width, project.plan.height) * 0.013;
+  // Finger-friendly tap target, but tight enough that adjacent interior/exterior
+  // walls can hold separate pins without colliding.
   let touchR = visualR;
   if (cx != null && cy != null) {
-    try { touchR = Math.max(visualR, screenPixelsToImage(28, cx, cy)); } catch(_) {}
+    try { touchR = Math.max(visualR, screenPixelsToImage(18, cx, cy)); } catch(_) {}
   }
   // iterate reverse so topmost wins; pick the closest within range
   let best = null, bestD = Infinity;
@@ -3166,7 +3167,7 @@ function renderPins() {
   if (!g) return;
   g.innerHTML = '';
   if (!project) return;
-  const R = Math.max(project.plan.width, project.plan.height) * 0.018;
+  const R = Math.max(project.plan.width, project.plan.height) * 0.013;
   (project.pins||[]).forEach((p, idx) => {
     const isDragging = _dragPin && _dragPin.pinId === p.id;
     const isExt = !!p.isExterior && project.mode !== 'external';
