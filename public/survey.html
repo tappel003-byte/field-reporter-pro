@@ -1928,6 +1928,19 @@ function hitTestPin(x, y, cx, cy) {
     const d = Math.hypot(x-p.x, y-p.y);
     if (d <= touchR && d < bestD) { best = p; bestD = d; }
   }
+  // Stack cycling: if the chosen pin is already selected and it's part of a
+  // stack at the same coords, cycle to the next pin in that stack so buried
+  // pins are reachable.
+  if (best && best.id === ui.selectedPinId) {
+    const tol = Math.max(project.plan.width, project.plan.height) * 0.005;
+    const stack = project.pins.filter(q =>
+      Math.abs(q.x - best.x) <= tol && Math.abs(q.y - best.y) <= tol
+    );
+    if (stack.length > 1) {
+      const i = stack.findIndex(q => q.id === best.id);
+      best = stack[(i + 1) % stack.length];
+    }
+  }
   return best;
 }
 
@@ -1975,22 +1988,21 @@ function deleteCurrentPin() {
 function addStackedPin() {
   const cur = currentPin();
   if (!cur) return;
-  const W = (project.plan && project.plan.width) || 1000;
-  const H = (project.plan && project.plan.height) || 1000;
-  const step = Math.max(W, H) * 0.025; // ~2.5% of plan — visible offset
-  // Cascade based on how many pins already cluster near cur
-  const cluster = step * 6;
-  const stackCount = project.pins.filter(p =>
-    Math.abs(p.x - cur.x) < cluster && Math.abs(p.y - cur.y) < cluster
-  ).length;
-  // Choose cascade direction AWAY from the nearest plan edge so we don't clamp
-  const sx = (cur.x > W / 2) ? -1 : 1;
-  const sy = (cur.y > H / 2) ? -1 : 1;
-  const nx = Math.min(Math.max(cur.x + sx * step * stackCount, step), W - step);
-  const ny = Math.min(Math.max(cur.y + sy * step * stackCount, step), H - step);
-  const np = createPin(nx, ny);
+  // Same exact coordinates — stacking is indicated by a ×N badge in-app.
+  // Export keeps normal red/gray styling.
+  const np = createPin(cur.x, cur.y);
   selectPin(np.id);
   openPinSheet();
+}
+// Count pins sharing (approx) same coords as p, including p itself.
+function stackSizeAt(p) {
+  if (!project || !project.pins) return 1;
+  const tol = Math.max(project.plan.width, project.plan.height) * 0.005;
+  let n = 0;
+  for (const q of project.pins) {
+    if (Math.abs(q.x - p.x) <= tol && Math.abs(q.y - p.y) <= tol) n++;
+  }
+  return n;
 }
 
 
@@ -3196,7 +3208,15 @@ function renderPins() {
   g.innerHTML = '';
   if (!project) return;
   const R = Math.max(project.plan.width, project.plan.height) * 0.013;
-  (project.pins||[]).forEach((p, idx) => {
+  const tol = Math.max(project.plan.width, project.plan.height) * 0.005;
+  // Determine which pin is the "top" of each stack (last in array at those coords)
+  const pins = project.pins || [];
+  const topOfStack = new Map(); // key -> pin id
+  pins.forEach(p => {
+    const key = Math.round(p.x / tol) + ',' + Math.round(p.y / tol);
+    topOfStack.set(key, p.id);
+  });
+  pins.forEach((p, idx) => {
     const isDragging = _dragPin && _dragPin.pinId === p.id;
     const isExt = !!p.isExterior && project.mode !== 'external';
     const grp = svgEl('g', { class: 'pin' + (p.id===ui.selectedPinId?' selected':'') + (isDragging?' dragging':'') + (isExt?' exterior':'') });
@@ -3205,6 +3225,22 @@ function renderPins() {
     t.style.fontSize = (R*1.05) + 'px';
     t.textContent = pinPlanLabel(p, idx);
     grp.appendChild(t);
+    // Stack badge: only on topmost pin at this coord, when stack > 1
+    const key = Math.round(p.x / tol) + ',' + Math.round(p.y / tol);
+    if (topOfStack.get(key) === p.id) {
+      const stackN = stackSizeAt(p);
+      if (stackN > 1) {
+        const br = R * 0.55;
+        const bx = p.x + R * 0.85;
+        const by = p.y - R * 0.85;
+        grp.appendChild(svgEl('circle', { cx:bx, cy:by, r:br, fill:'#facc15', stroke:'#1f2937', 'stroke-width': R*0.08 }));
+        const bt = svgEl('text', { x:bx, y:by, 'text-anchor':'middle', 'dominant-baseline':'central', fill:'#1f2937' });
+        bt.style.fontSize = (br*1.2) + 'px';
+        bt.style.fontWeight = '700';
+        bt.textContent = '×' + stackN;
+        grp.appendChild(bt);
+      }
+    }
     g.appendChild(grp);
   });
 }
