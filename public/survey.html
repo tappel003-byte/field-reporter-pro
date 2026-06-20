@@ -1975,10 +1975,26 @@ function deleteCurrentPin() {
 function addStackedPin() {
   const cur = currentPin();
   if (!cur) return;
-  const np = createPin(cur.x, cur.y);
+  // Offset new pin diagonally so it's visible & tappable. Cascade if more stack.
+  const W = (project.plan && project.plan.width) || 1000;
+  const H = (project.plan && project.plan.height) || 1000;
+  const step = Math.max(W, H) * 0.018; // ~1.8% of plan, roughly a pin-width
+  // Count how many pins already sit at (or near) cur's spot to cascade further
+  const tol = step * 0.5;
+  const stackCount = project.pins.filter(p =>
+    Math.abs(p.x - cur.x) < step * 4 && Math.abs(p.y - cur.y) < step * 4
+  ).length;
+  const dx = step * stackCount;
+  const dy = step * stackCount;
+  let nx = cur.x + dx, ny = cur.y + dy;
+  // Keep inside plan bounds
+  nx = Math.min(Math.max(nx, 0), W);
+  ny = Math.min(Math.max(ny, 0), H);
+  const np = createPin(nx, ny);
   selectPin(np.id);
   openPinSheet();
 }
+
 
 
 // ---------- Pin sheet ----------
