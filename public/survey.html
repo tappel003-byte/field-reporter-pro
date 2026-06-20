@@ -3195,7 +3195,15 @@ function renderPins() {
   g.innerHTML = '';
   if (!project) return;
   const R = Math.max(project.plan.width, project.plan.height) * 0.013;
-  (project.pins||[]).forEach((p, idx) => {
+  const tol = Math.max(project.plan.width, project.plan.height) * 0.005;
+  // Determine which pin is the "top" of each stack (last in array at those coords)
+  const pins = project.pins || [];
+  const topOfStack = new Map(); // key -> pin id
+  pins.forEach(p => {
+    const key = Math.round(p.x / tol) + ',' + Math.round(p.y / tol);
+    topOfStack.set(key, p.id);
+  });
+  pins.forEach((p, idx) => {
     const isDragging = _dragPin && _dragPin.pinId === p.id;
     const isExt = !!p.isExterior && project.mode !== 'external';
     const grp = svgEl('g', { class: 'pin' + (p.id===ui.selectedPinId?' selected':'') + (isDragging?' dragging':'') + (isExt?' exterior':'') });
@@ -3204,6 +3212,22 @@ function renderPins() {
     t.style.fontSize = (R*1.05) + 'px';
     t.textContent = pinPlanLabel(p, idx);
     grp.appendChild(t);
+    // Stack badge: only on topmost pin at this coord, when stack > 1
+    const key = Math.round(p.x / tol) + ',' + Math.round(p.y / tol);
+    if (topOfStack.get(key) === p.id) {
+      const stackN = stackSizeAt(p);
+      if (stackN > 1) {
+        const br = R * 0.55;
+        const bx = p.x + R * 0.85;
+        const by = p.y - R * 0.85;
+        grp.appendChild(svgEl('circle', { cx:bx, cy:by, r:br, fill:'#facc15', stroke:'#1f2937', 'stroke-width': R*0.08 }));
+        const bt = svgEl('text', { x:bx, y:by, 'text-anchor':'middle', 'dominant-baseline':'central', fill:'#1f2937' });
+        bt.style.fontSize = (br*1.2) + 'px';
+        bt.style.fontWeight = '700';
+        bt.textContent = '×' + stackN;
+        grp.appendChild(bt);
+      }
+    }
     g.appendChild(grp);
   });
 }
