@@ -2317,6 +2317,7 @@ function openPinPicker() {
   list.innerHTML = '';
   // Show pins in numbering order (creation order, since recomputeNumbering preserves it)
   const pins = (project.pins||[]).slice().sort((a,b)=>(a.num||0)-(b.num||0));
+  const tol = Math.max(project.plan.width, project.plan.height) * 0.005;
   pins.forEach(p => {
     const btn = document.createElement('button');
     btn.className = 'pin-list-item';
@@ -2327,8 +2328,16 @@ function openPinPicker() {
       ? desc
       : (photoCount ? photoCount + ' photo' + (photoCount===1?'':'s') : 'No description');
     const subClass = desc ? 'pli-sub' : 'pli-sub empty';
+    // Find other pins stacked at the same coords
+    const others = (project.pins||[])
+      .filter(q => q.id !== p.id &&
+        Math.abs(q.x - p.x) <= tol && Math.abs(q.y - p.y) <= tol)
+      .sort((a,b)=>(a.num||0)-(b.num||0));
+    const stackChip = others.length
+      ? ' <span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;background:#facc15;color:#1f2937;font-size:11px;font-weight:700;vertical-align:middle">stacked with #'+others.map(q=>q.num).join(', #')+'</span>'
+      : '';
     btn.innerHTML = '<span class="pli-num">'+p.num+'</span>' +
-      '<span class="pli-body"><div class="pli-title">Pin #'+p.num+(project.mode==='external'&&p.location?' — '+escapeHtml(p.location):'')+'</div>' +
+      '<span class="pli-body"><div class="pli-title">Pin #'+p.num+(project.mode==='external'&&p.location?' — '+escapeHtml(p.location):'')+stackChip+'</div>' +
       '<div class="'+subClass+'">'+escapeHtml(sub)+'</div></span>';
     btn.onclick = () => {
       document.getElementById('pinPickerSheet').classList.remove('open');
