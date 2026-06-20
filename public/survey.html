@@ -3937,28 +3937,43 @@ document.addEventListener('click', (e) => {
 }, true);
 
 // ---------- Voice memos ----------
-// Tap mic to start recording; tap again to stop. Native browser format (webm or m4a).
-// Stored as Blob in IDB keyed by `vm_<id>`; metadata in project.voiceMemos[].
+// Tap mic to start one long recording with a visible pause/resume + stop control bar.
+// Native browser format (webm or m4a). Stored as Blob in IDB keyed by `vm_<id>`; metadata in project.voiceMemos[].
 (function setupVoiceMemoStyle(){
   const s = document.createElement('style');
   s.textContent = `
-    #wVoiceMemo.vm-recording{background:#dc2626;color:#fff;animation:vmPulse 1.2s infinite}
-    @keyframes vmPulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.6)}50%{box-shadow:0 0 0 6px rgba(220,38,38,0)}}
-    #vmBadge{position:fixed;left:50%;top:8px;transform:translateX(-50%);z-index:1500;
-      background:#dc2626;color:#fff;padding:6px 12px;border-radius:999px;font:600 13px system-ui;
-      box-shadow:0 4px 12px rgba(0,0,0,.25);display:none;align-items:center;gap:8px;
-      padding-top:calc(6px + env(safe-area-inset-top))}
-    #vmBadge.on{display:flex}
-    #vmBadge .vm-dot{width:8px;height:8px;border-radius:50%;background:#fff;animation:vmPulse 1.2s infinite}
+    #wVoiceMemo.vm-recording{background:#dc2626;color:#fff}
+    #wVoiceMemo.vm-paused{background:#f59e0b;color:#fff}
+    @keyframes vmPulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.55)}50%{box-shadow:0 0 0 8px rgba(220,38,38,0)}}
+    #vmBar{position:fixed;left:50%;transform:translateX(-50%);top:calc(8px + env(safe-area-inset-top));
+      z-index:1500;display:none;align-items:center;gap:6px;
+      background:#111827;color:#fff;border-radius:999px;padding:6px 8px 6px 14px;
+      box-shadow:0 6px 20px rgba(0,0,0,.35);font:600 13px system-ui}
+    #vmBar.on{display:flex}
+    #vmBar .vm-dot{width:9px;height:9px;border-radius:50%;background:#dc2626;animation:vmPulse 1.2s infinite}
+    #vmBar.paused .vm-dot{background:#f59e0b;animation:none}
+    #vmBar .vm-time{min-width:54px;text-align:center;font-variant-numeric:tabular-nums}
+    #vmBar button{border:0;background:#1f2937;color:#fff;border-radius:999px;
+      width:34px;height:34px;font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center}
+    #vmBar button.vm-stop{background:#dc2626}
+    #vmBar button:active{transform:scale(.94)}
   `;
   document.head.appendChild(s);
   const b = document.createElement('div');
-  b.id = 'vmBadge';
-  b.innerHTML = '<span class="vm-dot"></span><span id="vmBadgeText">Recording 0:00</span><span style="opacity:.85">· tap mic to stop</span>';
+  b.id = 'vmBar';
+  b.innerHTML = `
+    <span class="vm-dot"></span>
+    <span class="vm-time" id="vmTime">0:00</span>
+    <button id="vmPauseBtn" title="Pause">⏸</button>
+    <button id="vmStopBtn" class="vm-stop" title="Stop & save">⏹</button>
+  `;
   document.body.appendChild(b);
+  b.querySelector('#vmPauseBtn').addEventListener('click', vmTogglePause);
+  b.querySelector('#vmStopBtn').addEventListener('click', stopVoiceMemo);
 })();
 
-let _vm = { rec: null, stream: null, chunks: [], startedAt: 0, timer: null, mime: '', ext: '', gps: null };
+let _vm = { rec: null, stream: null, chunks: [], startedAt: 0, elapsedBeforePause: 0, pauseStartedAt: 0,
+            timer: null, mime: '', ext: '', gps: null, paused: false };
 
 function newVoiceMemoId(){ return 'vm_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 function isVoiceMemoId(s){ return typeof s === 'string' && s.startsWith('vm_'); }
@@ -3983,10 +3998,39 @@ function _vmFmt(sec){
   return m + ':' + String(s).padStart(2,'0');
 }
 
+function _vmElapsed(){
+  if (_vm.paused) return _vm.elapsedBeforePause;
+  return _vm.elapsedBeforePause + (Date.now() - _vm.startedAt);
+}
+
+function _vmUpdateUI(){
+  const bar = document.getElementById('vmBar');
+  const time = document.getElementById('vmTime');
+  const pauseBtn = document.getElementById('vmPauseBtn');
+  const btn = document.getElementById('wVoiceMemo');
+  if (!_vm.rec){
+    bar.classList.remove('on','paused');
+    btn && btn.classList.remove('vm-recording','vm-paused');
+    return;
+  }
+  bar.classList.add('on');
+  bar.classList.toggle('paused', _vm.paused);
+  btn && btn.classList.toggle('vm-recording', !_vm.paused);
+  btn && btn.classList.toggle('vm-paused', _vm.paused);
+  pauseBtn.textContent = _vm.paused ? '▶' : '⏸';
+  pauseBtn.title = _vm.paused ? 'Resume' : 'Pause';
+  time.textContent = _vmFmt(_vmElapsed()/1000);
+}
+
 async function toggleVoiceMemo(){
   closeMenu();
   if (!project){ alert('Open a project first.'); return; }
-  if (_vm.rec) { stopVoiceMemo(); return; }
+  // If already recording, do NOT stop on toolbar tap — user must use the visible Stop button.
+  if (_vm.rec){
+    // Just surface the bar in case it scrolled out of view.
+    document.getElementById('vmBar').classList.add('on');
+    return;
+  }
   await startVoiceMemo();
 }
 
@@ -3995,7 +4039,6 @@ async function startVoiceMemo(){
     alert('Voice recording is not supported in this browser.');
     return;
   }
-  const btn = document.getElementById('wVoiceMemo');
   try {
     _vm.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true } });
   } catch (e){
@@ -4014,21 +4057,17 @@ async function startVoiceMemo(){
     }
   }
   _vm.chunks = [];
+  _vm.paused = false;
+  _vm.elapsedBeforePause = 0;
+  _vm.startedAt = Date.now();
   _vm.rec.ondataavailable = (ev) => { if (ev.data && ev.data.size > 0) _vm.chunks.push(ev.data); };
   _vm.rec.onstop = _vmOnStop;
-  _vm.startedAt = Date.now();
   try { _vm.rec.start(1000); } catch { _vm.rec.start(); }
 
-  btn && btn.classList.add('vm-recording');
-  const badge = document.getElementById('vmBadge');
-  const txt = document.getElementById('vmBadgeText');
-  badge.classList.add('on');
-  txt.textContent = 'Recording 0:00';
-  _vm.timer = setInterval(() => {
-    txt.textContent = 'Recording ' + _vmFmt((Date.now()-_vm.startedAt)/1000);
-  }, 500);
+  _vmUpdateUI();
+  _vm.timer = setInterval(_vmUpdateUI, 500);
 
-  // GPS in background (don't block)
+  // GPS in background (non-blocking)
   _vm.gps = null;
   if (navigator.geolocation){
     navigator.geolocation.getCurrentPosition(
@@ -4038,23 +4077,38 @@ async function startVoiceMemo(){
   }
 }
 
+function vmTogglePause(){
+  if (!_vm.rec) return;
+  if (_vm.paused){
+    try { _vm.rec.resume(); } catch {}
+    _vm.startedAt = Date.now();
+    _vm.paused = false;
+  } else {
+    try { _vm.rec.pause(); } catch {}
+    _vm.elapsedBeforePause += (Date.now() - _vm.startedAt);
+    _vm.paused = true;
+  }
+  _vmUpdateUI();
+}
+
 function stopVoiceMemo(){
   if (!_vm.rec) return;
+  if (_vm.paused){ _vm.paused = false; } // ensure final elapsed is frozen via elapsedBeforePause
+  else { _vm.elapsedBeforePause += (Date.now() - _vm.startedAt); }
   try { _vm.rec.stop(); } catch {}
 }
 
 async function _vmOnStop(){
-  const btn = document.getElementById('wVoiceMemo');
-  btn && btn.classList.remove('vm-recording');
-  document.getElementById('vmBadge').classList.remove('on');
   if (_vm.timer){ clearInterval(_vm.timer); _vm.timer = null; }
   if (_vm.stream){ _vm.stream.getTracks().forEach(t=>t.stop()); _vm.stream=null; }
 
   const chunks = _vm.chunks; _vm.chunks = [];
   const rec = _vm.rec; _vm.rec = null;
   const ext = _vm.ext, mime = _vm.mime || (rec && rec.mimeType) || 'audio/webm';
-  const startedAt = _vm.startedAt;
-  const duration = (Date.now() - startedAt) / 1000;
+  const startedAt = (Date.now() - _vm.elapsedBeforePause); // approximate "true start"
+  const duration = _vm.elapsedBeforePause / 1000;
+  _vm.elapsedBeforePause = 0;
+  _vmUpdateUI();
 
   if (!chunks.length || duration < 0.6){
     toast('Memo too short — discarded.');
@@ -4076,6 +4130,8 @@ async function _vmOnStop(){
   const n = project.voiceMemos.length;
   toast('Voice memo saved (' + _vmFmt(duration) + ') · ' + n + ' total');
 }
+
+
 
 // ---------- Boot ----------
 load();
