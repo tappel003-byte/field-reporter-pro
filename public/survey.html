@@ -3166,7 +3166,7 @@ function renderPins() {
   if (!g) return;
   g.innerHTML = '';
   if (!project) return;
-  const R = Math.max(project.plan.width, project.plan.height) * 0.018;
+  const R = Math.max(project.plan.width, project.plan.height) * 0.013;
   (project.pins||[]).forEach((p, idx) => {
     const isDragging = _dragPin && _dragPin.pinId === p.id;
     const isExt = !!p.isExterior && project.mode !== 'external';
