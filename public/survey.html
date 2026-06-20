@@ -63,6 +63,35 @@
   .ri-btn{background:transparent;border:none;color:var(--muted);font-size:18px;
     width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center}
   .ri-btn:active{background:var(--line)}
+  .ri-move{background:transparent;border:none;color:var(--muted);font-size:12px;
+    padding:6px 10px;border-radius:8px;text-decoration:underline;cursor:pointer}
+  .ri-move:active{background:var(--line)}
+  /* Trash FAB (bottom-right of home) */
+  .fab-trash{position:fixed;right:18px;bottom:calc(18px + var(--app-bottom-offset,0px));
+    width:56px;height:56px;border-radius:50%;border:1px solid var(--line);
+    background:var(--paper);color:var(--ink);font-size:24px;display:flex;align-items:center;
+    justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.15);cursor:pointer;z-index:50}
+  .fab-trash.empty{opacity:.35;cursor:default}
+  .fab-trash .fab-badge{position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;
+    padding:0 5px;border-radius:10px;background:var(--accent);color:#fff;font-size:11px;
+    font-weight:700;display:flex;align-items:center;justify-content:center}
+  /* Trash screen */
+  #screenTrash{padding:0;overflow-y:auto;align-items:stretch}
+  #screenTrash.active{display:flex;flex-direction:column}
+  .trash-head{padding:14px 16px;border-bottom:1px solid var(--line);background:var(--paper);
+    display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:5}
+  .trash-head h2{margin:0;font-size:16px;flex:1}
+  .trash-body{padding:16px;flex:1}
+  .trash-item{display:flex;align-items:center;gap:10px;background:var(--paper);
+    border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px}
+  .trash-item .ti-body{flex:1;min-width:0}
+  .trash-item .ti-title{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .trash-item .ti-sub{font-size:11px;color:var(--muted);margin-top:2px}
+  .trash-item button{background:transparent;border:1px solid var(--line);border-radius:8px;
+    padding:6px 10px;font-size:12px;cursor:pointer}
+  .trash-item .ti-restore{color:var(--ink)}
+  .trash-item .ti-forever{color:var(--accent);border-color:var(--accent)}
+  .trash-empty{color:var(--muted);text-align:center;padding:40px 20px;font-size:13px}
 
   /* ---------- SETUP ---------- */
   #screenSetup{display:none;flex-direction:column;height:100vh;height:var(--app-height,100dvh)}
@@ -434,6 +463,16 @@
     <span id="recentCount"></span>
   </div>
   <div id="recentList"></div>
+  <button id="fabTrash" class="fab-trash empty" onclick="openTrash()" aria-label="Trash">🗑<span id="fabTrashBadge" class="fab-badge" style="display:none">0</span></button>
+</div>
+
+<!-- ============ TRASH ============ -->
+<div id="screenTrash" class="screen">
+  <div class="trash-head">
+    <button class="back-btn" onclick="closeTrash()" aria-label="Back">←</button>
+    <h2>Trash</h2>
+  </div>
+  <div class="trash-body" id="trashBody"></div>
 </div>
 
 <!-- ============ SETUP ============ -->
@@ -768,6 +807,8 @@ function load() {
     if (raw) store = JSON.parse(raw);
   } catch (e) { console.warn('load failed', e); }
   if (!store.projects) store.projects = [];
+  if (!store.trash) store.trash = [];
+  purgeOldTrash();
   // Migrate any inline photo dataURLs out of localStorage into IndexedDB
   migratePhotosToIdb();
 }
@@ -941,21 +982,36 @@ function renderHome() {
   count.textContent = projs.length ? projs.length + ' project' + (projs.length===1?'':'s') : '';
   if (!projs.length) {
     list.innerHTML = '<div class="recent-empty">No surveys yet. Start one above.</div>';
-    return;
+  } else {
+    list.innerHTML = projs.map(p => {
+      const pinCount = (p.pins||[]).length;
+      return `
+        <div class="recent-item">
+          <div class="ri-body" onclick="openProject('${p.id}')">
+            <div class="ri-title"><span class="ri-tag ${p.mode}">${p.mode}</span>${escapeHtml(p.address||'(no address)')}</div>
+            <div class="ri-sub">${pinCount} pin${pinCount===1?'':'s'} · ${relTime(p.updatedAt)}</div>
+          </div>
+          <div class="ri-actions">
+            <button class="ri-move" onclick="event.stopPropagation();moveProjectToTrash('${p.id}')">Move to trash</button>
+          </div>
+        </div>`;
+    }).join('');
   }
-  list.innerHTML = projs.map(p => {
-    const pinCount = (p.pins||[]).length;
-    return `
-      <div class="recent-item">
-        <div class="ri-body" onclick="openProject('${p.id}')">
-          <div class="ri-title"><span class="ri-tag ${p.mode}">${p.mode}</span>${escapeHtml(p.address||'(no address)')}</div>
-          <div class="ri-sub">${pinCount} pin${pinCount===1?'':'s'} · ${relTime(p.updatedAt)}</div>
-        </div>
-        <div class="ri-actions">
-          <button class="ri-btn" onclick="event.stopPropagation();deleteProject('${p.id}')" aria-label="Delete">🗑</button>
-        </div>
-      </div>`;
-  }).join('');
+  renderTrashFab();
+}
+function renderTrashFab() {
+  const fab = document.getElementById('fabTrash');
+  const badge = document.getElementById('fabTrashBadge');
+  if (!fab) return;
+  const n = (store.trash || []).length;
+  if (n > 0) {
+    fab.classList.remove('empty');
+    badge.style.display = 'flex';
+    badge.textContent = String(n);
+  } else {
+    fab.classList.add('empty');
+    badge.style.display = 'none';
+  }
 }
 function relTime(t) {
   if (!t) return 'just now';
@@ -967,22 +1023,86 @@ function relTime(t) {
   if (d<7) return d+' day'+(d===1?'':'s')+' ago';
   return new Date(t).toLocaleDateString();
 }
-function deleteProject(id) {
+function moveProjectToTrash(id) {
   const proj = (store.projects||[]).find(p => p.id === id);
-  const name = proj ? (proj.address || 'this project') : 'this project';
-  if (!confirm('Delete "' + name + '"?\n\nStep 1 of 3 — This cannot be undone.')) return;
-  if (!confirm('Are you sure?\n\nStep 2 of 3 — All pins, photos, drawings, and voice memos will be erased.')) return;
-  if (!confirm('Final confirmation.\n\nStep 3 of 3 — Press OK to permanently delete "' + name + '".')) return;
-  const proj = (store.projects||[]).find(p => p.id === id);
-  if (proj) {
-    for (const pin of (proj.pins||[])) {
-      for (const entry of (pin.photos||[])) {
-        if (isPhotoId(entry)) idbDel(entry).catch(()=>{});
-      }
-    }
-  }
+  if (!proj) return;
+  if (!confirm('Move "' + (proj.address || 'this project') + '" to trash?\n\nIt will be deleted forever after 30 days. You can restore it before then.')) return;
+  proj.deletedAt = Date.now();
+  store.trash = store.trash || [];
+  store.trash.push(proj);
   store.projects = (store.projects||[]).filter(p => p.id !== id);
   save(); renderHome();
+  toast('Moved to trash');
+}
+function restoreProject(id) {
+  const idx = (store.trash||[]).findIndex(p => p.id === id);
+  if (idx < 0) return;
+  const proj = store.trash[idx];
+  delete proj.deletedAt;
+  store.trash.splice(idx, 1);
+  store.projects = store.projects || [];
+  store.projects.push(proj);
+  save(); renderTrash(); renderHome();
+  toast('Restored');
+}
+function deleteProjectForever(id) {
+  const proj = (store.trash||[]).find(p => p.id === id);
+  if (!proj) return;
+  if (!confirm('Permanently delete "' + (proj.address || 'this project') + '"?\n\nThis cannot be undone.')) return;
+  for (const pin of (proj.pins||[])) {
+    for (const entry of (pin.photos||[])) {
+      if (isPhotoId(entry)) idbDel(entry).catch(()=>{});
+    }
+  }
+  store.trash = (store.trash||[]).filter(p => p.id !== id);
+  save(); renderTrash(); renderHome();
+}
+function purgeOldTrash() {
+  const cutoff = Date.now() - 30*24*60*60*1000;
+  const trash = store.trash || [];
+  const keep = [];
+  let purged = 0;
+  for (const proj of trash) {
+    if ((proj.deletedAt || 0) < cutoff) {
+      for (const pin of (proj.pins||[])) {
+        for (const entry of (pin.photos||[])) {
+          if (isPhotoId(entry)) idbDel(entry).catch(()=>{});
+        }
+      }
+      purged++;
+    } else {
+      keep.push(proj);
+    }
+  }
+  if (purged > 0) { store.trash = keep; save(); }
+}
+function openTrash() {
+  if (!(store.trash||[]).length) { toast('Trash is empty'); return; }
+  renderTrash();
+  showScreen('screenTrash');
+}
+function closeTrash() { showScreen('screenHome'); }
+function renderTrash() {
+  const body = document.getElementById('trashBody');
+  const items = (store.trash||[]).slice().sort((a,b)=>(b.deletedAt||0)-(a.deletedAt||0));
+  if (!items.length) {
+    body.innerHTML = '<div class="trash-empty">Trash is empty.</div>';
+    return;
+  }
+  const DAY = 24*60*60*1000;
+  body.innerHTML = items.map(p => {
+    const daysLeft = Math.max(0, Math.ceil(30 - (Date.now() - (p.deletedAt||0))/DAY));
+    const pinCount = (p.pins||[]).length;
+    return `
+      <div class="trash-item">
+        <div class="ti-body">
+          <div class="ti-title"><span class="ri-tag ${p.mode}">${p.mode}</span>${escapeHtml(p.address||'(no address)')}</div>
+          <div class="ti-sub">${pinCount} pin${pinCount===1?'':'s'} · deletes in ${daysLeft} day${daysLeft===1?'':'s'}</div>
+        </div>
+        <button class="ti-restore" onclick="restoreProject('${p.id}')">Restore</button>
+        <button class="ti-forever" onclick="deleteProjectForever('${p.id}')">Delete forever</button>
+      </div>`;
+  }).join('');
 }
 function openProject(id) {
   const p = (store.projects||[]).find(x => x.id === id);
