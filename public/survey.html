@@ -3770,6 +3770,14 @@ document.addEventListener('focusin', (e) => {
 
 let _qc = { stream: null, facing: 'environment', sessionCount: 0, gps: null, busy: false };
 
+function confirmQuickCapture(){
+  closeMenu();
+  if (!project) { alert('Open a project first.'); return; }
+  if (confirm('Start Quick Capture?\n\nTakes untethered photos with GPS + timestamp (separate from your pin photos).')) {
+    openQuickCapture();
+  }
+}
+
 async function openQuickCapture(){
   closeMenu();
   if (!project) return;
