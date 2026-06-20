@@ -463,6 +463,16 @@
     <span id="recentCount"></span>
   </div>
   <div id="recentList"></div>
+  <button id="fabTrash" class="fab-trash empty" onclick="openTrash()" aria-label="Trash">🗑<span id="fabTrashBadge" class="fab-badge" style="display:none">0</span></button>
+</div>
+
+<!-- ============ TRASH ============ -->
+<div id="screenTrash" class="screen">
+  <div class="trash-head">
+    <button class="back-btn" onclick="closeTrash()" aria-label="Back">←</button>
+    <h2>Trash</h2>
+  </div>
+  <div class="trash-body" id="trashBody"></div>
 </div>
 
 <!-- ============ SETUP ============ -->
