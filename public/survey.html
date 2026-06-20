@@ -615,7 +615,8 @@
   </div>
   <textarea class="desc-area" id="pinDesc" placeholder="Describe what you see…" oninput="onPinDescInput(event)"></textarea>
   <div class="sheet-actions">
-    <button class="ghost danger" onclick="deleteCurrentPin()">🗑 Delete pin</button>
+    <button class="ghost danger" onclick="deleteCurrentPin()">🗑 Delete</button>
+    <button class="ghost" onclick="addStackedPin()" title="Drop another pin at this same spot">➕ Same spot</button>
     <button class="primary-btn" style="width:auto;padding:10px 18px;font-size:14px" ontouchstart="event.preventDefault(); closeSheets();" onpointerdown="if(event.pointerType!=='touch'){closeSheets();}" onclick="closeSheets()">Done</button>
   </div>
 </div>
