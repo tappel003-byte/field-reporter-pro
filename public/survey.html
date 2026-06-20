@@ -505,11 +505,12 @@
     <button class="icon-btn" id="wUndo" onclick="undo()" title="Undo">↶</button>
     <button class="icon-btn" id="wRedo" onclick="redo()" title="Redo">↷</button>
     <button class="icon-btn" id="wFullscreen" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
+    <button class="icon-btn" id="wQuickCap" onclick="confirmQuickCapture()" title="Quick Capture">📸</button>
     <button class="icon-btn" onclick="toggleMenu()" title="More">⋯</button>
   </div>
   <div class="menu" id="workMenu">
     <button onclick="openExport()">📤 Export</button>
-    <button onclick="openQuickCapture()">📸 Quick Capture</button>
+    <button onclick="confirmQuickCapture()">📸 Quick Capture</button>
     <div class="sep"></div>
     <button onclick="clearDrawings()">✎ Clear all drawings</button>
     <button onclick="resetNorthArrow()">🧭 Reset north arrow</button>
@@ -3768,6 +3769,14 @@ document.addEventListener('focusin', (e) => {
 })();
 
 let _qc = { stream: null, facing: 'environment', sessionCount: 0, gps: null, busy: false };
+
+function confirmQuickCapture(){
+  closeMenu();
+  if (!project) { alert('Open a project first.'); return; }
+  if (confirm('Start Quick Capture?\n\nTakes untethered photos with GPS + timestamp (separate from your pin photos).')) {
+    openQuickCapture();
+  }
+}
 
 async function openQuickCapture(){
   closeMenu();
