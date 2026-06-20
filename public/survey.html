@@ -506,11 +506,13 @@
     <button class="icon-btn" id="wRedo" onclick="redo()" title="Redo">↷</button>
     <button class="icon-btn" id="wFullscreen" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
     <button class="icon-btn" id="wQuickCap" onclick="confirmQuickCapture()" title="Quick Capture">📸</button>
+    <button class="icon-btn" id="wVoiceMemo" onclick="toggleVoiceMemo()" title="Voice memo">🎙️</button>
     <button class="icon-btn" onclick="toggleMenu()" title="More">⋯</button>
   </div>
   <div class="menu" id="workMenu">
     <button onclick="openExport()">📤 Export</button>
     <button onclick="confirmQuickCapture()">📸 Quick Capture</button>
+    <button onclick="toggleVoiceMemo()">🎙️ Voice memo</button>
     <div class="sep"></div>
     <button onclick="clearDrawings()">✎ Clear all drawings</button>
     <button onclick="resetNorthArrow()">🧭 Reset north arrow</button>
@@ -652,6 +654,7 @@
       • <code>pins.csv</code> — location number, type, description, photo numbers, plus X,Y (0–1, relative to plan.png)<br>
       <span id="exportPhotosNote">• <code>photos/</code> — every photo as <code>photo-NN.jpg</code>, numbered 1…total</span>
       <span id="exportQcNote" style="display:none"><br>• <code>quick-capture/</code> — untethered walk-around photos + CSV with timestamp &amp; GPS</span>
+      <span id="exportVmNote" style="display:none"><br>• <code>voice-memos/</code> — recorded audio memos (webm/m4a) + CSV with timestamp, GPS, duration</span>
     </div>
     <button class="ghost" style="margin-top:14px;width:100%" onclick="exportProjectPdf()">
       📄 Download Map as PDF
@@ -3393,10 +3396,11 @@ function openExport() {
   const isInternal = project.mode === 'internal';
   document.getElementById('exportPhotosNote').style.display = isInternal ? '' : 'none';
   const qcCount = (project.quickCapture || []).length;
+  const vmCount = (project.voiceMemos || []).length;
   document.getElementById('exportQcNote').style.display = qcCount ? '' : 'none';
-  document.getElementById('exportSub').textContent = isInternal
-    ? ('Map + pin list + photos' + (qcCount ? ' + ' + qcCount + ' Quick Capture' : ''))
-    : ('Map + pin list' + (qcCount ? ' + ' + qcCount + ' Quick Capture' : ''));
+  document.getElementById('exportVmNote').style.display = vmCount ? '' : 'none';
+  const extras = (qcCount ? ' + ' + qcCount + ' Quick Capture' : '') + (vmCount ? ' + ' + vmCount + ' voice memo' + (vmCount===1?'':'s') : '');
+  document.getElementById('exportSub').textContent = (isInternal ? 'Map + pin list + photos' : 'Map + pin list') + extras;
   document.getElementById('scrim').classList.add('active');
   document.getElementById('exportSheet').classList.add('open');
 }
@@ -3631,6 +3635,29 @@ async function exportProjectZip() {
       }
       qcFolder.file('quick-capture.csv', qcLines.join('\r\n'));
     }
+
+    // voice-memos/  — recorded audio memos
+    const vm = (project.voiceMemos || []);
+    if (vm.length) {
+      const vmFolder = root.folder('voice-memos');
+      const vmPad = String(vm.length).length >= 3 ? 3 : 2;
+      const vmLines = ['File,Timestamp,Latitude,Longitude,Duration (s)'];
+      for (let i = 0; i < vm.length; i++) {
+        const e = vm[i];
+        let blob = null;
+        try { blob = await idbGet(e.id); } catch {}
+        if (!blob) continue;
+        const ext = e.ext || 'webm';
+        const name = 'memo-' + String(i+1).padStart(vmPad, '0') + '.' + ext;
+        vmFolder.file(name, blob);
+        const iso = new Date(e.ts || Date.now()).toISOString();
+        const dur = (e.duration==null) ? '' : (Math.round(e.duration*10)/10);
+        vmLines.push([name, iso, e.lat==null?'':e.lat, e.lng==null?'':e.lng, dur].join(','));
+      }
+      vmFolder.file('voice-memos.csv', vmLines.join('\r\n'));
+    }
+
+
 
 
 
