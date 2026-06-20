@@ -506,11 +506,13 @@
     <button class="icon-btn" id="wRedo" onclick="redo()" title="Redo">↷</button>
     <button class="icon-btn" id="wFullscreen" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
     <button class="icon-btn" id="wQuickCap" onclick="confirmQuickCapture()" title="Quick Capture">📸</button>
+    <button class="icon-btn" id="wVoiceMemo" onclick="toggleVoiceMemo()" title="Voice memo">🎙️</button>
     <button class="icon-btn" onclick="toggleMenu()" title="More">⋯</button>
   </div>
   <div class="menu" id="workMenu">
     <button onclick="openExport()">📤 Export</button>
     <button onclick="confirmQuickCapture()">📸 Quick Capture</button>
+    <button onclick="toggleVoiceMemo()">🎙️ Voice memo</button>
     <div class="sep"></div>
     <button onclick="clearDrawings()">✎ Clear all drawings</button>
     <button onclick="resetNorthArrow()">🧭 Reset north arrow</button>
@@ -652,6 +654,7 @@
       • <code>pins.csv</code> — location number, type, description, photo numbers, plus X,Y (0–1, relative to plan.png)<br>
       <span id="exportPhotosNote">• <code>photos/</code> — every photo as <code>photo-NN.jpg</code>, numbered 1…total</span>
       <span id="exportQcNote" style="display:none"><br>• <code>quick-capture/</code> — untethered walk-around photos + CSV with timestamp &amp; GPS</span>
+      <span id="exportVmNote" style="display:none"><br>• <code>voice-memos/</code> — recorded audio memos (webm/m4a) + CSV with timestamp, GPS, duration</span>
     </div>
     <button class="ghost" style="margin-top:14px;width:100%" onclick="exportProjectPdf()">
       📄 Download Map as PDF
@@ -3393,10 +3396,11 @@ function openExport() {
   const isInternal = project.mode === 'internal';
   document.getElementById('exportPhotosNote').style.display = isInternal ? '' : 'none';
   const qcCount = (project.quickCapture || []).length;
+  const vmCount = (project.voiceMemos || []).length;
   document.getElementById('exportQcNote').style.display = qcCount ? '' : 'none';
-  document.getElementById('exportSub').textContent = isInternal
-    ? ('Map + pin list + photos' + (qcCount ? ' + ' + qcCount + ' Quick Capture' : ''))
-    : ('Map + pin list' + (qcCount ? ' + ' + qcCount + ' Quick Capture' : ''));
+  document.getElementById('exportVmNote').style.display = vmCount ? '' : 'none';
+  const extras = (qcCount ? ' + ' + qcCount + ' Quick Capture' : '') + (vmCount ? ' + ' + vmCount + ' voice memo' + (vmCount===1?'':'s') : '');
+  document.getElementById('exportSub').textContent = (isInternal ? 'Map + pin list + photos' : 'Map + pin list') + extras;
   document.getElementById('scrim').classList.add('active');
   document.getElementById('exportSheet').classList.add('open');
 }
@@ -3631,6 +3635,29 @@ async function exportProjectZip() {
       }
       qcFolder.file('quick-capture.csv', qcLines.join('\r\n'));
     }
+
+    // voice-memos/  — recorded audio memos
+    const vm = (project.voiceMemos || []);
+    if (vm.length) {
+      const vmFolder = root.folder('voice-memos');
+      const vmPad = String(vm.length).length >= 3 ? 3 : 2;
+      const vmLines = ['File,Timestamp,Latitude,Longitude,Duration (s)'];
+      for (let i = 0; i < vm.length; i++) {
+        const e = vm[i];
+        let blob = null;
+        try { blob = await idbGet(e.id); } catch {}
+        if (!blob) continue;
+        const ext = e.ext || 'webm';
+        const name = 'memo-' + String(i+1).padStart(vmPad, '0') + '.' + ext;
+        vmFolder.file(name, blob);
+        const iso = new Date(e.ts || Date.now()).toISOString();
+        const dur = (e.duration==null) ? '' : (Math.round(e.duration*10)/10);
+        vmLines.push([name, iso, e.lat==null?'':e.lat, e.lng==null?'':e.lng, dur].join(','));
+      }
+      vmFolder.file('voice-memos.csv', vmLines.join('\r\n'));
+    }
+
+
 
 
 
@@ -3909,11 +3936,153 @@ document.addEventListener('click', (e) => {
   }
 }, true);
 
+// ---------- Voice memos ----------
+// Tap mic to start recording; tap again to stop. Native browser format (webm or m4a).
+// Stored as Blob in IDB keyed by `vm_<id>`; metadata in project.voiceMemos[].
+(function setupVoiceMemoStyle(){
+  const s = document.createElement('style');
+  s.textContent = `
+    #wVoiceMemo.vm-recording{background:#dc2626;color:#fff;animation:vmPulse 1.2s infinite}
+    @keyframes vmPulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.6)}50%{box-shadow:0 0 0 6px rgba(220,38,38,0)}}
+    #vmBadge{position:fixed;left:50%;top:8px;transform:translateX(-50%);z-index:1500;
+      background:#dc2626;color:#fff;padding:6px 12px;border-radius:999px;font:600 13px system-ui;
+      box-shadow:0 4px 12px rgba(0,0,0,.25);display:none;align-items:center;gap:8px;
+      padding-top:calc(6px + env(safe-area-inset-top))}
+    #vmBadge.on{display:flex}
+    #vmBadge .vm-dot{width:8px;height:8px;border-radius:50%;background:#fff;animation:vmPulse 1.2s infinite}
+  `;
+  document.head.appendChild(s);
+  const b = document.createElement('div');
+  b.id = 'vmBadge';
+  b.innerHTML = '<span class="vm-dot"></span><span id="vmBadgeText">Recording 0:00</span><span style="opacity:.85">· tap mic to stop</span>';
+  document.body.appendChild(b);
+})();
+
+let _vm = { rec: null, stream: null, chunks: [], startedAt: 0, timer: null, mime: '', ext: '', gps: null };
+
+function newVoiceMemoId(){ return 'vm_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function isVoiceMemoId(s){ return typeof s === 'string' && s.startsWith('vm_'); }
+
+function _vmPickMime(){
+  const cands = [
+    ['audio/webm;codecs=opus','webm'],
+    ['audio/webm','webm'],
+    ['audio/mp4;codecs=mp4a.40.2','m4a'],
+    ['audio/mp4','m4a'],
+    ['audio/ogg;codecs=opus','ogg'],
+  ];
+  for (const [m,ext] of cands){
+    try { if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return {mime:m, ext}; } catch {}
+  }
+  return {mime:'', ext:'webm'};
+}
+
+function _vmFmt(sec){
+  sec = Math.max(0, Math.floor(sec));
+  const m = Math.floor(sec/60), s = sec%60;
+  return m + ':' + String(s).padStart(2,'0');
+}
+
+async function toggleVoiceMemo(){
+  closeMenu();
+  if (!project){ alert('Open a project first.'); return; }
+  if (_vm.rec) { stopVoiceMemo(); return; }
+  await startVoiceMemo();
+}
+
+async function startVoiceMemo(){
+  if (!navigator.mediaDevices || !window.MediaRecorder){
+    alert('Voice recording is not supported in this browser.');
+    return;
+  }
+  const btn = document.getElementById('wVoiceMemo');
+  try {
+    _vm.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true } });
+  } catch (e){
+    alert('Microphone access denied or unavailable.');
+    return;
+  }
+  const {mime, ext} = _vmPickMime();
+  _vm.mime = mime; _vm.ext = ext;
+  try {
+    _vm.rec = mime ? new MediaRecorder(_vm.stream, { mimeType: mime }) : new MediaRecorder(_vm.stream);
+  } catch (e){
+    try { _vm.rec = new MediaRecorder(_vm.stream); } catch (e2){
+      _vm.stream.getTracks().forEach(t=>t.stop()); _vm.stream=null;
+      alert('Could not start recorder: ' + e2.message);
+      return;
+    }
+  }
+  _vm.chunks = [];
+  _vm.rec.ondataavailable = (ev) => { if (ev.data && ev.data.size > 0) _vm.chunks.push(ev.data); };
+  _vm.rec.onstop = _vmOnStop;
+  _vm.startedAt = Date.now();
+  try { _vm.rec.start(1000); } catch { _vm.rec.start(); }
+
+  btn && btn.classList.add('vm-recording');
+  const badge = document.getElementById('vmBadge');
+  const txt = document.getElementById('vmBadgeText');
+  badge.classList.add('on');
+  txt.textContent = 'Recording 0:00';
+  _vm.timer = setInterval(() => {
+    txt.textContent = 'Recording ' + _vmFmt((Date.now()-_vm.startedAt)/1000);
+  }, 500);
+
+  // GPS in background (don't block)
+  _vm.gps = null;
+  if (navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      (p)=>{ _vm.gps = { lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6) }; },
+      ()=>{}, { enableHighAccuracy:true, timeout:8000, maximumAge:30000 }
+    );
+  }
+}
+
+function stopVoiceMemo(){
+  if (!_vm.rec) return;
+  try { _vm.rec.stop(); } catch {}
+}
+
+async function _vmOnStop(){
+  const btn = document.getElementById('wVoiceMemo');
+  btn && btn.classList.remove('vm-recording');
+  document.getElementById('vmBadge').classList.remove('on');
+  if (_vm.timer){ clearInterval(_vm.timer); _vm.timer = null; }
+  if (_vm.stream){ _vm.stream.getTracks().forEach(t=>t.stop()); _vm.stream=null; }
+
+  const chunks = _vm.chunks; _vm.chunks = [];
+  const rec = _vm.rec; _vm.rec = null;
+  const ext = _vm.ext, mime = _vm.mime || (rec && rec.mimeType) || 'audio/webm';
+  const startedAt = _vm.startedAt;
+  const duration = (Date.now() - startedAt) / 1000;
+
+  if (!chunks.length || duration < 0.6){
+    toast('Memo too short — discarded.');
+    return;
+  }
+  const blob = new Blob(chunks, { type: mime });
+  const id = newVoiceMemoId();
+  try { await idbPut(id, blob); }
+  catch (e){ alert('Could not save voice memo: ' + e.message); return; }
+
+  project.voiceMemos = project.voiceMemos || [];
+  project.voiceMemos.push({
+    id, ts: startedAt, duration,
+    mime, ext,
+    lat: _vm.gps ? _vm.gps.lat : null,
+    lng: _vm.gps ? _vm.gps.lng : null,
+  });
+  save();
+  const n = project.voiceMemos.length;
+  toast('Voice memo saved (' + _vmFmt(duration) + ') · ' + n + ' total');
+}
+
 // ---------- Boot ----------
 load();
 renderHome();
 showScreen('screenHome');
 pvSetupGestures();
 </script>
+
 </body>
 </html>
