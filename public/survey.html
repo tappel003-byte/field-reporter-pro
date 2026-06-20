@@ -1975,22 +1975,21 @@ function deleteCurrentPin() {
 function addStackedPin() {
   const cur = currentPin();
   if (!cur) return;
-  const W = (project.plan && project.plan.width) || 1000;
-  const H = (project.plan && project.plan.height) || 1000;
-  const step = Math.max(W, H) * 0.025; // ~2.5% of plan — visible offset
-  // Cascade based on how many pins already cluster near cur
-  const cluster = step * 6;
-  const stackCount = project.pins.filter(p =>
-    Math.abs(p.x - cur.x) < cluster && Math.abs(p.y - cur.y) < cluster
-  ).length;
-  // Choose cascade direction AWAY from the nearest plan edge so we don't clamp
-  const sx = (cur.x > W / 2) ? -1 : 1;
-  const sy = (cur.y > H / 2) ? -1 : 1;
-  const nx = Math.min(Math.max(cur.x + sx * step * stackCount, step), W - step);
-  const ny = Math.min(Math.max(cur.y + sy * step * stackCount, step), H - step);
-  const np = createPin(nx, ny);
+  // Same exact coordinates — stacking is indicated by a ×N badge in-app.
+  // Export keeps normal red/gray styling.
+  const np = createPin(cur.x, cur.y);
   selectPin(np.id);
   openPinSheet();
+}
+// Count pins sharing (approx) same coords as p, including p itself.
+function stackSizeAt(p) {
+  if (!project || !project.pins) return 1;
+  const tol = Math.max(project.plan.width, project.plan.height) * 0.005;
+  let n = 0;
+  for (const q of project.pins) {
+    if (Math.abs(q.x - p.x) <= tol && Math.abs(q.y - p.y) <= tol) n++;
+  }
+  return n;
 }
 
 
