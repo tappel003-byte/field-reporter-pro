@@ -1928,6 +1928,19 @@ function hitTestPin(x, y, cx, cy) {
     const d = Math.hypot(x-p.x, y-p.y);
     if (d <= touchR && d < bestD) { best = p; bestD = d; }
   }
+  // Stack cycling: if the chosen pin is already selected and it's part of a
+  // stack at the same coords, cycle to the next pin in that stack so buried
+  // pins are reachable.
+  if (best && best.id === ui.selectedPinId) {
+    const tol = Math.max(project.plan.width, project.plan.height) * 0.005;
+    const stack = project.pins.filter(q =>
+      Math.abs(q.x - best.x) <= tol && Math.abs(q.y - best.y) <= tol
+    );
+    if (stack.length > 1) {
+      const i = stack.findIndex(q => q.id === best.id);
+      best = stack[(i + 1) % stack.length];
+    }
+  }
   return best;
 }
 
