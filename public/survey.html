@@ -2248,6 +2248,18 @@ function pinCardinal(proj, p, offset) {
   const bearing = (alpha + offset) % 360;
   return _DIRS[Math.round(bearing / 45) % 8];
 }
+function pinRoom(proj, p) {
+  const rooms = proj && proj.rooms;
+  if (!rooms || !rooms.length) return '';
+  const pw = proj.plan.width, ph = proj.plan.height;
+  const px = p.x / pw, py = p.y / ph;
+  let best = null, bestD = Infinity;
+  for (const r of rooms) {
+    const d = Math.hypot(r.x - px, r.y - py);
+    if (d < bestD) { bestD = d; best = r; }
+  }
+  return best ? best.name : '';
+}
 
 function renderIntExtToggle() {
   const p = currentPin();
