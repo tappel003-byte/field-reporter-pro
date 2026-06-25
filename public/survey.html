@@ -524,8 +524,19 @@
     </div>
 
     <div class="field">
-      <label>North arrow</label>
-      <div class="hint">Placed automatically on the plan — drag and rotate it during the survey.</div>
+      <label>Front door faces</label>
+      <select id="fFrontDoor" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--text);font-size:14px">
+        <option value="">— not set —</option>
+        <option value="N">North</option>
+        <option value="NE">Northeast</option>
+        <option value="E">East</option>
+        <option value="SE">Southeast</option>
+        <option value="S" selected>South</option>
+        <option value="SW">Southwest</option>
+        <option value="W">West</option>
+        <option value="NW">Northwest</option>
+      </select>
+      <div class="hint">The on-screen north arrow rotates to match. Assumes the front of the building is drawn at the bottom of the plan.</div>
     </div>
   </div>
 
@@ -555,7 +566,7 @@
     <button onclick="toggleVoiceMemo()">🎙️ Voice memo</button>
     <div class="sep"></div>
     <button onclick="clearDrawings()">✎ Clear all drawings</button>
-    <button onclick="resetNorthArrow()">🧭 Reset north arrow</button>
+    
     <div class="sep"></div>
     <button class="danger" onclick="confirmDeleteProject()">🗑 Delete this project</button>
   </div>
@@ -644,20 +655,6 @@
       <button type="button" class="ext-count-btn" onclick="changeExtPhotoCount(1)" aria-label="Increase">+</button>
     </div>
   </div>
-  <div class="loc-row" id="frontDoorRow" style="display:none">
-    <span class="loc-label">🚪 Front door faces</span>
-    <select id="frontDoorSel" class="fd-sel" onchange="setFrontDoorFacing(this.value)">
-      <option value="">— not set —</option>
-      <option value="N">North</option>
-      <option value="NE">Northeast</option>
-      <option value="E">East</option>
-      <option value="SE">Southeast</option>
-      <option value="S">South</option>
-      <option value="SW">Southwest</option>
-      <option value="W">West</option>
-      <option value="NW">Northwest</option>
-    </select>
-  </div>
 
   <div id="internalPhotoWrap">
     <div class="int-ext-row" id="intExtRow">
@@ -708,7 +705,7 @@
       • <code>plan.png</code> — clean floor plan, no pins or markup<br>
       • <code>map.png</code> — floor plan with numbered pins<br>
       • <code>pins.csv</code> — location, type, description, photo numbers, <b>Direction</b> (N/S/E/W relative to front door), X,Y<br>
-      <span style="color:var(--muted);font-size:12px">Convention: Pin #1 is the front door. Set its facing direction inside the pin sheet to enable cardinal directions for all other pins.</span><br>
+      <span style="color:var(--muted);font-size:12px">Cardinal directions are derived from the "Front door faces" setting chosen when the project was created.</span><br>
       <span id="exportPhotosNote">• <code>photos/</code> — every photo as <code>photo-NN.jpg</code>, numbered 1…total</span>
       <span id="exportQcNote" style="display:none"><br>• <code>quick-capture/</code> — untethered walk-around photos + CSV with timestamp &amp; GPS</span>
       <span id="exportVmNote" style="display:none"><br>• <code>voice-memos/</code> — recorded audio memos (webm/m4a) + CSV with timestamp, GPS, duration</span>
@@ -1318,6 +1315,9 @@ function commitNewProject() {
     }
   }
   const now = Date.now();
+  const fd = (document.getElementById('fFrontDoor')||{}).value || '';
+  const fdBearings = {N:0,NE:45,E:90,SE:135,S:180,SW:225,W:270,NW:315};
+  const northRot = fd ? ((180 - fdBearings[fd]) % 360 + 360) % 360 : 0;
   project = {
     id: uid(),
     mode: _setupMode,
@@ -1327,7 +1327,8 @@ function commitNewProject() {
     nextNum: startNum,
     pins: [],
     drawings: [],
-    north: { x: _setupPlan.width * 0.92, y: _setupPlan.height * 0.08, rotation: 0 },
+    frontDoorFacing: fd,
+    north: { x: _setupPlan.width * 0.92, y: _setupPlan.height * 0.08, rotation: northRot },
     createdAt: now,
     updatedAt: now,
   };
@@ -1460,14 +1461,6 @@ function clearDrawings() {
   project.drawings = [];
   saveProject();
   renderAll();
-}
-function resetNorthArrow() {
-  closeMenu();
-  if (!project) return;
-  snapshot('reset north');
-  project.north = { rotation: 0 };
-  saveProject();
-  renderNorth();
 }
 
 // ---------- Undo / Redo ----------
@@ -2165,24 +2158,8 @@ function openPinSheet() {
   renderLocationChip();
   if (isExternal) { renderExtCount(); renderPhotoStrip(); }
   else { renderPhotoStrip(); renderIntExtToggle(); }
-  // Front-door dropdown: only on the lowest-numbered pin in internal mode
-  const isFrontDoorPin = !isExternal && project.pins && project.pins.length &&
-    p.num === Math.min(...project.pins.map(q => q.num));
-  const fdRow = document.getElementById('frontDoorRow');
-  if (fdRow) {
-    fdRow.style.display = isFrontDoorPin ? '' : 'none';
-    if (isFrontDoorPin) document.getElementById('frontDoorSel').value = project.frontDoorFacing || '';
-  }
   document.getElementById('scrim').classList.add('active');
   document.getElementById('pinSheet').classList.add('open');
-}
-
-function setFrontDoorFacing(dir) {
-  if (!project) return;
-  if ((project.frontDoorFacing || '') === (dir || '')) return;
-  snapshot('front door facing');
-  project.frontDoorFacing = dir || '';
-  saveProject();
 }
 
 // Compass math: given front door facing direction + pin 1 position,
@@ -2190,16 +2167,11 @@ function setFrontDoorFacing(dir) {
 const _DIRS = ['N','NE','E','SE','S','SW','W','NW'];
 const _BEARINGS = {N:0,NE:45,E:90,SE:135,S:180,SW:225,W:270,NW:315};
 function _orientationOffset(proj) {
-  if (!proj || !proj.frontDoorFacing || !proj.pins || !proj.pins.length) return null;
-  const pin1 = proj.pins.slice().sort((a,b) => a.num - b.num)[0];
-  const pw = proj.plan && proj.plan.width, ph = proj.plan && proj.plan.height;
-  if (!pw || !ph) return null;
-  const dx = (pin1.x / pw) - 0.5;
-  const dy = (pin1.y / ph) - 0.5;
-  if (Math.hypot(dx, dy) < 0.03) return null; // pin1 too close to center to infer
-  const alpha = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
+  // Plan-up direction in real-world bearing = opposite of front-door facing.
+  if (!proj || !proj.frontDoorFacing) return null;
   const beta = _BEARINGS[proj.frontDoorFacing];
-  return ((beta - alpha) % 360 + 360) % 360;
+  if (beta == null) return null;
+  return (beta + 180) % 360;
 }
 function pinCardinal(proj, p, offset) {
   if (offset == null) return '';
@@ -3599,43 +3571,13 @@ function renderNorth() {
   rot.setAttribute('transform', `rotate(${project.north.rotation})`);
 }
 function setupNorthWidget() {
+  // North arrow is locked to the "Front door faces" setting from project setup.
+  // No manual rotation — render only.
   const w = document.getElementById('northWidget');
-  if (!w || w._wired) return;
-  w._wired = true;
-  let active = null;
-  const center = () => {
-    const r = w.getBoundingClientRect();
-    return { cx: r.left + r.width/2, cy: r.top + r.height/2 };
-  };
-  w.addEventListener('pointerdown', (e) => {
-    if (!project || !project.north) return;
-    e.preventDefault(); e.stopPropagation();
-    const { cx, cy } = center();
-    active = {
-      pid: e.pointerId,
-      startAngle: Math.atan2(e.clientY - cy, e.clientX - cx),
-      startRot: project.north.rotation,
-    };
-    w.setPointerCapture(e.pointerId);
-    w.classList.add('dragging');
-    snapshot('rotate north');
-  });
-  w.addEventListener('pointermove', (e) => {
-    if (!active || active.pid !== e.pointerId) return;
-    const { cx, cy } = center();
-    const a = Math.atan2(e.clientY - cy, e.clientX - cx);
-    const da = (a - active.startAngle) * 180 / Math.PI;
-    project.north.rotation = active.startRot + da;
-    renderNorth();
-  });
-  const end = (e) => {
-    if (!active || active.pid !== e.pointerId) return;
-    active = null;
-    w.classList.remove('dragging');
-    saveProject();
-  };
-  w.addEventListener('pointerup', end);
-  w.addEventListener('pointercancel', end);
+  if (!w) return;
+  w.style.cursor = 'default';
+  w.style.pointerEvents = 'none';
+  w.title = 'Locked to "Front door faces" from project setup';
 }
 
 // ---------- Export ----------
@@ -3819,12 +3761,7 @@ async function exportProjectZip() {
       if (isInternal) {
         const photoCount = (p.photos || []).length;
         const range = photoRangeFor(p);
-        let dir = '';
-        if (p.num === firstPinNum && project.frontDoorFacing) {
-          dir = 'Front Door (' + project.frontDoorFacing + ')';
-        } else {
-          dir = pinCardinal(project, p, orientOffset);
-        }
+        const dir = pinCardinal(project, p, orientOffset);
         csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range), csvField(dir), norm(p.x, planW), norm(p.y, planH)].join(','));
       } else {
         const extCount = p.extPhotoCount || 0;
