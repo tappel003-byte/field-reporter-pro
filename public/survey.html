@@ -1329,6 +1329,9 @@ function commitNewProject() {
     }
   }
   const now = Date.now();
+  const fd = (document.getElementById('fFrontDoor')||{}).value || '';
+  const fdBearings = {N:0,NE:45,E:90,SE:135,S:180,SW:225,W:270,NW:315};
+  const northRot = fd ? ((180 - fdBearings[fd]) % 360 + 360) % 360 : 0;
   project = {
     id: uid(),
     mode: _setupMode,
@@ -1338,7 +1341,8 @@ function commitNewProject() {
     nextNum: startNum,
     pins: [],
     drawings: [],
-    north: { x: _setupPlan.width * 0.92, y: _setupPlan.height * 0.08, rotation: 0 },
+    frontDoorFacing: fd,
+    north: { x: _setupPlan.width * 0.92, y: _setupPlan.height * 0.08, rotation: northRot },
     createdAt: now,
     updatedAt: now,
   };
