@@ -3571,43 +3571,13 @@ function renderNorth() {
   rot.setAttribute('transform', `rotate(${project.north.rotation})`);
 }
 function setupNorthWidget() {
+  // North arrow is locked to the "Front door faces" setting from project setup.
+  // No manual rotation — render only.
   const w = document.getElementById('northWidget');
-  if (!w || w._wired) return;
-  w._wired = true;
-  let active = null;
-  const center = () => {
-    const r = w.getBoundingClientRect();
-    return { cx: r.left + r.width/2, cy: r.top + r.height/2 };
-  };
-  w.addEventListener('pointerdown', (e) => {
-    if (!project || !project.north) return;
-    e.preventDefault(); e.stopPropagation();
-    const { cx, cy } = center();
-    active = {
-      pid: e.pointerId,
-      startAngle: Math.atan2(e.clientY - cy, e.clientX - cx),
-      startRot: project.north.rotation,
-    };
-    w.setPointerCapture(e.pointerId);
-    w.classList.add('dragging');
-    snapshot('rotate north');
-  });
-  w.addEventListener('pointermove', (e) => {
-    if (!active || active.pid !== e.pointerId) return;
-    const { cx, cy } = center();
-    const a = Math.atan2(e.clientY - cy, e.clientX - cx);
-    const da = (a - active.startAngle) * 180 / Math.PI;
-    project.north.rotation = active.startRot + da;
-    renderNorth();
-  });
-  const end = (e) => {
-    if (!active || active.pid !== e.pointerId) return;
-    active = null;
-    w.classList.remove('dragging');
-    saveProject();
-  };
-  w.addEventListener('pointerup', end);
-  w.addEventListener('pointercancel', end);
+  if (!w) return;
+  w.style.cursor = 'default';
+  w.style.pointerEvents = 'none';
+  w.title = 'Locked to "Front door faces" from project setup';
 }
 
 // ---------- Export ----------
