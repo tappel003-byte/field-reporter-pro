@@ -2166,24 +2166,8 @@ function openPinSheet() {
   renderLocationChip();
   if (isExternal) { renderExtCount(); renderPhotoStrip(); }
   else { renderPhotoStrip(); renderIntExtToggle(); }
-  // Front-door dropdown: only on the lowest-numbered pin in internal mode
-  const isFrontDoorPin = !isExternal && project.pins && project.pins.length &&
-    p.num === Math.min(...project.pins.map(q => q.num));
-  const fdRow = document.getElementById('frontDoorRow');
-  if (fdRow) {
-    fdRow.style.display = isFrontDoorPin ? '' : 'none';
-    if (isFrontDoorPin) document.getElementById('frontDoorSel').value = project.frontDoorFacing || '';
-  }
   document.getElementById('scrim').classList.add('active');
   document.getElementById('pinSheet').classList.add('open');
-}
-
-function setFrontDoorFacing(dir) {
-  if (!project) return;
-  if ((project.frontDoorFacing || '') === (dir || '')) return;
-  snapshot('front door facing');
-  project.frontDoorFacing = dir || '';
-  saveProject();
 }
 
 // Compass math: given front door facing direction + pin 1 position,
