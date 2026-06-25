@@ -3828,7 +3828,7 @@ async function exportProjectZip() {
     const orientOffset = _orientationOffset(project);
     const firstPinNum = pins.length ? pins[0].num : null;
     const csvLines = [isInternal
-      ? 'Location,Type,Description,Photo Count,Photo Numbers,Direction,X,Y'
+      ? 'Location,Type,Description,Photo Count,Photo Numbers,Room,Direction,X,Y'
       : 'Pin,Location,Category,Description,External Photos,Uploaded Photos'];
     const planW = project.plan.width, planH = project.plan.height;
     const norm = (v, dim) => (typeof v === 'number' && isFinite(v) && dim) ? (Math.round((v / dim) * 1e5) / 1e5).toString() : '';
@@ -3839,7 +3839,8 @@ async function exportProjectZip() {
         const photoCount = (p.photos || []).length;
         const range = photoRangeFor(p);
         const dir = pinCardinal(project, p, orientOffset);
-        csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range), csvField(dir), norm(p.x, planW), norm(p.y, planH)].join(','));
+        const room = pinRoom(project, p);
+        csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range), csvField(room), csvField(dir), norm(p.x, planW), norm(p.y, planH)].join(','));
       } else {
         const extCount = p.extPhotoCount || 0;
         const upCount = (p.photos || []).length;
