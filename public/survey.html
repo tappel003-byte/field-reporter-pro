@@ -1155,6 +1155,8 @@ function refreshStartBtn() {
   document.getElementById('startBtn').disabled = disabled;
   document.getElementById('startBtnTop').disabled = disabled;
 }
+let _setupRooms = null;  // array of {name,x,y,confidence} or null while pending
+let _setupRoomsToken = 0;
 function onPlanFileChange(e) {
   const f = e.target.files && e.target.files[0];
   if (!f) return;
@@ -1170,9 +1172,61 @@ function onPlanFileChange(e) {
       document.getElementById('planPreview').style.display = '';
       document.getElementById('planDropZone').style.display = 'none';
       refreshStartBtn();
+      detectRoomsForSetup(dataUrl);
     });
   };
   reader.readAsDataURL(f);
+}
+
+function detectRoomsForSetup(dataUrl) {
+  const token = ++_setupRoomsToken;
+  _setupRooms = null;
+  const field = document.getElementById('roomsField');
+  const status = document.getElementById('roomsStatus');
+  const chips = document.getElementById('roomsChips');
+  field.style.display = '';
+  status.textContent = '— scanning plan…';
+  chips.innerHTML = '';
+  // Downscale to ~1200px for faster upload to the LLM.
+  resizeImage(dataUrl, 1200, (smallUrl) => {
+    fetch('/api/detect-rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageDataUrl: smallUrl }),
+    })
+      .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
+      .then(data => {
+        if (token !== _setupRoomsToken) return; // user uploaded a newer plan
+        _setupRooms = Array.isArray(data.rooms) ? data.rooms : [];
+        renderSetupRooms();
+      })
+      .catch(err => {
+        if (token !== _setupRoomsToken) return;
+        _setupRooms = [];
+        status.textContent = '— scan unavailable (you can still proceed)';
+        console.warn('Room detection failed', err);
+      });
+  });
+}
+
+function renderSetupRooms() {
+  const status = document.getElementById('roomsStatus');
+  const chips = document.getElementById('roomsChips');
+  chips.innerHTML = '';
+  const rooms = _setupRooms || [];
+  if (!rooms.length) {
+    status.textContent = '— none found (you can still proceed)';
+    return;
+  }
+  status.textContent = '— ' + rooms.length + ' found, tap to remove';
+  rooms.forEach((r, idx) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.textContent = r.name + ' ✕';
+    chip.style.cssText = 'padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--text);font-size:13px;cursor:pointer';
+    chip.onclick = () => { _setupRooms.splice(idx, 1); renderSetupRooms(); };
+    chips.appendChild(chip);
+  });
 }
 function resizeImage(dataUrl, maxDim, cb) {
   const img = new Image();
