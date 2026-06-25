@@ -524,8 +524,19 @@
     </div>
 
     <div class="field">
-      <label>North arrow</label>
-      <div class="hint">Placed automatically on the plan — drag and rotate it during the survey.</div>
+      <label>Front door faces</label>
+      <select id="fFrontDoor" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--text);font-size:14px">
+        <option value="">— not set —</option>
+        <option value="N">North</option>
+        <option value="NE">Northeast</option>
+        <option value="E">East</option>
+        <option value="SE">Southeast</option>
+        <option value="S" selected>South</option>
+        <option value="SW">Southwest</option>
+        <option value="W">West</option>
+        <option value="NW">Northwest</option>
+      </select>
+      <div class="hint">The on-screen north arrow rotates to match. Assumes the front of the building is drawn at the bottom of the plan.</div>
     </div>
   </div>
 
