@@ -96,7 +96,7 @@ export const Route = createFileRoute("/api/detect-rooms")({
                 y: Math.min(1, Math.max(0, r.y)),
                 confidence: typeof r.confidence === "number" ? r.confidence : undefined,
               }))
-              .filter((r) => r.name.length > 0);
+              .filter((r: Room) => r.name.length > 0);
           }
         } catch {
           // fall through to empty rooms
