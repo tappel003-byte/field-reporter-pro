@@ -1137,12 +1137,16 @@ let _setupPlan = null;   // { dataUrl, width, height }
 function startNewProject(mode) {
   _setupMode = mode;
   _setupPlan = null;
+  _setupRooms = null;
+  _setupRoomsToken++;
   document.getElementById('setupTitle').textContent = mode === 'internal' ? 'New Internal Survey' : 'New External Survey';
   document.getElementById('fAddress').value = '';
   document.getElementById('fStartNum').value = '1';
   document.getElementById('planPreview').style.display = 'none';
   document.getElementById('planDropZone').style.display = '';
   document.getElementById('fPlanFile').value = '';
+  const rf = document.getElementById('roomsField'); if (rf) rf.style.display = 'none';
+  const rc = document.getElementById('roomsChips'); if (rc) rc.innerHTML = '';
   refreshStartBtn();
   showScreen('screenSetup');
   setTimeout(()=>document.getElementById('fAddress').focus(), 200);
