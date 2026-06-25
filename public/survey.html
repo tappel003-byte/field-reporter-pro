@@ -3799,12 +3799,7 @@ async function exportProjectZip() {
       if (isInternal) {
         const photoCount = (p.photos || []).length;
         const range = photoRangeFor(p);
-        let dir = '';
-        if (p.num === firstPinNum && project.frontDoorFacing) {
-          dir = 'Front Door (' + project.frontDoorFacing + ')';
-        } else {
-          dir = pinCardinal(project, p, orientOffset);
-        }
+        const dir = pinCardinal(project, p, orientOffset);
         csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range), csvField(dir), norm(p.x, planW), norm(p.y, planH)].join(','));
       } else {
         const extCount = p.extPhotoCount || 0;
