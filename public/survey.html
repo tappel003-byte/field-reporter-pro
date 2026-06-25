@@ -538,6 +538,12 @@
       </select>
       <div class="hint">The on-screen north arrow rotates to match. Assumes the front of the building is drawn at the bottom of the plan.</div>
     </div>
+
+    <div class="field" id="roomsField" style="display:none">
+      <label>Detected rooms <span id="roomsStatus" style="font-weight:400;color:var(--muted);font-size:12px"></span></label>
+      <div id="roomsChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
+      <div class="hint">Tap a chip to remove it. These auto-label each pin in the export so reports can say things like "SW corner of Master Bedroom".</div>
+    </div>
   </div>
 
   <div class="setup-foot">
@@ -704,7 +710,7 @@
       One ZIP containing:<br>
       • <code>plan.png</code> — clean floor plan, no pins or markup<br>
       • <code>map.png</code> — floor plan with numbered pins<br>
-      • <code>pins.csv</code> — location, type, description, photo numbers, <b>Direction</b> (N/S/E/W relative to front door), X,Y<br>
+      • <code>pins.csv</code> — location, type, description, photo numbers, <b>Room</b>, <b>Direction</b> (N/S/E/W relative to front door), X,Y<br>
       <span style="color:var(--muted);font-size:12px">Cardinal directions are derived from the "Front door faces" setting chosen when the project was created.</span><br>
       <span id="exportPhotosNote">• <code>photos/</code> — every photo as <code>photo-NN.jpg</code>, numbered 1…total</span>
       <span id="exportQcNote" style="display:none"><br>• <code>quick-capture/</code> — untethered walk-around photos + CSV with timestamp &amp; GPS</span>
@@ -1131,12 +1137,16 @@ let _setupPlan = null;   // { dataUrl, width, height }
 function startNewProject(mode) {
   _setupMode = mode;
   _setupPlan = null;
+  _setupRooms = null;
+  _setupRoomsToken++;
   document.getElementById('setupTitle').textContent = mode === 'internal' ? 'New Internal Survey' : 'New External Survey';
   document.getElementById('fAddress').value = '';
   document.getElementById('fStartNum').value = '1';
   document.getElementById('planPreview').style.display = 'none';
   document.getElementById('planDropZone').style.display = '';
   document.getElementById('fPlanFile').value = '';
+  const rf = document.getElementById('roomsField'); if (rf) rf.style.display = 'none';
+  const rc = document.getElementById('roomsChips'); if (rc) rc.innerHTML = '';
   refreshStartBtn();
   showScreen('screenSetup');
   setTimeout(()=>document.getElementById('fAddress').focus(), 200);
@@ -1149,6 +1159,8 @@ function refreshStartBtn() {
   document.getElementById('startBtn').disabled = disabled;
   document.getElementById('startBtnTop').disabled = disabled;
 }
+let _setupRooms = null;  // array of {name,x,y,confidence} or null while pending
+let _setupRoomsToken = 0;
 function onPlanFileChange(e) {
   const f = e.target.files && e.target.files[0];
   if (!f) return;
@@ -1164,9 +1176,61 @@ function onPlanFileChange(e) {
       document.getElementById('planPreview').style.display = '';
       document.getElementById('planDropZone').style.display = 'none';
       refreshStartBtn();
+      detectRoomsForSetup(dataUrl);
     });
   };
   reader.readAsDataURL(f);
+}
+
+function detectRoomsForSetup(dataUrl) {
+  const token = ++_setupRoomsToken;
+  _setupRooms = null;
+  const field = document.getElementById('roomsField');
+  const status = document.getElementById('roomsStatus');
+  const chips = document.getElementById('roomsChips');
+  field.style.display = '';
+  status.textContent = '— scanning plan…';
+  chips.innerHTML = '';
+  // Downscale to ~1200px for faster upload to the LLM.
+  resizeImage(dataUrl, 1200, (smallUrl) => {
+    fetch('/api/detect-rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageDataUrl: smallUrl }),
+    })
+      .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
+      .then(data => {
+        if (token !== _setupRoomsToken) return; // user uploaded a newer plan
+        _setupRooms = Array.isArray(data.rooms) ? data.rooms : [];
+        renderSetupRooms();
+      })
+      .catch(err => {
+        if (token !== _setupRoomsToken) return;
+        _setupRooms = [];
+        status.textContent = '— scan unavailable (you can still proceed)';
+        console.warn('Room detection failed', err);
+      });
+  });
+}
+
+function renderSetupRooms() {
+  const status = document.getElementById('roomsStatus');
+  const chips = document.getElementById('roomsChips');
+  chips.innerHTML = '';
+  const rooms = _setupRooms || [];
+  if (!rooms.length) {
+    status.textContent = '— none found (you can still proceed)';
+    return;
+  }
+  status.textContent = '— ' + rooms.length + ' found, tap to remove';
+  rooms.forEach((r, idx) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.textContent = r.name + ' ✕';
+    chip.style.cssText = 'padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--text);font-size:13px;cursor:pointer';
+    chip.onclick = () => { _setupRooms.splice(idx, 1); renderSetupRooms(); };
+    chips.appendChild(chip);
+  });
 }
 function resizeImage(dataUrl, maxDim, cb) {
   const img = new Image();
@@ -1328,6 +1392,7 @@ function commitNewProject() {
     pins: [],
     drawings: [],
     frontDoorFacing: fd,
+    rooms: Array.isArray(_setupRooms) ? _setupRooms.slice() : [],
     north: { x: _setupPlan.width * 0.92, y: _setupPlan.height * 0.08, rotation: northRot },
     createdAt: now,
     updatedAt: now,
@@ -2182,6 +2247,18 @@ function pinCardinal(proj, p, offset) {
   const alpha = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
   const bearing = (alpha + offset) % 360;
   return _DIRS[Math.round(bearing / 45) % 8];
+}
+function pinRoom(proj, p) {
+  const rooms = proj && proj.rooms;
+  if (!rooms || !rooms.length) return '';
+  const pw = proj.plan.width, ph = proj.plan.height;
+  const px = p.x / pw, py = p.y / ph;
+  let best = null, bestD = Infinity;
+  for (const r of rooms) {
+    const d = Math.hypot(r.x - px, r.y - py);
+    if (d < bestD) { bestD = d; best = r; }
+  }
+  return best ? best.name : '';
 }
 
 function renderIntExtToggle() {
@@ -3751,7 +3828,7 @@ async function exportProjectZip() {
     const orientOffset = _orientationOffset(project);
     const firstPinNum = pins.length ? pins[0].num : null;
     const csvLines = [isInternal
-      ? 'Location,Type,Description,Photo Count,Photo Numbers,Direction,X,Y'
+      ? 'Location,Type,Description,Photo Count,Photo Numbers,Room,Direction,X,Y'
       : 'Pin,Location,Category,Description,External Photos,Uploaded Photos'];
     const planW = project.plan.width, planH = project.plan.height;
     const norm = (v, dim) => (typeof v === 'number' && isFinite(v) && dim) ? (Math.round((v / dim) * 1e5) / 1e5).toString() : '';
@@ -3762,7 +3839,8 @@ async function exportProjectZip() {
         const photoCount = (p.photos || []).length;
         const range = photoRangeFor(p);
         const dir = pinCardinal(project, p, orientOffset);
-        csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range), csvField(dir), norm(p.x, planW), norm(p.y, planH)].join(','));
+        const room = pinRoom(project, p);
+        csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range), csvField(room), csvField(dir), norm(p.x, planW), norm(p.y, planH)].join(','));
       } else {
         const extCount = p.extPhotoCount || 0;
         const upCount = (p.photos || []).length;
