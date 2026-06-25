@@ -295,6 +295,7 @@
   .loc-chip.empty{color:var(--muted);font-weight:500}
   .loc-chip .loc-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
   .loc-chip .loc-arrow{color:var(--muted);font-size:14px;flex-shrink:0}
+  .fd-sel{flex:1;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;font-size:13px;font-weight:500;color:#0f172a;min-width:0}
   .loc-clear{background:transparent;border:none;color:var(--muted);font-size:18px;
     width:32px;height:32px;border-radius:50%;cursor:pointer;flex-shrink:0;
     display:flex;align-items:center;justify-content:center}
@@ -643,6 +644,21 @@
       <button type="button" class="ext-count-btn" onclick="changeExtPhotoCount(1)" aria-label="Increase">+</button>
     </div>
   </div>
+  <div class="loc-row" id="frontDoorRow" style="display:none">
+    <span class="loc-label">🚪 Front door faces</span>
+    <select id="frontDoorSel" class="fd-sel" onchange="setFrontDoorFacing(this.value)">
+      <option value="">— not set —</option>
+      <option value="N">North</option>
+      <option value="NE">Northeast</option>
+      <option value="E">East</option>
+      <option value="SE">Southeast</option>
+      <option value="S">South</option>
+      <option value="SW">Southwest</option>
+      <option value="W">West</option>
+      <option value="NW">Northwest</option>
+    </select>
+  </div>
+
   <div id="internalPhotoWrap">
     <div class="int-ext-row" id="intExtRow">
       <button type="button" class="iex-btn int active" id="iexInt" onclick="setPinExterior(false)">Interior</button>
@@ -691,7 +707,8 @@
       One ZIP containing:<br>
       • <code>plan.png</code> — clean floor plan, no pins or markup<br>
       • <code>map.png</code> — floor plan with numbered pins<br>
-      • <code>pins.csv</code> — location number, type, description, photo numbers, plus X,Y (0–1, relative to plan.png)<br>
+      • <code>pins.csv</code> — location, type, description, photo numbers, <b>Direction</b> (N/S/E/W relative to front door), X,Y<br>
+      <span style="color:var(--muted);font-size:12px">Convention: Pin #1 is the front door. Set its facing direction inside the pin sheet to enable cardinal directions for all other pins.</span><br>
       <span id="exportPhotosNote">• <code>photos/</code> — every photo as <code>photo-NN.jpg</code>, numbered 1…total</span>
       <span id="exportQcNote" style="display:none"><br>• <code>quick-capture/</code> — untethered walk-around photos + CSV with timestamp &amp; GPS</span>
       <span id="exportVmNote" style="display:none"><br>• <code>voice-memos/</code> — recorded audio memos (webm/m4a) + CSV with timestamp, GPS, duration</span>
@@ -2148,8 +2165,51 @@ function openPinSheet() {
   renderLocationChip();
   if (isExternal) { renderExtCount(); renderPhotoStrip(); }
   else { renderPhotoStrip(); renderIntExtToggle(); }
+  // Front-door dropdown: only on the lowest-numbered pin in internal mode
+  const isFrontDoorPin = !isExternal && project.pins && project.pins.length &&
+    p.num === Math.min(...project.pins.map(q => q.num));
+  const fdRow = document.getElementById('frontDoorRow');
+  if (fdRow) {
+    fdRow.style.display = isFrontDoorPin ? '' : 'none';
+    if (isFrontDoorPin) document.getElementById('frontDoorSel').value = project.frontDoorFacing || '';
+  }
   document.getElementById('scrim').classList.add('active');
   document.getElementById('pinSheet').classList.add('open');
+}
+
+function setFrontDoorFacing(dir) {
+  if (!project) return;
+  if ((project.frontDoorFacing || '') === (dir || '')) return;
+  snapshot('front door facing');
+  project.frontDoorFacing = dir || '';
+  saveProject();
+}
+
+// Compass math: given front door facing direction + pin 1 position,
+// derive each pin's cardinal direction relative to the plan center.
+const _DIRS = ['N','NE','E','SE','S','SW','W','NW'];
+const _BEARINGS = {N:0,NE:45,E:90,SE:135,S:180,SW:225,W:270,NW:315};
+function _orientationOffset(proj) {
+  if (!proj || !proj.frontDoorFacing || !proj.pins || !proj.pins.length) return null;
+  const pin1 = proj.pins.slice().sort((a,b) => a.num - b.num)[0];
+  const pw = proj.plan && proj.plan.width, ph = proj.plan && proj.plan.height;
+  if (!pw || !ph) return null;
+  const dx = (pin1.x / pw) - 0.5;
+  const dy = (pin1.y / ph) - 0.5;
+  if (Math.hypot(dx, dy) < 0.03) return null; // pin1 too close to center to infer
+  const alpha = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
+  const beta = _BEARINGS[proj.frontDoorFacing];
+  return ((beta - alpha) % 360 + 360) % 360;
+}
+function pinCardinal(proj, p, offset) {
+  if (offset == null) return '';
+  const pw = proj.plan.width, ph = proj.plan.height;
+  const dx = (p.x / pw) - 0.5;
+  const dy = (p.y / ph) - 0.5;
+  if (Math.hypot(dx, dy) < 0.03) return 'Center';
+  const alpha = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
+  const bearing = (alpha + offset) % 360;
+  return _DIRS[Math.round(bearing / 45) % 8];
 }
 
 function renderIntExtToggle() {
@@ -3746,8 +3806,10 @@ async function exportProjectZip() {
     const pad = (n) => String(n).padStart(padW, '0');
 
     // pins.csv
+    const orientOffset = _orientationOffset(project);
+    const firstPinNum = pins.length ? pins[0].num : null;
     const csvLines = [isInternal
-      ? 'Location,Type,Description,Photo Count,Photo Numbers,X,Y'
+      ? 'Location,Type,Description,Photo Count,Photo Numbers,Direction,X,Y'
       : 'Pin,Location,Category,Description,External Photos,Uploaded Photos'];
     const planW = project.plan.width, planH = project.plan.height;
     const norm = (v, dim) => (typeof v === 'number' && isFinite(v) && dim) ? (Math.round((v / dim) * 1e5) / 1e5).toString() : '';
@@ -3757,7 +3819,13 @@ async function exportProjectZip() {
       if (isInternal) {
         const photoCount = (p.photos || []).length;
         const range = photoRangeFor(p);
-        csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range), norm(p.x, planW), norm(p.y, planH)].join(','));
+        let dir = '';
+        if (p.num === firstPinNum && project.frontDoorFacing) {
+          dir = 'Front Door (' + project.frontDoorFacing + ')';
+        } else {
+          dir = pinCardinal(project, p, orientOffset);
+        }
+        csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range), csvField(dir), norm(p.x, planW), norm(p.y, planH)].join(','));
       } else {
         const extCount = p.extPhotoCount || 0;
         const upCount = (p.photos || []).length;
