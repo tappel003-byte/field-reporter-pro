@@ -1462,14 +1462,6 @@ function clearDrawings() {
   saveProject();
   renderAll();
 }
-function resetNorthArrow() {
-  closeMenu();
-  if (!project) return;
-  snapshot('reset north');
-  project.north = { rotation: 0 };
-  saveProject();
-  renderNorth();
-}
 
 // ---------- Undo / Redo ----------
 function _snapState() {
