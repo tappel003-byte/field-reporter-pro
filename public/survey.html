@@ -295,6 +295,7 @@
   .loc-chip.empty{color:var(--muted);font-weight:500}
   .loc-chip .loc-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
   .loc-chip .loc-arrow{color:var(--muted);font-size:14px;flex-shrink:0}
+  .fd-sel{flex:1;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;font-size:13px;font-weight:500;color:#0f172a;min-width:0}
   .loc-clear{background:transparent;border:none;color:var(--muted);font-size:18px;
     width:32px;height:32px;border-radius:50%;cursor:pointer;flex-shrink:0;
     display:flex;align-items:center;justify-content:center}
@@ -643,6 +644,21 @@
       <button type="button" class="ext-count-btn" onclick="changeExtPhotoCount(1)" aria-label="Increase">+</button>
     </div>
   </div>
+  <div class="loc-row" id="frontDoorRow" style="display:none">
+    <span class="loc-label">🚪 Front door faces</span>
+    <select id="frontDoorSel" class="fd-sel" onchange="setFrontDoorFacing(this.value)">
+      <option value="">— not set —</option>
+      <option value="N">North</option>
+      <option value="NE">Northeast</option>
+      <option value="E">East</option>
+      <option value="SE">Southeast</option>
+      <option value="S">South</option>
+      <option value="SW">Southwest</option>
+      <option value="W">West</option>
+      <option value="NW">Northwest</option>
+    </select>
+  </div>
+
   <div id="internalPhotoWrap">
     <div class="int-ext-row" id="intExtRow">
       <button type="button" class="iex-btn int active" id="iexInt" onclick="setPinExterior(false)">Interior</button>
