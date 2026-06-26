@@ -2457,17 +2457,64 @@ function pinCardinal(proj, p, offset) {
   const bearing = (alpha + offset) % 360;
   return _DIRS[Math.round(bearing / 45) % 8];
 }
-function pinRoom(proj, p) {
+function pinRoom(proj, p, labels) {
   const rooms = proj && proj.rooms;
   if (!rooms || !rooms.length) return '';
   const pw = proj.plan.width, ph = proj.plan.height;
   const px = p.x / pw, py = p.y / ph;
-  let best = null, bestD = Infinity;
-  for (const r of rooms) {
+  let bestI = -1, bestD = Infinity;
+  for (let i = 0; i < rooms.length; i++) {
+    const r = rooms[i];
     const d = Math.hypot(r.x - px, r.y - py);
-    if (d < bestD) { bestD = d; best = r; }
+    if (d < bestD) { bestD = d; bestI = i; }
   }
-  return best ? best.name : '';
+  if (bestI < 0) return '';
+  return (labels && labels[bestI]) || rooms[bestI].name;
+}
+// Disambiguate duplicate room names for the export only (plan/UI keep raw names).
+// Two "Bedroom" rooms become "South Bedroom" / "North Bedroom" using each room's
+// cardinal position relative to the plan center, oriented by the front door.
+// If two duplicates land in the same octant, fall back to numbering for that pair.
+const _CARD_FULL = {N:'North',S:'South',E:'East',W:'West',NE:'NE',NW:'NW',SE:'SE',SW:'SW'};
+function _roomCardinal(r, offset) {
+  const dx = r.x - 0.5, dy = r.y - 0.5;
+  if (Math.hypot(dx, dy) < 0.03) return 'Center';
+  const alpha = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
+  const bearing = (alpha + offset) % 360;
+  return _DIRS[Math.round(bearing / 45) % 8];
+}
+function buildRoomLabels(proj, offset) {
+  const rooms = (proj && proj.rooms) || [];
+  const labels = rooms.map(r => r.name || '');
+  const groups = {};
+  rooms.forEach((r, i) => {
+    const k = (r.name || '').trim().toLowerCase();
+    if (!k) return;
+    (groups[k] = groups[k] || []).push(i);
+  });
+  Object.keys(groups).forEach(k => {
+    const idxs = groups[k];
+    if (idxs.length <= 1) return;
+    if (offset == null) {
+      idxs.forEach((i, n) => { labels[i] = rooms[i].name + ' ' + (n + 1); });
+      return;
+    }
+    const dirs = idxs.map(i => _roomCardinal(rooms[i], offset));
+    const counts = {};
+    dirs.forEach(d => { counts[d] = (counts[d] || 0) + 1; });
+    const seen = {};
+    idxs.forEach((i, n) => {
+      const d = dirs[n];
+      const word = _CARD_FULL[d] || d;
+      if (counts[d] === 1) {
+        labels[i] = word + ' ' + rooms[i].name;
+      } else {
+        seen[d] = (seen[d] || 0) + 1;
+        labels[i] = word + ' ' + rooms[i].name + ' ' + seen[d];
+      }
+    });
+  });
+  return labels;
 }
 
 function renderIntExtToggle() {
