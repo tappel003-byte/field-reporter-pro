@@ -4535,8 +4535,22 @@ async function _vmOnStop(){
 load();
 renderHome();
 showScreen('screenHome');
+_initRoomVerifyGestures();
 pvSetupGestures();
 </script>
+
+<!-- Room Verify Overlay -->
+<div id="roomVerifyOverlay" class="rv-overlay" onclick="if(event.target===this)closeRoomVerify()">
+  <div class="rv-head">
+    <span id="rvTitle">Verify detected rooms</span>
+    <button class="rv-btn" onclick="closeRoomVerify()" aria-label="Close">✕</button>
+  </div>
+  <div class="rv-stage" id="rvStage">
+    <div class="rv-content" id="rvWrap">
+      <img id="rvImg" alt="Floor plan" />
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
