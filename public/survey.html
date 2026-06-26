@@ -4684,6 +4684,11 @@ pvSetupGestures();
     <div class="rv-content" id="rvWrap">
       <img id="rvImg" alt="Floor plan" />
     </div>
+    <div class="rv-zoom">
+      <button class="rv-btn" onclick="_rvZoomCenter(1.4)" aria-label="Zoom in">＋</button>
+      <button class="rv-btn" onclick="_rvZoomCenter(1/1.4)" aria-label="Zoom out">−</button>
+      <button class="rv-btn" onclick="_rvFitToStage();_applyRvTransform()" aria-label="Fit">⤢</button>
+    </div>
   </div>
 </div>
 
