@@ -1255,9 +1255,13 @@ function openRoomVerify() {
   const ov = document.getElementById('roomVerifyOverlay');
   const img = document.getElementById('rvImg');
   const wrap = document.getElementById('rvWrap');
-  img.src = _setupPlan.dataUrl;
   wrap.innerHTML = '';
   wrap.appendChild(img);
+  wrap.style.width = _setupPlan.width + 'px';
+  wrap.style.height = _setupPlan.height + 'px';
+  img.style.width = '100%';
+  img.style.height = '100%';
+  img.src = _setupPlan.dataUrl;
   _setupRooms.forEach(r => {
     const b = document.createElement('div');
     b.className = 'rv-badge';
@@ -1266,21 +1270,32 @@ function openRoomVerify() {
     b.style.top = (r.y * 100) + '%';
     wrap.appendChild(b);
   });
-  _rvState = { scale: 1, tx: 0, ty: 0 };
-  _applyRvTransform();
   ov.classList.add('open');
+  requestAnimationFrame(() => { _rvFitToStage(); _applyRvTransform(); });
 }
 function closeRoomVerify() {
   document.getElementById('roomVerifyOverlay').classList.remove('open');
 }
-let _rvState = { scale: 1, tx: 0, ty: 0 };
+let _rvState = { scale: 1, tx: 0, ty: 0, minScale: 0.1 };
+function _rvFitToStage() {
+  const stage = document.getElementById('rvStage');
+  if (!stage || !_setupPlan) return;
+  const sw = stage.clientWidth, sh = stage.clientHeight;
+  const iw = _setupPlan.width, ih = _setupPlan.height;
+  if (!sw || !sh || !iw || !ih) return;
+  const fit = Math.min(sw / iw, sh / ih);
+  _rvState.minScale = fit * 0.5;
+  _rvState.scale = fit;
+  _rvState.tx = (sw - iw * fit) / 2;
+  _rvState.ty = (sh - ih * fit) / 2;
+}
 function _applyRvTransform() {
   const el = document.getElementById('rvWrap');
   if (!el) return;
   el.style.transform = 'translate(' + _rvState.tx + 'px,' + _rvState.ty + 'px) scale(' + _rvState.scale + ')';
 }
 function _rvZoomBy(factor, cx, cy) {
-  const s = Math.max(1, Math.min(8, _rvState.scale * factor));
+  const s = Math.max(_rvState.minScale, Math.min(12, _rvState.scale * factor));
   const r = document.getElementById('rvStage').getBoundingClientRect();
   const x = (cx - r.left) - _rvState.tx;
   const y = (cy - r.top) - _rvState.ty;
@@ -1338,7 +1353,7 @@ function _initRoomVerifyGestures() {
       if (pts.length < 2) return;
       const a = pts[0], b = pts[1];
       const d = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
-      const s = Math.max(1, Math.min(8, gesture.scale * (d / gesture.dist)));
+      const s = Math.max(_rvState.minScale, Math.min(12, gesture.scale * (d / gesture.dist)));
       const r = stage.getBoundingClientRect();
       const mx = (a.x + b.x) / 2 - r.left;
       const my = (a.y + b.y) / 2 - r.top;
@@ -1348,13 +1363,11 @@ function _initRoomVerifyGestures() {
       _applyRvTransform();
     }
   }, { passive: false });
-  const endGesture = () => {
-    gesture = null;
-    if (pointers.size === 0 && _rvState.scale < 1) { _rvState.scale = 1; _rvState.tx = 0; _rvState.ty = 0; _applyRvTransform(); }
-  };
+  const endGesture = () => { gesture = null; };
   stage.addEventListener('pointerup', e => { pointers.delete(e.pointerId); endGesture(); });
   stage.addEventListener('pointercancel', e => { pointers.delete(e.pointerId); endGesture(); });
   stage.addEventListener('wheel', e => { e.preventDefault(); _rvZoomBy(e.deltaY < 0 ? 1.15 : 1/1.15, e.clientX, e.clientY); }, { passive: false });
+  stage.addEventListener('dblclick', e => { e.preventDefault(); _rvFitToStage(); _applyRvTransform(); });
 }
 function resizeImage(dataUrl, maxDim, cb) {
   const img = new Image();
