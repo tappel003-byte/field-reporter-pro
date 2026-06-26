@@ -490,7 +490,7 @@
 <!-- ============ SETUP ============ -->
 <div id="screenSetup" class="screen">
   <div class="setup-head">
-    <button class="back-btn" onclick="goHome()" aria-label="Back">←</button>
+    <button class="back-btn" onclick="setupBack()" aria-label="Back">←</button>
     <h2 id="setupTitle">New Survey</h2>
     <button id="startBtnTop" class="head-start-btn" disabled onclick="commitNewProject()">Start</button>
   </div>
@@ -580,6 +580,8 @@
   </div>
   <div class="menu" id="workMenu">
     <button onclick="openExport()">📤 Export</button>
+    <button onclick="editSetup()">⚙️ Edit setup</button>
+    <div class="sep"></div>
     <button onclick="confirmQuickCapture()">📸 Quick Capture</button>
     <button onclick="toggleVoiceMemo()">🎙️ Voice memo</button>
     <div class="sep"></div>
@@ -1145,6 +1147,7 @@ function openProject(id) {
 
 // ---------- SETUP ----------
 let _setupMode = null;
+let _editingProjectId = null;
 let _setupPlan = null;   // { dataUrl, width, height }
 function startNewProject(mode) {
   _setupMode = mode;
@@ -1485,10 +1488,85 @@ function useGpsCoordsOnly() {
       : _gpsBlockedMsg();
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
 }
+function editSetup() {
+  if (!project) return;
+  closeMenu();
+  _editingProjectId = project.id;
+  _setupMode = project.mode;
+  _setupPlan = project.plan ? { dataUrl: project.plan.dataUrl, width: project.plan.width, height: project.plan.height } : null;
+  _setupRooms = Array.isArray(project.rooms) ? project.rooms.slice() : null;
+
+  document.getElementById('setupTitle').textContent = 'Edit Setup';
+  document.getElementById('fAddress').value = project.address || '';
+  document.getElementById('fStartNum').value = String(project.startNum || 1);
+
+  const fd = document.getElementById('fFrontDoor');
+  if (fd) fd.value = project.frontDoorFacing || '';
+
+  if (_setupPlan) {
+    document.getElementById('planPreviewImg').src = _setupPlan.dataUrl;
+    document.getElementById('planPreview').style.display = '';
+    document.getElementById('planDropZone').style.display = 'none';
+  } else {
+    document.getElementById('planPreview').style.display = 'none';
+    document.getElementById('planDropZone').style.display = '';
+  }
+
+  const rf = document.getElementById('roomsField');
+  if (rf) rf.style.display = (_setupRooms && _setupRooms.length) ? '' : 'none';
+  renderSetupRooms();
+
+  document.getElementById('startBtn').textContent = 'Save Setup';
+  document.getElementById('startBtnTop').textContent = 'Save';
+
+  refreshStartBtn();
+  showScreen('screenSetup');
+}
+
+function setupBack() {
+  if (_editingProjectId) {
+    _editingProjectId = null;
+    _setupPlan = null;
+    _setupRooms = null;
+    document.getElementById('startBtn').textContent = 'Start Survey';
+    document.getElementById('startBtnTop').textContent = 'Start';
+    showScreen('screenWork');
+  } else {
+    goHome();
+  }
+}
+
 function commitNewProject() {
   const addr = document.getElementById('fAddress').value.trim();
   let startNum = Math.max(1, parseInt(document.getElementById('fStartNum').value,10) || 1);
   if (!addr || !_setupPlan) return;
+
+  const fd = (document.getElementById('fFrontDoor')||{}).value || '';
+  const fdBearings = {N:0,NE:45,E:90,SE:135,S:180,SW:225,W:270,NW:315};
+  const northRot = fd ? ((180 - fdBearings[fd]) % 360 + 360) % 360 : 0;
+
+  if (_editingProjectId) {
+    const p = (store.projects || []).find(x => x.id === _editingProjectId);
+    if (!p) { _editingProjectId = null; return; }
+    const startChanged = (p.startNum || 1) !== startNum;
+    p.address = addr;
+    p.plan = { dataUrl: _setupPlan.dataUrl, width: _setupPlan.width, height: _setupPlan.height };
+    p.startNum = startNum;
+    p.frontDoorFacing = fd;
+    p.rooms = Array.isArray(_setupRooms) ? _setupRooms.slice() : [];
+    if (!p.north) p.north = { x: p.plan.width * 0.92, y: p.plan.height * 0.08, rotation: 0 };
+    p.north.rotation = northRot;
+    if (startChanged) recomputeNumbering();
+    p.updatedAt = Date.now();
+    _editingProjectId = null;
+    project = p;
+    save();
+    document.getElementById('startBtn').textContent = 'Start Survey';
+    document.getElementById('startBtnTop').textContent = 'Start';
+    enterWork();
+    return;
+  }
+
   // Soft reminder for external mode when starting picture # isn't 1.
   if (_setupMode === 'external' && startNum !== 1) {
     const reset = confirm(
@@ -1501,9 +1579,6 @@ function commitNewProject() {
     }
   }
   const now = Date.now();
-  const fd = (document.getElementById('fFrontDoor')||{}).value || '';
-  const fdBearings = {N:0,NE:45,E:90,SE:135,S:180,SW:225,W:270,NW:315};
-  const northRot = fd ? ((180 - fdBearings[fd]) % 360 + 360) % 360 : 0;
   project = {
     id: uid(),
     mode: _setupMode,
