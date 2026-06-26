@@ -1306,6 +1306,12 @@ function _rvZoomBy(factor, cx, cy) {
   _rvState.scale = s;
   _applyRvTransform();
 }
+function _rvZoomCenter(factor) {
+  const stage = document.getElementById('rvStage');
+  if (!stage) return;
+  const r = stage.getBoundingClientRect();
+  _rvZoomBy(factor, r.left + r.width / 2, r.top + r.height / 2);
+}
 function _initRoomVerifyGestures() {
   const stage = document.getElementById('rvStage');
   if (!stage || stage._rvWired) return;
