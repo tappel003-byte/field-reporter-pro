@@ -523,7 +523,8 @@
       </div>
       <div id="planPreview" style="display:none" class="plan-preview">
         <button class="change" onclick="document.getElementById('fPlanFile').click()">Change</button>
-        <img id="planPreviewImg" alt="Floor plan preview" />
+        <button id="verifyRoomsBtn" class="verify" style="display:none" onclick="openRoomVerify()">🔍 Verify rooms</button>
+        <img id="planPreviewImg" alt="Floor plan preview" onclick="openRoomVerify()" />
       </div>
       <input type="file" id="fPlanFile" accept="image/*" style="display:none" onchange="onPlanFileChange(event)" />
     </div>
