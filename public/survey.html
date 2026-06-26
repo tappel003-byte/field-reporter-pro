@@ -1243,6 +1243,114 @@ function renderSetupRooms() {
     chip.onclick = () => { _setupRooms.splice(idx, 1); renderSetupRooms(); };
     chips.appendChild(chip);
   });
+  const vbtn = document.getElementById('verifyRoomsBtn');
+  if (vbtn) vbtn.style.display = '';
+}
+function openRoomVerify() {
+  if (!_setupPlan || !_setupRooms || !_setupRooms.length) return;
+  const ov = document.getElementById('roomVerifyOverlay');
+  const img = document.getElementById('rvImg');
+  const wrap = document.getElementById('rvWrap');
+  img.src = _setupPlan.dataUrl;
+  wrap.innerHTML = '';
+  wrap.appendChild(img);
+  _setupRooms.forEach(r => {
+    const b = document.createElement('div');
+    b.className = 'rv-badge';
+    b.textContent = r.name;
+    b.style.left = (r.x * 100) + '%';
+    b.style.top = (r.y * 100) + '%';
+    wrap.appendChild(b);
+  });
+  _rvState = { scale: 1, tx: 0, ty: 0 };
+  _applyRvTransform();
+  ov.classList.add('open');
+}
+function closeRoomVerify() {
+  document.getElementById('roomVerifyOverlay').classList.remove('open');
+}
+let _rvState = { scale: 1, tx: 0, ty: 0 };
+function _applyRvTransform() {
+  const el = document.getElementById('rvWrap');
+  if (!el) return;
+  el.style.transform = 'translate(' + _rvState.tx + 'px,' + _rvState.ty + 'px) scale(' + _rvState.scale + ')';
+}
+function _rvZoomBy(factor, cx, cy) {
+  const s = Math.max(1, Math.min(8, _rvState.scale * factor));
+  const r = document.getElementById('rvStage').getBoundingClientRect();
+  const x = (cx - r.left) - _rvState.tx;
+  const y = (cy - r.top) - _rvState.ty;
+  _rvState.tx -= x * (s / _rvState.scale - 1);
+  _rvState.ty -= y * (s / _rvState.scale - 1);
+  _rvState.scale = s;
+  _applyRvTransform();
+}
+function _initRoomVerifyGestures() {
+  const stage = document.getElementById('rvStage');
+  if (!stage || stage._rvWired) return;
+  stage._rvWired = true;
+  const pointers = new Map();
+  let gesture = null;
+  const pointList = () => Array.from(pointers.values());
+  const startGesture = () => {
+    const pts = pointList();
+    if (pts.length >= 2) {
+      const a = pts[0], b = pts[1];
+      const r = stage.getBoundingClientRect();
+      const mx = (a.x + b.x) / 2 - r.left;
+      const my = (a.y + b.y) / 2 - r.top;
+      gesture = {
+        kind: 'pinch',
+        dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+        scale: _rvState.scale,
+        cx: mx, cy: my,
+        tx: _rvState.tx, ty: _rvState.ty
+      };
+    } else if (pts.length === 1) {
+      const p = pts[0];
+      gesture = { kind: 'drag', id: p.id, sx: p.x, sy: p.y, tx: _rvState.tx, ty: _rvState.ty };
+    }
+  };
+  stage.addEventListener('pointerdown', e => {
+    if (e.target && e.target.closest && e.target.closest('.rv-head button')) return;
+    e.preventDefault();
+    try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+    pointers.set(e.pointerId, { id: e.pointerId, x: e.clientX, y: e.clientY });
+    startGesture();
+  }, { passive: false });
+  stage.addEventListener('pointermove', e => {
+    if (!pointers.has(e.pointerId)) return;
+    e.preventDefault();
+    pointers.set(e.pointerId, { id: e.pointerId, x: e.clientX, y: e.clientY });
+    if (!gesture) return;
+    if (gesture.kind === 'drag') {
+      const p = pointers.get(gesture.id);
+      if (!p) return;
+      _rvState.tx = gesture.tx + (p.x - gesture.sx);
+      _rvState.ty = gesture.ty + (p.y - gesture.sy);
+      _applyRvTransform();
+    } else if (gesture.kind === 'pinch') {
+      const pts = pointList();
+      if (pts.length < 2) return;
+      const a = pts[0], b = pts[1];
+      const d = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      const s = Math.max(1, Math.min(8, gesture.scale * (d / gesture.dist)));
+      const r = stage.getBoundingClientRect();
+      const mx = (a.x + b.x) / 2 - r.left;
+      const my = (a.y + b.y) / 2 - r.top;
+      _rvState.tx = gesture.tx + (mx - gesture.cx) - (mx - gesture.cx) * (s / gesture.scale);
+      _rvState.ty = gesture.ty + (my - gesture.cy) - (my - gesture.cy) * (s / gesture.scale);
+      _rvState.scale = s;
+      _applyRvTransform();
+    }
+  }, { passive: false });
+  const endGesture = () => {
+    gesture = null;
+    if (pointers.size === 0 && _rvState.scale < 1) { _rvState.scale = 1; _rvState.tx = 0; _rvState.ty = 0; _applyRvTransform(); }
+  };
+  stage.addEventListener('pointerup', e => { pointers.delete(e.pointerId); endGesture(); });
+  stage.addEventListener('pointercancel', e => { pointers.delete(e.pointerId); endGesture(); });
+  stage.addEventListener('wheel', e => { e.preventDefault(); _rvZoomBy(e.deltaY < 0 ? 1.15 : 1/1.15, e.clientX, e.clientY); }, { passive: false });
 }
 function resizeImage(dataUrl, maxDim, cb) {
   const img = new Image();
