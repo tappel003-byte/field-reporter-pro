@@ -1230,8 +1230,10 @@ function renderSetupRooms() {
   const chips = document.getElementById('roomsChips');
   chips.innerHTML = '';
   const rooms = _setupRooms || [];
+  const vbtn = document.getElementById('verifyRoomsBtn');
   if (!rooms.length) {
     status.textContent = '— none found (you can still proceed)';
+    if (vbtn) vbtn.style.display = 'none';
     return;
   }
   status.textContent = '— ' + rooms.length + ' found, tap to remove';
