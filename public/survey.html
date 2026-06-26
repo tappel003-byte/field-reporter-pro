@@ -1248,7 +1248,6 @@ function renderSetupRooms() {
     chip.onclick = () => { _setupRooms.splice(idx, 1); renderSetupRooms(); };
     chips.appendChild(chip);
   });
-  const vbtn = document.getElementById('verifyRoomsBtn');
   if (vbtn) vbtn.style.display = '';
 }
 function openRoomVerify() {
