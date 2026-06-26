@@ -122,7 +122,18 @@
   .plan-drop .icon{font-size:30px;margin-bottom:8px}
   .plan-preview{position:relative;background:var(--paper);border:1px solid var(--line);
     border-radius:12px;padding:8px;text-align:center}
-  .plan-preview img{max-width:100%;max-height:240px;border-radius:6px;display:block;margin:0 auto}
+  .plan-preview img{max-width:100%;max-height:240px;border-radius:6px;display:block;margin:0 auto;cursor:zoom-in}
+  .plan-preview .verify{position:absolute;top:8px;left:8px;background:var(--ink);color:var(--paper);border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer}
+  /* Room verify overlay */
+  .rv-overlay{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.92);display:none;flex-direction:column;touch-action:none}
+  .rv-overlay.open{display:flex}
+  .rv-head{position:absolute;top:0;left:0;right:0;z-index:5;padding:calc(env(safe-area-inset-top,0px)+8px) 12px 12px;display:flex;align-items:center;gap:8px;background:linear-gradient(rgba(0,0,0,.7),transparent)}
+  .rv-head span{flex:1;color:#fff;font-size:14px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+  .rv-btn{background:rgba(0,0,0,.5);color:#fff;border:none;width:42px;height:42px;border-radius:50%;font-size:18px;display:flex;align-items:center;justify:center;backdrop-filter:blur(6px)}
+  .rv-stage{flex:1;position:relative;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}
+  .rv-content{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;line-height:0}
+  .rv-content img{display:block;-webkit-user-drag:none;pointer-events:none;max-width:none;max-height:none}
+  .rv-badge{position:absolute;transform:translate(-50%,-50%);background:rgba(193,74,43,.92);color:#fff;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.25)}
   .plan-preview .change{position:absolute;top:8px;right:8px;background:var(--ink);color:var(--paper);
     border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600}
 
