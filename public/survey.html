@@ -144,6 +144,10 @@
   .rv-picker-card .rv-pk-actions{display:flex;gap:6px;margin-top:8px}
   .rv-picker-card .rv-pk-actions button{flex:1;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer}
   .rv-picker-card .rv-pk-actions button.danger{background:#c14a2b;color:#fff;border-color:#c14a2b}
+  .room-actions{display:flex;gap:8px;margin-top:10px}
+  .room-actions button{flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--text);font-size:14px;font-weight:600;cursor:pointer}
+  .room-actions button.primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .room-actions button:disabled{opacity:.45;cursor:not-allowed}
   .plan-preview .change{position:absolute;top:8px;right:8px;background:var(--ink);color:var(--paper);
     border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600}
 
@@ -564,7 +568,11 @@
     <div class="field" id="roomsField" style="display:none">
       <label>Rooms <span id="roomsStatus" style="font-weight:400;color:var(--muted);font-size:12px"></span></label>
       <div id="roomsChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
-      <div class="hint">Tap Add rooms, pinch to zoom, drag to move the plan, then tap the room location to label it. These labels are used in the export.</div>
+      <div class="room-actions">
+        <button type="button" class="primary" onclick="openRoomVerify()">➕ Manual rooms</button>
+        <button type="button" id="autoScanRoomsBtn" onclick="confirmDetectRoomsForSetup()">🔍 Auto-scan</button>
+      </div>
+      <div class="hint">Manual is the default. Auto-scan only runs if you press Auto-scan and confirm that it uses AI credits.</div>
     </div>
   </div>
 
