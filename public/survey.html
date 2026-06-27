@@ -1201,7 +1201,9 @@ function onPlanFileChange(e) {
       document.getElementById('planPreview').style.display = '';
       document.getElementById('planDropZone').style.display = 'none';
       refreshStartBtn();
-      detectRoomsForSetup(dataUrl);
+      _setupRoomsToken++;
+      _setupRooms = [];
+      renderSetupRooms();
     });
   };
   reader.readAsDataURL(f);
@@ -1249,21 +1251,21 @@ function detectRoomsForSetup(dataUrl) {
 function renderSetupRooms() {
   const status = document.getElementById('roomsStatus');
   const chips = document.getElementById('roomsChips');
+  const field = document.getElementById('roomsField');
+  if (field) field.style.display = _setupPlan ? '' : 'none';
   chips.innerHTML = '';
   const rooms = _setupRooms || [];
   const vbtn = document.getElementById('verifyRoomsBtn');
-  // Verify/manual-edit button is always available once a plan is uploaded.
+  // Manual room button is always available once a plan is uploaded. No automatic scan.
   if (vbtn) {
     vbtn.style.display = _setupPlan ? '' : 'none';
-    vbtn.textContent = rooms.length ? '🔍 Verify rooms' : '➕ Add rooms';
+    vbtn.textContent = rooms.length ? '🏷️ Rooms (' + rooms.length + ')' : '➕ Add rooms';
   }
   if (!rooms.length) {
-    if (!status.textContent || !/scanning/i.test(status.textContent)) {
-      status.textContent = '— none yet — tap "Add rooms" to place them manually';
-    }
+    status.textContent = '— none yet — tap "Add rooms" to place them manually';
     return;
   }
-  status.textContent = '— ' + rooms.length + ' room' + (rooms.length===1?'':'s') + ', tap to remove';
+  status.textContent = '— ' + rooms.length + ' room' + (rooms.length===1?'':'s') + ', tap a chip to remove';
   rooms.forEach((r, idx) => {
     const chip = document.createElement('button');
     chip.type = 'button';
@@ -1276,6 +1278,7 @@ function renderSetupRooms() {
 function openRoomVerify() {
   if (!_setupPlan) return;
   if (!Array.isArray(_setupRooms)) _setupRooms = [];
+  _initRoomVerifyGestures();
   const ov = document.getElementById('roomVerifyOverlay');
   const img = document.getElementById('rvImg');
   const wrap = document.getElementById('rvWrap');
@@ -1288,7 +1291,7 @@ function openRoomVerify() {
   img.src = _setupPlan.dataUrl;
   _rvRenderBadges();
   const t = document.getElementById('rvTitle');
-  if (t) t.textContent = 'Rooms — tap plan to add, tap badge to edit';
+  if (t) t.textContent = 'Rooms — pinch zoom, drag move, tap plan to add';
   ov.classList.add('open');
   requestAnimationFrame(() => { _rvFitToStage(); _applyRvTransform(); });
 }
