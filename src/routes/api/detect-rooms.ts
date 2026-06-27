@@ -1,6 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 type Room = { name: string; x: number; y: number; confidence?: number };
+type RawRoom = {
+  name?: unknown;
+  x?: unknown;
+  y?: unknown;
+  position?: { x?: unknown; y?: unknown };
+  confidence?: unknown;
+};
 
 const SYSTEM_PROMPT = `You analyze residential or commercial floor-plan images and extract printed room labels.
 Return ONLY a JSON object of the form: {"rooms":[{"name":"<room label>","x":<0..1>,"y":<0..1>,"confidence":<0..1>}]}
@@ -24,17 +31,36 @@ function cleanRoomName(name: string) {
     .slice(0, 60);
 }
 
+function normalizeCoordinate(value: unknown) {
+  let n: number;
+  if (typeof value === "number") {
+    n = value;
+  } else if (typeof value === "string") {
+    const raw = value.trim();
+    const parsed = Number.parseFloat(raw.replace(/%$/, ""));
+    if (!Number.isFinite(parsed)) return null;
+    n = raw.endsWith("%") ? parsed / 100 : parsed;
+  } else {
+    return null;
+  }
+
+  if (!Number.isFinite(n)) return null;
+  if (n > 1 && n <= 100) n = n / 100;
+  if (n < -0.02 || n > 1.02) return null;
+  return Math.min(1, Math.max(0, n));
+}
+
 function looksLikeBadCoordinateSet(rooms: Room[]) {
   if (rooms.length < 3) return false;
   const xs = rooms.map((r) => r.x);
   const ys = rooms.map((r) => r.y);
   const spreadX = Math.max(...xs) - Math.min(...xs);
   const spreadY = Math.max(...ys) - Math.min(...ys);
-  const edgeYCount = ys.filter((y) => y <= 0.04 || y >= 0.96).length;
-  const edgeXCount = xs.filter((x) => x <= 0.04 || x >= 0.96).length;
-  const mostlyOnHorizontalLine = spreadY < 0.035 && spreadX > 0.2;
-  const mostlyOnVerticalLine = spreadX < 0.035 && spreadY > 0.2;
-  const mostlyOnEdge = edgeYCount / rooms.length >= 0.6 || edgeXCount / rooms.length >= 0.6;
+  const edgeYCount = ys.filter((y) => y <= 0.02 || y >= 0.98).length;
+  const edgeXCount = xs.filter((x) => x <= 0.02 || x >= 0.98).length;
+  const mostlyOnHorizontalLine = spreadY < 0.015 && spreadX > 0.25;
+  const mostlyOnVerticalLine = spreadX < 0.015 && spreadY > 0.25;
+  const mostlyOnEdge = edgeYCount / rooms.length >= 0.8 || edgeXCount / rooms.length >= 0.8;
   return mostlyOnHorizontalLine || mostlyOnVerticalLine || mostlyOnEdge;
 }
 
@@ -110,19 +136,18 @@ export const Route = createFileRoute("/api/detect-rooms")({
           const parsed = JSON.parse(content);
           if (Array.isArray(parsed?.rooms)) {
             rooms = parsed.rooms
-              .filter(
-                (r: unknown): r is Room =>
-                  !!r &&
-                  typeof (r as Room).name === "string" &&
-                  typeof (r as Room).x === "number" &&
-                  typeof (r as Room).y === "number",
-              )
-              .map((r: Room) => ({
-                name: cleanRoomName(r.name),
-                x: Math.min(1, Math.max(0, r.x)),
-                y: Math.min(1, Math.max(0, r.y)),
-                confidence: typeof r.confidence === "number" ? r.confidence : undefined,
-              }))
+              .map((raw: RawRoom) => {
+                const x = normalizeCoordinate(raw.x ?? raw.position?.x);
+                const y = normalizeCoordinate(raw.y ?? raw.position?.y);
+                if (typeof raw.name !== "string" || x === null || y === null) return null;
+                return {
+                  name: cleanRoomName(raw.name),
+                  x,
+                  y,
+                  confidence: typeof raw.confidence === "number" ? raw.confidence : undefined,
+                };
+              })
+              .filter((r: Room | null): r is Room => !!r)
               .filter((r: Room) => r.name.length > 0);
           }
         } catch {
@@ -134,9 +159,9 @@ export const Route = createFileRoute("/api/detect-rooms")({
             JSON.stringify({
               rooms: [],
               rejected: true,
-              error: "Auto-scan found room names but their positions were unreliable, so nothing was placed.",
+              error: "Auto-scan found room names but their positions were unreliable, so nothing was placed. Use Manual rooms for this plan.",
             }),
-            { status: 422, headers: { "Content-Type": "application/json" } },
+            { status: 200, headers: { "Content-Type": "application/json" } },
           );
         }
 
