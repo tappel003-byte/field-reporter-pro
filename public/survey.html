@@ -1421,6 +1421,8 @@ function _rvAddRoomAt(cx, cy) {
     _setupRooms.push({ name, x, y });
     _rvRenderBadges();
     renderSetupRooms();
+    const msgEl = document.getElementById('roomsMessage');
+    if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
   });
 }
 function _rvEditRoom(idx) {
@@ -1429,10 +1431,14 @@ function _rvEditRoom(idx) {
     r.name = name;
     _rvRenderBadges();
     renderSetupRooms();
+    const msgEl = document.getElementById('roomsMessage');
+    if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
   }, () => {
     _setupRooms.splice(idx, 1);
     _rvRenderBadges();
     renderSetupRooms();
+    const msgEl = document.getElementById('roomsMessage');
+    if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
   });
 }
 function closeRoomVerify() {
