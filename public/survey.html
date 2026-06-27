@@ -133,7 +133,17 @@
   .rv-stage{flex:1;position:relative;overflow:hidden;touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
   .rv-content{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;line-height:0}
   .rv-content img{display:block;-webkit-user-drag:none;pointer-events:none;max-width:none;max-height:none}
-  .rv-badge{position:absolute;transform:translate(-50%,-50%);background:rgba(193,74,43,.92);color:#fff;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.25)}
+  .rv-badge{position:absolute;transform:translate(-50%,-50%);background:rgba(193,74,43,.92);color:#fff;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;pointer-events:auto;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.25);touch-action:none}
+  .rv-picker{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:16px}
+  .rv-picker.open{display:flex}
+  .rv-picker-card{background:var(--paper);border-radius:14px;width:100%;max-width:340px;max-height:80vh;overflow:auto;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+  .rv-picker-card h3{margin:0 0 10px;font-size:15px;color:var(--text)}
+  .rv-picker-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+  .rv-picker-grid button{padding:10px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;text-align:center}
+  .rv-picker-grid button:active{background:var(--ink);color:var(--paper)}
+  .rv-picker-card .rv-pk-actions{display:flex;gap:6px;margin-top:8px}
+  .rv-picker-card .rv-pk-actions button{flex:1;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer}
+  .rv-picker-card .rv-pk-actions button.danger{background:#c14a2b;color:#fff;border-color:#c14a2b}
   .plan-preview .change{position:absolute;top:8px;right:8px;background:var(--ink);color:var(--paper);
     border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600}
 
