@@ -130,12 +130,10 @@
   .rv-head{position:absolute;top:0;left:0;right:0;z-index:5;padding:calc(env(safe-area-inset-top,0px)+8px) 12px 12px;display:flex;align-items:center;gap:8px;background:linear-gradient(rgba(0,0,0,.7),transparent)}
   .rv-head span{flex:1;color:#fff;font-size:14px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.6)}
   .rv-btn{background:rgba(0,0,0,.5);color:#fff;border:none;width:42px;height:42px;border-radius:50%;font-size:18px;display:flex;align-items:center;justify:center;backdrop-filter:blur(6px)}
-  .rv-stage{flex:1;position:relative;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}
+  .rv-stage{flex:1;position:relative;overflow:hidden;touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
   .rv-content{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;line-height:0}
   .rv-content img{display:block;-webkit-user-drag:none;pointer-events:none;max-width:none;max-height:none}
   .rv-badge{position:absolute;transform:translate(-50%,-50%);background:rgba(193,74,43,.92);color:#fff;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.25)}
-  .rv-zoom{position:absolute;right:12px;bottom:calc(env(safe-area-inset-bottom,0px)+12px);display:flex;flex-direction:column;gap:8px;z-index:5}
-  .rv-zoom .rv-btn{box-shadow:0 2px 8px rgba(0,0,0,.4)}
   .plan-preview .change{position:absolute;top:8px;right:8px;background:var(--ink);color:var(--paper);
     border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600}
 
@@ -1306,18 +1304,11 @@ function _rvZoomBy(factor, cx, cy) {
   _rvState.scale = s;
   _applyRvTransform();
 }
-function _rvZoomCenter(factor) {
-  const stage = document.getElementById('rvStage');
-  if (!stage) return;
-  const r = stage.getBoundingClientRect();
-  _rvZoomBy(factor, r.left + r.width / 2, r.top + r.height / 2);
-}
 function _initRoomVerifyGestures() {
   const stage = document.getElementById('rvStage');
   if (!stage || stage._rvWired) return;
   stage._rvWired = true;
-  // Use Touch Events for multi-touch pinch (most reliable across iOS/Android),
-  // fall back to mouse/wheel for desktop.
+  // Phone-first image viewer: one finger pans, two fingers pinch exactly where the fingers are.
   let gesture = null;
   const touchInfo = (touches) => {
     const arr = [];
@@ -1329,12 +1320,15 @@ function _initRoomVerifyGestures() {
     if (pts.length >= 2) {
       const a = pts[0], b = pts[1];
       const r = stage.getBoundingClientRect();
+      const cx = (a.x + b.x) / 2 - r.left;
+      const cy = (a.y + b.y) / 2 - r.top;
       gesture = {
         kind: 'pinch',
         dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
         scale: _rvState.scale,
-        cx: (a.x + b.x) / 2 - r.left,
-        cy: (a.y + b.y) / 2 - r.top,
+        cx, cy,
+        contentX: (cx - _rvState.tx) / _rvState.scale,
+        contentY: (cy - _rvState.ty) / _rvState.scale,
         tx: _rvState.tx, ty: _rvState.ty
       };
     } else if (pts.length === 1) {
@@ -1359,8 +1353,8 @@ function _initRoomVerifyGestures() {
       const r = stage.getBoundingClientRect();
       const mx = (a.x + b.x) / 2 - r.left;
       const my = (a.y + b.y) / 2 - r.top;
-      _rvState.tx = gesture.tx + (mx - gesture.cx) - (mx - gesture.cx) * (s / gesture.scale);
-      _rvState.ty = gesture.ty + (my - gesture.cy) - (my - gesture.cy) * (s / gesture.scale);
+      _rvState.tx = mx - gesture.contentX * s;
+      _rvState.ty = my - gesture.contentY * s;
       _rvState.scale = s;
       _applyRvTransform();
     } else if (gesture.kind === 'drag' && pts.length >= 1) {
@@ -1378,7 +1372,7 @@ function _initRoomVerifyGestures() {
   };
   stage.addEventListener('touchend', onTouchEnd);
   stage.addEventListener('touchcancel', onTouchEnd);
-  // Desktop: mouse drag + wheel zoom + dblclick reset
+  // Desktop fallback: drag, wheel zoom, double-click fit.
   let mDrag = null;
   stage.addEventListener('mousedown', e => {
     if (e.target && e.target.closest && e.target.closest('button')) return;
@@ -4708,11 +4702,6 @@ pvSetupGestures();
   <div class="rv-stage" id="rvStage">
     <div class="rv-content" id="rvWrap">
       <img id="rvImg" alt="Floor plan" />
-    </div>
-    <div class="rv-zoom">
-      <button class="rv-btn" onclick="_rvZoomCenter(1.4)" aria-label="Zoom in">＋</button>
-      <button class="rv-btn" onclick="_rvZoomCenter(1/1.4)" aria-label="Zoom out">−</button>
-      <button class="rv-btn" onclick="_rvFitToStage();_applyRvTransform()" aria-label="Fit">⤢</button>
     </div>
   </div>
 </div>
