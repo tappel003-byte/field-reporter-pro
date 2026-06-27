@@ -533,7 +533,7 @@
       </div>
       <div id="planPreview" style="display:none" class="plan-preview">
         <button class="change" onclick="document.getElementById('fPlanFile').click()">Change</button>
-        <button id="verifyRoomsBtn" class="verify" style="display:none" onclick="openRoomVerify()">🔍 Verify rooms</button>
+        <button id="verifyRoomsBtn" class="verify" style="display:none" onclick="openRoomVerify()">➕ Add rooms</button>
         <img id="planPreviewImg" alt="Floor plan preview" onclick="openRoomVerify()" />
       </div>
       <input type="file" id="fPlanFile" accept="image/*" style="display:none" onchange="onPlanFileChange(event)" />
@@ -562,9 +562,9 @@
     </div>
 
     <div class="field" id="roomsField" style="display:none">
-      <label>Detected rooms <span id="roomsStatus" style="font-weight:400;color:var(--muted);font-size:12px"></span></label>
+      <label>Rooms <span id="roomsStatus" style="font-weight:400;color:var(--muted);font-size:12px"></span></label>
       <div id="roomsChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
-      <div class="hint">Tap a chip to remove it. These auto-label each pin in the export so reports can say things like "SW corner of Master Bedroom".</div>
+      <div class="hint">Tap Add rooms, pinch to zoom, drag to move the plan, then tap the room location to label it. These labels are used in the export.</div>
     </div>
   </div>
 
