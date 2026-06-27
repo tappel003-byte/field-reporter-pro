@@ -1316,49 +1316,43 @@ function _initRoomVerifyGestures() {
   const stage = document.getElementById('rvStage');
   if (!stage || stage._rvWired) return;
   stage._rvWired = true;
-  const pointers = new Map();
+  // Use Touch Events for multi-touch pinch (most reliable across iOS/Android),
+  // fall back to mouse/wheel for desktop.
   let gesture = null;
-  const pointList = () => Array.from(pointers.values());
-  const startGesture = () => {
-    const pts = pointList();
+  const touchInfo = (touches) => {
+    const arr = [];
+    for (let i = 0; i < touches.length; i++) arr.push({ x: touches[i].clientX, y: touches[i].clientY });
+    return arr;
+  };
+  const startFromTouches = (touches) => {
+    const pts = touchInfo(touches);
     if (pts.length >= 2) {
       const a = pts[0], b = pts[1];
       const r = stage.getBoundingClientRect();
-      const mx = (a.x + b.x) / 2 - r.left;
-      const my = (a.y + b.y) / 2 - r.top;
       gesture = {
         kind: 'pinch',
         dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
         scale: _rvState.scale,
-        cx: mx, cy: my,
+        cx: (a.x + b.x) / 2 - r.left,
+        cy: (a.y + b.y) / 2 - r.top,
         tx: _rvState.tx, ty: _rvState.ty
       };
     } else if (pts.length === 1) {
-      const p = pts[0];
-      gesture = { kind: 'drag', id: p.id, sx: p.x, sy: p.y, tx: _rvState.tx, ty: _rvState.ty };
+      gesture = { kind: 'drag', sx: pts[0].x, sy: pts[0].y, tx: _rvState.tx, ty: _rvState.ty };
+    } else {
+      gesture = null;
     }
   };
-  stage.addEventListener('pointerdown', e => {
-    if (e.target && e.target.closest && e.target.closest('.rv-head button')) return;
+  stage.addEventListener('touchstart', e => {
+    if (e.target && e.target.closest && e.target.closest('button')) return;
     e.preventDefault();
-    try { stage.setPointerCapture(e.pointerId); } catch (_) {}
-    pointers.set(e.pointerId, { id: e.pointerId, x: e.clientX, y: e.clientY });
-    startGesture();
+    startFromTouches(e.touches);
   }, { passive: false });
-  stage.addEventListener('pointermove', e => {
-    if (!pointers.has(e.pointerId)) return;
-    e.preventDefault();
-    pointers.set(e.pointerId, { id: e.pointerId, x: e.clientX, y: e.clientY });
+  stage.addEventListener('touchmove', e => {
     if (!gesture) return;
-    if (gesture.kind === 'drag') {
-      const p = pointers.get(gesture.id);
-      if (!p) return;
-      _rvState.tx = gesture.tx + (p.x - gesture.sx);
-      _rvState.ty = gesture.ty + (p.y - gesture.sy);
-      _applyRvTransform();
-    } else if (gesture.kind === 'pinch') {
-      const pts = pointList();
-      if (pts.length < 2) return;
+    e.preventDefault();
+    const pts = touchInfo(e.touches);
+    if (gesture.kind === 'pinch' && pts.length >= 2) {
       const a = pts[0], b = pts[1];
       const d = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
       const s = Math.max(_rvState.minScale, Math.min(12, gesture.scale * (d / gesture.dist)));
@@ -1369,11 +1363,34 @@ function _initRoomVerifyGestures() {
       _rvState.ty = gesture.ty + (my - gesture.cy) - (my - gesture.cy) * (s / gesture.scale);
       _rvState.scale = s;
       _applyRvTransform();
+    } else if (gesture.kind === 'drag' && pts.length >= 1) {
+      _rvState.tx = gesture.tx + (pts[0].x - gesture.sx);
+      _rvState.ty = gesture.ty + (pts[0].y - gesture.sy);
+      _applyRvTransform();
     }
   }, { passive: false });
-  const endGesture = () => { gesture = null; };
-  stage.addEventListener('pointerup', e => { pointers.delete(e.pointerId); endGesture(); });
-  stage.addEventListener('pointercancel', e => { pointers.delete(e.pointerId); endGesture(); });
+  const onTouchEnd = e => {
+    if (e.touches && e.touches.length > 0) {
+      startFromTouches(e.touches); // re-baseline remaining fingers
+    } else {
+      gesture = null;
+    }
+  };
+  stage.addEventListener('touchend', onTouchEnd);
+  stage.addEventListener('touchcancel', onTouchEnd);
+  // Desktop: mouse drag + wheel zoom + dblclick reset
+  let mDrag = null;
+  stage.addEventListener('mousedown', e => {
+    if (e.target && e.target.closest && e.target.closest('button')) return;
+    mDrag = { sx: e.clientX, sy: e.clientY, tx: _rvState.tx, ty: _rvState.ty };
+  });
+  window.addEventListener('mousemove', e => {
+    if (!mDrag) return;
+    _rvState.tx = mDrag.tx + (e.clientX - mDrag.sx);
+    _rvState.ty = mDrag.ty + (e.clientY - mDrag.sy);
+    _applyRvTransform();
+  });
+  window.addEventListener('mouseup', () => { mDrag = null; });
   stage.addEventListener('wheel', e => { e.preventDefault(); _rvZoomBy(e.deltaY < 0 ? 1.15 : 1/1.15, e.clientX, e.clientY); }, { passive: false });
   stage.addEventListener('dblclick', e => { e.preventDefault(); _rvFitToStage(); _applyRvTransform(); });
 }
