@@ -1251,12 +1251,18 @@ function renderSetupRooms() {
   chips.innerHTML = '';
   const rooms = _setupRooms || [];
   const vbtn = document.getElementById('verifyRoomsBtn');
+  // Verify/manual-edit button is always available once a plan is uploaded.
+  if (vbtn) {
+    vbtn.style.display = _setupPlan ? '' : 'none';
+    vbtn.textContent = rooms.length ? '🔍 Verify rooms' : '➕ Add rooms';
+  }
   if (!rooms.length) {
-    status.textContent = '— none found (you can still proceed)';
-    if (vbtn) vbtn.style.display = 'none';
+    if (!status.textContent || !/scanning/i.test(status.textContent)) {
+      status.textContent = '— none yet — tap "Add rooms" to place them manually';
+    }
     return;
   }
-  status.textContent = '— ' + rooms.length + ' found, tap to remove';
+  status.textContent = '— ' + rooms.length + ' room' + (rooms.length===1?'':'s') + ', tap to remove';
   rooms.forEach((r, idx) => {
     const chip = document.createElement('button');
     chip.type = 'button';
@@ -1265,10 +1271,10 @@ function renderSetupRooms() {
     chip.onclick = () => { _setupRooms.splice(idx, 1); renderSetupRooms(); };
     chips.appendChild(chip);
   });
-  if (vbtn) vbtn.style.display = '';
 }
 function openRoomVerify() {
-  if (!_setupPlan || !_setupRooms || !_setupRooms.length) return;
+  if (!_setupPlan) return;
+  if (!Array.isArray(_setupRooms)) _setupRooms = [];
   const ov = document.getElementById('roomVerifyOverlay');
   const img = document.getElementById('rvImg');
   const wrap = document.getElementById('rvWrap');
@@ -1279,16 +1285,88 @@ function openRoomVerify() {
   img.style.width = '100%';
   img.style.height = '100%';
   img.src = _setupPlan.dataUrl;
-  _setupRooms.forEach(r => {
+  _rvRenderBadges();
+  const t = document.getElementById('rvTitle');
+  if (t) t.textContent = 'Rooms — tap plan to add, tap badge to edit';
+  ov.classList.add('open');
+  requestAnimationFrame(() => { _rvFitToStage(); _applyRvTransform(); });
+}
+function _rvRenderBadges() {
+  const wrap = document.getElementById('rvWrap');
+  if (!wrap) return;
+  // Remove existing badges
+  Array.from(wrap.querySelectorAll('.rv-badge')).forEach(b => b.remove());
+  (_setupRooms || []).forEach((r, idx) => {
     const b = document.createElement('div');
     b.className = 'rv-badge';
     b.textContent = r.name;
     b.style.left = (r.x * 100) + '%';
     b.style.top = (r.y * 100) + '%';
+    b.dataset.idx = String(idx);
+    b.addEventListener('click', (e) => { e.stopPropagation(); _rvEditRoom(idx); });
+    b.addEventListener('touchend', (e) => { e.stopPropagation(); });
     wrap.appendChild(b);
   });
+}
+const ROOM_PRESETS = ['Bedroom','Master Bedroom','Bathroom','Master Bath','Kitchen','Living Room','Family Room','Dining Room','Office','Garage','Hallway','Closet','Laundry','Foyer','Mud Room','Basement','Attic','Stairs','Pantry','Powder Room'];
+function _rvPickRoomName(currentName, onPick, onDelete) {
+  const ov = document.getElementById('rvPicker');
+  const grid = document.getElementById('rvPickerGrid');
+  const title = document.getElementById('rvPickerTitle');
+  const actions = document.getElementById('rvPickerActions');
+  title.textContent = currentName ? 'Edit room' : 'Add room';
+  grid.innerHTML = '';
+  ROOM_PRESETS.forEach(n => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = n;
+    btn.onclick = () => { ov.classList.remove('open'); onPick(n); };
+    grid.appendChild(btn);
+  });
+  const other = document.createElement('button');
+  other.type = 'button';
+  other.textContent = 'Other…';
+  other.style.gridColumn = '1 / -1';
+  other.onclick = () => {
+    const n = prompt('Room name:', currentName || '');
+    if (n && n.trim()) { ov.classList.remove('open'); onPick(n.trim()); }
+  };
+  grid.appendChild(other);
+  actions.innerHTML = '';
+  const cancel = document.createElement('button');
+  cancel.type = 'button'; cancel.textContent = 'Cancel';
+  cancel.onclick = () => ov.classList.remove('open');
+  actions.appendChild(cancel);
+  if (onDelete) {
+    const del = document.createElement('button');
+    del.type = 'button'; del.textContent = 'Delete'; del.className = 'danger';
+    del.onclick = () => { ov.classList.remove('open'); onDelete(); };
+    actions.appendChild(del);
+  }
   ov.classList.add('open');
-  requestAnimationFrame(() => { _rvFitToStage(); _applyRvTransform(); });
+}
+function _rvAddRoomAt(cx, cy) {
+  const r = document.getElementById('rvStage').getBoundingClientRect();
+  const x = ((cx - r.left) - _rvState.tx) / _rvState.scale / _setupPlan.width;
+  const y = ((cy - r.top) - _rvState.ty) / _rvState.scale / _setupPlan.height;
+  if (x < 0 || x > 1 || y < 0 || y > 1) return;
+  _rvPickRoomName('', (name) => {
+    _setupRooms.push({ name, x, y });
+    _rvRenderBadges();
+    renderSetupRooms();
+  });
+}
+function _rvEditRoom(idx) {
+  const r = _setupRooms[idx]; if (!r) return;
+  _rvPickRoomName(r.name, (name) => {
+    r.name = name;
+    _rvRenderBadges();
+    renderSetupRooms();
+  }, () => {
+    _setupRooms.splice(idx, 1);
+    _rvRenderBadges();
+    renderSetupRooms();
+  });
 }
 function closeRoomVerify() {
   document.getElementById('roomVerifyOverlay').classList.remove('open');
