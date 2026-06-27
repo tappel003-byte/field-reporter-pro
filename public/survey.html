@@ -1691,7 +1691,7 @@ function setupBack() {
 
 function commitNewProject() {
   const addr = document.getElementById('fAddress').value.trim();
-  let startNum = Math.max(1, parseInt(document.getElementById('fStartNum').value,10) || 1);
+  let startNum = 1;
   if (!addr || !_setupPlan) return;
 
   const fd = (document.getElementById('fFrontDoor')||{}).value || '';
