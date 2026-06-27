@@ -544,12 +544,6 @@
     </div>
 
     <div class="field">
-      <label>Starting pin number</label>
-      <input type="number" id="fStartNum" min="1" value="1" />
-      <div class="hint">Useful if you're continuing numbering across multiple plans.</div>
-    </div>
-
-    <div class="field">
       <label>Front door faces</label>
       <select id="fFrontDoor" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--text);font-size:14px">
         <option value="">— not set —</option>
@@ -1174,7 +1168,6 @@ function startNewProject(mode) {
   _setupRoomsToken++;
   document.getElementById('setupTitle').textContent = mode === 'internal' ? 'New Internal Survey' : 'New External Survey';
   document.getElementById('fAddress').value = '';
-  document.getElementById('fStartNum').value = '1';
   document.getElementById('planPreview').style.display = 'none';
   document.getElementById('planDropZone').style.display = '';
   document.getElementById('fPlanFile').value = '';
@@ -1659,7 +1652,6 @@ function editSetup() {
 
   document.getElementById('setupTitle').textContent = 'Edit Setup';
   document.getElementById('fAddress').value = project.address || '';
-  document.getElementById('fStartNum').value = String(project.startNum || 1);
 
   const fd = document.getElementById('fFrontDoor');
   if (fd) fd.value = project.frontDoorFacing || '';
@@ -1699,7 +1691,7 @@ function setupBack() {
 
 function commitNewProject() {
   const addr = document.getElementById('fAddress').value.trim();
-  let startNum = Math.max(1, parseInt(document.getElementById('fStartNum').value,10) || 1);
+  let startNum = 1;
   if (!addr || !_setupPlan) return;
 
   const fd = (document.getElementById('fFrontDoor')||{}).value || '';
@@ -1708,15 +1700,12 @@ function commitNewProject() {
   if (_editingProjectId) {
     const p = (store.projects || []).find(x => x.id === _editingProjectId);
     if (!p) { _editingProjectId = null; return; }
-    const startChanged = (p.startNum || 1) !== startNum;
     p.address = addr;
     p.plan = { dataUrl: _setupPlan.dataUrl, width: _setupPlan.width, height: _setupPlan.height };
-    p.startNum = startNum;
     p.frontDoorFacing = fd;
     p.rooms = Array.isArray(_setupRooms) ? _setupRooms.slice() : [];
     if (!p.north) p.north = { x: p.plan.width * 0.92, y: p.plan.height * 0.08, rotation: 0 };
     p.north.rotation = northRot;
-    if (startChanged) recomputeNumbering();
     p.updatedAt = Date.now();
     _editingProjectId = null;
     project = p;
@@ -1727,25 +1716,14 @@ function commitNewProject() {
     return;
   }
 
-  // Soft reminder for external mode when starting picture # isn't 1.
-  if (_setupMode === 'external' && startNum !== 1) {
-    const reset = confirm(
-      'Heads up: starting picture number is ' + startNum + ' (not 1).\n\n' +
-      'Tap OK to reset to 1, or Cancel to continue with ' + startNum + '.'
-    );
-    if (reset) {
-      startNum = 1;
-      document.getElementById('fStartNum').value = '1';
-    }
-  }
   const now = Date.now();
   project = {
     id: uid(),
     mode: _setupMode,
     address: addr,
     plan: { dataUrl: _setupPlan.dataUrl, width: _setupPlan.width, height: _setupPlan.height },
-    startNum,
-    nextNum: startNum,
+    startNum: 1,
+    nextNum: 1,
     pins: [],
     drawings: [],
     frontDoorFacing: fd,
