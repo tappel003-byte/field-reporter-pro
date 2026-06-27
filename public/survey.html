@@ -1652,7 +1652,6 @@ function editSetup() {
 
   document.getElementById('setupTitle').textContent = 'Edit Setup';
   document.getElementById('fAddress').value = project.address || '';
-  document.getElementById('fStartNum').value = String(project.startNum || 1);
 
   const fd = document.getElementById('fFrontDoor');
   if (fd) fd.value = project.frontDoorFacing || '';
