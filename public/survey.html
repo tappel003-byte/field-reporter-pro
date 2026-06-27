@@ -1432,15 +1432,24 @@ function _initRoomVerifyGestures() {
       gesture = null;
     }
   };
+  let tapInfo = null;
   stage.addEventListener('touchstart', e => {
-    if (e.target && e.target.closest && e.target.closest('button')) return;
+    if (e.target && e.target.closest && (e.target.closest('button') || e.target.closest('.rv-badge'))) return;
     e.preventDefault();
     startFromTouches(e.touches);
+    if (e.touches.length === 1) {
+      tapInfo = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now(), moved: false };
+    } else {
+      tapInfo = null;
+    }
   }, { passive: false });
   stage.addEventListener('touchmove', e => {
     if (!gesture) return;
     e.preventDefault();
     const pts = touchInfo(e.touches);
+    if (tapInfo && pts.length >= 1) {
+      if (Math.hypot(pts[0].x - tapInfo.x, pts[0].y - tapInfo.y) > 8) tapInfo.moved = true;
+    }
     if (gesture.kind === 'pinch' && pts.length >= 2) {
       const a = pts[0], b = pts[1];
       const d = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
@@ -1461,25 +1470,34 @@ function _initRoomVerifyGestures() {
   const onTouchEnd = e => {
     if (e.touches && e.touches.length > 0) {
       startFromTouches(e.touches); // re-baseline remaining fingers
+      tapInfo = null;
     } else {
+      if (tapInfo && !tapInfo.moved && (Date.now() - tapInfo.t) < 350) {
+        _rvAddRoomAt(tapInfo.x, tapInfo.y);
+      }
+      tapInfo = null;
       gesture = null;
     }
   };
   stage.addEventListener('touchend', onTouchEnd);
   stage.addEventListener('touchcancel', onTouchEnd);
-  // Desktop fallback: drag, wheel zoom, double-click fit.
+  // Desktop fallback: drag, wheel zoom, double-click fit, click to add.
   let mDrag = null;
   stage.addEventListener('mousedown', e => {
-    if (e.target && e.target.closest && e.target.closest('button')) return;
-    mDrag = { sx: e.clientX, sy: e.clientY, tx: _rvState.tx, ty: _rvState.ty };
+    if (e.target && e.target.closest && (e.target.closest('button') || e.target.closest('.rv-badge'))) return;
+    mDrag = { sx: e.clientX, sy: e.clientY, tx: _rvState.tx, ty: _rvState.ty, moved: false };
   });
   window.addEventListener('mousemove', e => {
     if (!mDrag) return;
+    if (Math.hypot(e.clientX - mDrag.sx, e.clientY - mDrag.sy) > 4) mDrag.moved = true;
     _rvState.tx = mDrag.tx + (e.clientX - mDrag.sx);
     _rvState.ty = mDrag.ty + (e.clientY - mDrag.sy);
     _applyRvTransform();
   });
-  window.addEventListener('mouseup', () => { mDrag = null; });
+  window.addEventListener('mouseup', (e) => {
+    if (mDrag && !mDrag.moved) _rvAddRoomAt(e.clientX, e.clientY);
+    mDrag = null;
+  });
   stage.addEventListener('wheel', e => { e.preventDefault(); _rvZoomBy(e.deltaY < 0 ? 1.15 : 1/1.15, e.clientX, e.clientY); }, { passive: false });
   stage.addEventListener('dblclick', e => { e.preventDefault(); _rvFitToStage(); _applyRvTransform(); });
 }
