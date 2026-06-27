@@ -4,13 +4,39 @@ type Room = { name: string; x: number; y: number; confidence?: number };
 
 const SYSTEM_PROMPT = `You analyze residential or commercial floor-plan images and extract printed room labels.
 Return ONLY a JSON object of the form: {"rooms":[{"name":"<room label>","x":<0..1>,"y":<0..1>,"confidence":<0..1>}]}
-Rules:
-- x,y are the normalized center of the label within the image (0,0 = top-left, 1,1 = bottom-right).
-- Use the label EXACTLY as written (e.g. "Master Bedroom", "Kitchen", "Bath 2", "Garage"). Title-case if all caps.
-- Skip dimensions, door swings, north arrows, scale bars, and non-room text.
-- If a label appears multiple times, include each occurrence separately.
-- If no readable room labels exist, return {"rooms":[]}. Do not invent rooms.
+Coordinate rules are critical:
+- x,y MUST be the normalized center of the ACTUAL printed room label on the plan image.
+- 0,0 is the top-left corner of the whole image; 1,1 is the bottom-right corner of the whole image.
+- Do NOT put all labels on a bottom line, title block, legend, footer, or outside the floor-plan rooms.
+- Do NOT estimate from a list of names; only include labels whose printed position you can see.
+Label rules:
+- Use the label as written, but use current terminology: Master Bedroom -> Primary Bedroom, Master Bath/Master Bathroom -> Primary Bathroom.
+- Skip dimensions, door swings, north arrows, scale bars, page titles, drawing numbers, and non-room text.
+- If a label appears multiple times, include each occurrence separately with its own visible position.
+- If positions are uncertain, omit those rooms. If no reliable room labels exist, return {"rooms":[]}.
 - Output ONLY the JSON object, no prose, no code fences.`;
+
+function cleanRoomName(name: string) {
+  return name
+    .trim()
+    .replace(/\bmaster bedroom\b/gi, "Primary Bedroom")
+    .replace(/\bmaster bath(room)?\b/gi, "Primary Bathroom")
+    .slice(0, 60);
+}
+
+function looksLikeBadCoordinateSet(rooms: Room[]) {
+  if (rooms.length < 3) return false;
+  const xs = rooms.map((r) => r.x);
+  const ys = rooms.map((r) => r.y);
+  const spreadX = Math.max(...xs) - Math.min(...xs);
+  const spreadY = Math.max(...ys) - Math.min(...ys);
+  const edgeYCount = ys.filter((y) => y <= 0.04 || y >= 0.96).length;
+  const edgeXCount = xs.filter((x) => x <= 0.04 || x >= 0.96).length;
+  const mostlyOnHorizontalLine = spreadY < 0.035 && spreadX > 0.2;
+  const mostlyOnVerticalLine = spreadX < 0.035 && spreadY > 0.2;
+  const mostlyOnEdge = edgeYCount / rooms.length >= 0.6 || edgeXCount / rooms.length >= 0.6;
+  return mostlyOnHorizontalLine || mostlyOnVerticalLine || mostlyOnEdge;
+}
 
 export const Route = createFileRoute("/api/detect-rooms")({
   server: {
@@ -52,12 +78,13 @@ export const Route = createFileRoute("/api/detect-rooms")({
           body: JSON.stringify({
             model: "google/gemini-3-flash-preview",
             response_format: { type: "json_object" },
+            temperature: 0,
             messages: [
               { role: "system", content: SYSTEM_PROMPT },
               {
                 role: "user",
                 content: [
-                  { type: "text", text: "Extract all room labels from this floor plan." },
+                  { type: "text", text: "Extract room labels from this floor plan. Put each label at its actual printed position on the image, not in a summary line." },
                   { type: "image_url", image_url: { url: imageDataUrl } },
                 ],
               },
@@ -91,7 +118,7 @@ export const Route = createFileRoute("/api/detect-rooms")({
                   typeof (r as Room).y === "number",
               )
               .map((r: Room) => ({
-                name: r.name.trim().slice(0, 60),
+                name: cleanRoomName(r.name),
                 x: Math.min(1, Math.max(0, r.x)),
                 y: Math.min(1, Math.max(0, r.y)),
                 confidence: typeof r.confidence === "number" ? r.confidence : undefined,
@@ -100,6 +127,17 @@ export const Route = createFileRoute("/api/detect-rooms")({
           }
         } catch {
           // fall through to empty rooms
+        }
+
+        if (looksLikeBadCoordinateSet(rooms)) {
+          return new Response(
+            JSON.stringify({
+              rooms: [],
+              rejected: true,
+              error: "Auto-scan found room names but their positions were unreliable, so nothing was placed.",
+            }),
+            { status: 422, headers: { "Content-Type": "application/json" } },
+          );
         }
 
         return new Response(JSON.stringify({ rooms }), {
