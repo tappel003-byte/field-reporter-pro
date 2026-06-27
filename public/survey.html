@@ -1222,7 +1222,14 @@ function detectRoomsForSetup(dataUrl) {
       .catch(err => {
         if (token !== _setupRoomsToken) return;
         _setupRooms = [];
-        status.textContent = '— scan unavailable (you can still proceed)';
+        const detail = (err && (err.detail || err.error)) || '';
+        let msg = '— scan unavailable (you can still proceed)';
+        if (/payment_required|Not enough credits|402/i.test(detail) || (err && err.status === 402)) {
+          msg = '— out of AI credits — add credits in Lovable to re-enable room scan';
+        } else if (/401|unauthorized|api[_ ]?key/i.test(detail)) {
+          msg = '— AI key missing/invalid (you can still proceed)';
+        }
+        status.textContent = msg;
         console.warn('Room detection failed', err);
       });
   });
