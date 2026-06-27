@@ -144,6 +144,10 @@
   .rv-picker-card .rv-pk-actions{display:flex;gap:6px;margin-top:8px}
   .rv-picker-card .rv-pk-actions button{flex:1;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer}
   .rv-picker-card .rv-pk-actions button.danger{background:#c14a2b;color:#fff;border-color:#c14a2b}
+  .room-actions{display:flex;gap:8px;margin-top:10px}
+  .room-actions button{flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--text);font-size:14px;font-weight:600;cursor:pointer}
+  .room-actions button.primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .room-actions button:disabled{opacity:.45;cursor:not-allowed}
   .plan-preview .change{position:absolute;top:8px;right:8px;background:var(--ink);color:var(--paper);
     border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600}
 
@@ -564,7 +568,11 @@
     <div class="field" id="roomsField" style="display:none">
       <label>Rooms <span id="roomsStatus" style="font-weight:400;color:var(--muted);font-size:12px"></span></label>
       <div id="roomsChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
-      <div class="hint">Tap Add rooms, pinch to zoom, drag to move the plan, then tap the room location to label it. These labels are used in the export.</div>
+      <div class="room-actions">
+        <button type="button" class="primary" onclick="openRoomVerify()">➕ Manual rooms</button>
+        <button type="button" id="autoScanRoomsBtn" onclick="confirmDetectRoomsForSetup()">🔍 Auto-scan</button>
+      </div>
+      <div class="hint">Manual is the default. Auto-scan only runs if you press Auto-scan and confirm that it uses AI credits.</div>
     </div>
   </div>
 
@@ -1177,6 +1185,12 @@ function startNewProject(mode) {
   setTimeout(()=>document.getElementById('fAddress').focus(), 200);
 }
 document.getElementById('fAddress').addEventListener('input', refreshStartBtn);
+document.getElementById('fFrontDoor').addEventListener('change', () => {
+  if (_editingProjectId && project && project.north) {
+    project.north.rotation = frontDoorToNorthRotation(document.getElementById('fFrontDoor').value || '');
+    renderNorth();
+  }
+});
 function validateSetup() { refreshStartBtn(); }
 function refreshStartBtn() {
   const addr = document.getElementById('fAddress').value.trim();
@@ -1209,11 +1223,52 @@ function onPlanFileChange(e) {
   reader.readAsDataURL(f);
 }
 
-function detectRoomsForSetup(dataUrl) {
-  // Automatic room scanning is intentionally disabled so setup never spends AI credits.
-  _setupRoomsToken++;
+async function confirmDetectRoomsForSetup() {
+  if (!_setupPlan) return;
+  const ok = confirm('Auto-scan rooms uses AI credits.\n\nManual rooms are still the default. Tap OK only if you want to spend credits for this scan.');
+  if (!ok) return;
+  await detectRoomsForSetup(_setupPlan.dataUrl);
+}
+async function detectRoomsForSetup(dataUrl) {
+  // Explicit button only. Never call this from upload/open setup.
+  if (!dataUrl) return;
+  const token = ++_setupRoomsToken;
   if (!Array.isArray(_setupRooms)) _setupRooms = [];
-  renderSetupRooms();
+  const status = document.getElementById('roomsStatus');
+  const btn = document.getElementById('autoScanRoomsBtn');
+  const oldText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
+  if (status) status.textContent = '— scanning with AI…';
+  try {
+    const res = await fetch('/api/detect-rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageDataUrl: dataUrl })
+    });
+    let body = {};
+    try { body = await res.json(); } catch (_) {}
+    if (!res.ok) {
+      if (res.status === 402) throw new Error('Out of AI credits. Manual room picking still works.');
+      throw new Error(body.error || ('Room scan failed: ' + res.status));
+    }
+    if (token !== _setupRoomsToken) return;
+    const rooms = Array.isArray(body.rooms) ? body.rooms : [];
+    _setupRooms = rooms
+      .filter(r => r && typeof r.name === 'string' && typeof r.x === 'number' && typeof r.y === 'number')
+      .map(r => ({ name: r.name.trim().slice(0, 60), x: Math.max(0, Math.min(1, r.x)), y: Math.max(0, Math.min(1, r.y)), confidence: r.confidence }))
+      .filter(r => r.name);
+    renderSetupRooms();
+    toast(_setupRooms.length ? ('Found ' + _setupRooms.length + ' room' + (_setupRooms.length===1?'':'s')) : 'No rooms found — use manual rooms');
+  } catch (err) {
+    if (token === _setupRoomsToken) {
+      renderSetupRooms();
+      const msg = err && err.message ? err.message : 'Room scan failed. Manual room picking still works.';
+      if (status) status.textContent = '— ' + msg;
+      toast(msg);
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = oldText || '🔍 Auto-scan'; }
+  }
 }
 
 function renderSetupRooms() {
@@ -1229,6 +1284,8 @@ function renderSetupRooms() {
     vbtn.style.display = _setupPlan ? '' : 'none';
     vbtn.textContent = rooms.length ? '🏷️ Rooms (' + rooms.length + ')' : '➕ Add rooms';
   }
+  const scanBtn = document.getElementById('autoScanRoomsBtn');
+  if (scanBtn) scanBtn.disabled = !_setupPlan;
   if (!rooms.length) {
     status.textContent = '— none yet — tap "Add rooms" to place them manually';
     return;
@@ -1375,101 +1432,89 @@ function _initRoomVerifyGestures() {
   const stage = document.getElementById('rvStage');
   if (!stage || stage._rvWired) return;
   stage._rvWired = true;
-  // Phone-first image viewer: one finger pans, two fingers pinch exactly where the fingers are.
-  let gesture = null;
-  const touchInfo = (touches) => {
-    const arr = [];
-    for (let i = 0; i < touches.length; i++) arr.push({ x: touches[i].clientX, y: touches[i].clientY });
-    return arr;
+  const pointers = new Map();
+  let pinch = null;
+  let drag = null;
+  let tap = null;
+  const isControl = (target) => target && target.closest && (target.closest('button') || target.closest('.rv-badge') || target.closest('.rv-picker'));
+  const beginPinch = () => {
+    const pts = Array.from(pointers.values());
+    if (pts.length < 2) { pinch = null; return; }
+    const a = pts[0], b = pts[1];
+    const rect = stage.getBoundingClientRect();
+    const cx = (a.x + b.x) / 2 - rect.left;
+    const cy = (a.y + b.y) / 2 - rect.top;
+    pinch = {
+      dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+      scale: _rvState.scale,
+      contentX: (cx - _rvState.tx) / _rvState.scale,
+      contentY: (cy - _rvState.ty) / _rvState.scale
+    };
+    drag = null;
+    tap = null;
   };
-  const startFromTouches = (touches) => {
-    const pts = touchInfo(touches);
-    if (pts.length >= 2) {
-      const a = pts[0], b = pts[1];
-      const r = stage.getBoundingClientRect();
-      const cx = (a.x + b.x) / 2 - r.left;
-      const cy = (a.y + b.y) / 2 - r.top;
-      gesture = {
-        kind: 'pinch',
-        dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
-        scale: _rvState.scale,
-        cx, cy,
-        contentX: (cx - _rvState.tx) / _rvState.scale,
-        contentY: (cy - _rvState.ty) / _rvState.scale,
-        tx: _rvState.tx, ty: _rvState.ty
-      };
-    } else if (pts.length === 1) {
-      gesture = { kind: 'drag', sx: pts[0].x, sy: pts[0].y, tx: _rvState.tx, ty: _rvState.ty };
-    } else {
-      gesture = null;
-    }
-  };
-  let tapInfo = null;
-  stage.addEventListener('touchstart', e => {
-    if (e.target && e.target.closest && (e.target.closest('button') || e.target.closest('.rv-badge'))) return;
+  stage.addEventListener('pointerdown', e => {
+    if (isControl(e.target)) return;
     e.preventDefault();
-    startFromTouches(e.touches);
-    if (e.touches.length === 1) {
-      tapInfo = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now(), moved: false };
-    } else {
-      tapInfo = null;
+    try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size >= 2) {
+      beginPinch();
+      return;
     }
-  }, { passive: false });
-  stage.addEventListener('touchmove', e => {
-    if (!gesture) return;
+    drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, tx: _rvState.tx, ty: _rvState.ty, moved: false };
+    tap = { id: e.pointerId, x: e.clientX, y: e.clientY, t: Date.now(), moved: false };
+  });
+  stage.addEventListener('pointermove', e => {
+    if (!pointers.has(e.pointerId)) return;
     e.preventDefault();
-    const pts = touchInfo(e.touches);
-    if (tapInfo && pts.length >= 1) {
-      if (Math.hypot(pts[0].x - tapInfo.x, pts[0].y - tapInfo.y) > 8) tapInfo.moved = true;
-    }
-    if (gesture.kind === 'pinch' && pts.length >= 2) {
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size >= 2) {
+      if (!pinch) beginPinch();
+      const pts = Array.from(pointers.values());
       const a = pts[0], b = pts[1];
-      const d = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
-      const s = Math.max(_rvState.minScale, Math.min(12, gesture.scale * (d / gesture.dist)));
-      const r = stage.getBoundingClientRect();
-      const mx = (a.x + b.x) / 2 - r.left;
-      const my = (a.y + b.y) / 2 - r.top;
-      _rvState.tx = mx - gesture.contentX * s;
-      _rvState.ty = my - gesture.contentY * s;
-      _rvState.scale = s;
+      const dist = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      const scale = Math.max(_rvState.minScale, Math.min(12, pinch.scale * (dist / pinch.dist)));
+      const rect = stage.getBoundingClientRect();
+      const cx = (a.x + b.x) / 2 - rect.left;
+      const cy = (a.y + b.y) / 2 - rect.top;
+      _rvState.scale = scale;
+      _rvState.tx = cx - pinch.contentX * scale;
+      _rvState.ty = cy - pinch.contentY * scale;
       _applyRvTransform();
-    } else if (gesture.kind === 'drag' && pts.length >= 1) {
-      _rvState.tx = gesture.tx + (pts[0].x - gesture.sx);
-      _rvState.ty = gesture.ty + (pts[0].y - gesture.sy);
-      _applyRvTransform();
+      return;
     }
-  }, { passive: false });
-  const onTouchEnd = e => {
-    if (e.touches && e.touches.length > 0) {
-      startFromTouches(e.touches); // re-baseline remaining fingers
-      tapInfo = null;
-    } else {
-      if (tapInfo && !tapInfo.moved && (Date.now() - tapInfo.t) < 350) {
-        _rvAddRoomAt(tapInfo.x, tapInfo.y);
+    if (drag && drag.id === e.pointerId) {
+      const dx = e.clientX - drag.sx;
+      const dy = e.clientY - drag.sy;
+      if (Math.hypot(dx, dy) > 6) {
+        drag.moved = true;
+        if (tap) tap.moved = true;
       }
-      tapInfo = null;
-      gesture = null;
+      _rvState.tx = drag.tx + dx;
+      _rvState.ty = drag.ty + dy;
+      _applyRvTransform();
+    }
+  });
+  const endPointer = (e) => {
+    const wasTap = tap && tap.id === e.pointerId && !tap.moved && (Date.now() - tap.t) < 350;
+    pointers.delete(e.pointerId);
+    if (pointers.size >= 2) {
+      beginPinch();
+    } else if (pointers.size === 1) {
+      pinch = null;
+      const p = Array.from(pointers.entries())[0];
+      drag = { id: p[0], sx: p[1].x, sy: p[1].y, tx: _rvState.tx, ty: _rvState.ty, moved: true };
+      tap = null;
+    } else {
+      pinch = null;
+      drag = null;
+      if (wasTap) _rvAddRoomAt(e.clientX, e.clientY);
+      tap = null;
     }
   };
-  stage.addEventListener('touchend', onTouchEnd);
-  stage.addEventListener('touchcancel', onTouchEnd);
-  // Desktop fallback: drag, wheel zoom, double-click fit, click to add.
-  let mDrag = null;
-  stage.addEventListener('mousedown', e => {
-    if (e.target && e.target.closest && (e.target.closest('button') || e.target.closest('.rv-badge'))) return;
-    mDrag = { sx: e.clientX, sy: e.clientY, tx: _rvState.tx, ty: _rvState.ty, moved: false };
-  });
-  window.addEventListener('mousemove', e => {
-    if (!mDrag) return;
-    if (Math.hypot(e.clientX - mDrag.sx, e.clientY - mDrag.sy) > 4) mDrag.moved = true;
-    _rvState.tx = mDrag.tx + (e.clientX - mDrag.sx);
-    _rvState.ty = mDrag.ty + (e.clientY - mDrag.sy);
-    _applyRvTransform();
-  });
-  window.addEventListener('mouseup', (e) => {
-    if (mDrag && !mDrag.moved) _rvAddRoomAt(e.clientX, e.clientY);
-    mDrag = null;
-  });
+  stage.addEventListener('pointerup', endPointer);
+  stage.addEventListener('pointercancel', endPointer);
   stage.addEventListener('wheel', e => { e.preventDefault(); _rvZoomBy(e.deltaY < 0 ? 1.15 : 1/1.15, e.clientX, e.clientY); }, { passive: false });
   stage.addEventListener('dblclick', e => { e.preventDefault(); _rvFitToStage(); _applyRvTransform(); });
 }
@@ -1658,8 +1703,7 @@ function commitNewProject() {
   if (!addr || !_setupPlan) return;
 
   const fd = (document.getElementById('fFrontDoor')||{}).value || '';
-  const fdBearings = {N:0,NE:45,E:90,SE:135,S:180,SW:225,W:270,NW:315};
-  const northRot = fd ? ((180 - fdBearings[fd]) % 360 + 360) % 360 : 0;
+  const northRot = frontDoorToNorthRotation(fd);
 
   if (_editingProjectId) {
     const p = (store.projects || []).find(x => x.id === _editingProjectId);
@@ -1726,6 +1770,7 @@ function enterWork() {
   refreshSubtitle();
   setTool('pin');
   if (!project.north) project.north = { rotation: 0 };
+  project.north.rotation = frontDoorToNorthRotation(project.frontDoorFacing || '');
   setupNorthWidget();
   setupDrawToolbar();
   document.getElementById('drawToolbar').classList.toggle('show', ui.tool === 'draw');
@@ -2544,6 +2589,12 @@ function openPinSheet() {
 // derive each pin's cardinal direction relative to the plan center.
 const _DIRS = ['N','NE','E','SE','S','SW','W','NW'];
 const _BEARINGS = {N:0,NE:45,E:90,SE:135,S:180,SW:225,W:270,NW:315};
+function frontDoorToNorthRotation(frontDoorFacing) {
+  // The front of the building is drawn at the bottom of the plan.
+  // If the front door faces South, North is plan-up (0°). If it faces East, North points right (90°).
+  const beta = _BEARINGS[frontDoorFacing];
+  return beta == null ? 0 : ((180 - beta) % 360 + 360) % 360;
+}
 function _orientationOffset(proj) {
   // Plan-up direction in real-world bearing = opposite of front-door facing.
   if (!proj || !proj.frontDoorFacing) return null;
