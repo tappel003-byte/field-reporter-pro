@@ -1185,6 +1185,12 @@ function startNewProject(mode) {
   setTimeout(()=>document.getElementById('fAddress').focus(), 200);
 }
 document.getElementById('fAddress').addEventListener('input', refreshStartBtn);
+document.getElementById('fFrontDoor').addEventListener('change', () => {
+  if (_editingProjectId && project && project.north) {
+    project.north.rotation = frontDoorToNorthRotation(document.getElementById('fFrontDoor').value || '');
+    renderNorth();
+  }
+});
 function validateSetup() { refreshStartBtn(); }
 function refreshStartBtn() {
   const addr = document.getElementById('fAddress').value.trim();
@@ -1697,8 +1703,7 @@ function commitNewProject() {
   if (!addr || !_setupPlan) return;
 
   const fd = (document.getElementById('fFrontDoor')||{}).value || '';
-  const fdBearings = {N:0,NE:45,E:90,SE:135,S:180,SW:225,W:270,NW:315};
-  const northRot = fd ? ((180 - fdBearings[fd]) % 360 + 360) % 360 : 0;
+  const northRot = frontDoorToNorthRotation(fd);
 
   if (_editingProjectId) {
     const p = (store.projects || []).find(x => x.id === _editingProjectId);
@@ -1765,6 +1770,7 @@ function enterWork() {
   refreshSubtitle();
   setTool('pin');
   if (!project.north) project.north = { rotation: 0 };
+  project.north.rotation = frontDoorToNorthRotation(project.frontDoorFacing || '');
   setupNorthWidget();
   setupDrawToolbar();
   document.getElementById('drawToolbar').classList.toggle('show', ui.tool === 'draw');
@@ -2583,6 +2589,12 @@ function openPinSheet() {
 // derive each pin's cardinal direction relative to the plan center.
 const _DIRS = ['N','NE','E','SE','S','SW','W','NW'];
 const _BEARINGS = {N:0,NE:45,E:90,SE:135,S:180,SW:225,W:270,NW:315};
+function frontDoorToNorthRotation(frontDoorFacing) {
+  // The front of the building is drawn at the bottom of the plan.
+  // If the front door faces South, North is plan-up (0°). If it faces East, North points right (90°).
+  const beta = _BEARINGS[frontDoorFacing];
+  return beta == null ? 0 : ((180 - beta) % 360 + 360) % 360;
+}
 function _orientationOffset(proj) {
   // Plan-up direction in real-world bearing = opposite of front-door facing.
   if (!proj || !proj.frontDoorFacing) return null;
