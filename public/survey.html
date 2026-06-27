@@ -1700,15 +1700,12 @@ function commitNewProject() {
   if (_editingProjectId) {
     const p = (store.projects || []).find(x => x.id === _editingProjectId);
     if (!p) { _editingProjectId = null; return; }
-    const startChanged = (p.startNum || 1) !== startNum;
     p.address = addr;
     p.plan = { dataUrl: _setupPlan.dataUrl, width: _setupPlan.width, height: _setupPlan.height };
-    p.startNum = startNum;
     p.frontDoorFacing = fd;
     p.rooms = Array.isArray(_setupRooms) ? _setupRooms.slice() : [];
     if (!p.north) p.north = { x: p.plan.width * 0.92, y: p.plan.height * 0.08, rotation: 0 };
     p.north.rotation = northRot;
-    if (startChanged) recomputeNumbering();
     p.updatedAt = Date.now();
     _editingProjectId = null;
     project = p;
