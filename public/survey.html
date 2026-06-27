@@ -533,7 +533,7 @@
       </div>
       <div id="planPreview" style="display:none" class="plan-preview">
         <button class="change" onclick="document.getElementById('fPlanFile').click()">Change</button>
-        <button id="verifyRoomsBtn" class="verify" style="display:none" onclick="openRoomVerify()">🔍 Verify rooms</button>
+        <button id="verifyRoomsBtn" class="verify" style="display:none" onclick="openRoomVerify()">➕ Add rooms</button>
         <img id="planPreviewImg" alt="Floor plan preview" onclick="openRoomVerify()" />
       </div>
       <input type="file" id="fPlanFile" accept="image/*" style="display:none" onchange="onPlanFileChange(event)" />
@@ -562,9 +562,9 @@
     </div>
 
     <div class="field" id="roomsField" style="display:none">
-      <label>Detected rooms <span id="roomsStatus" style="font-weight:400;color:var(--muted);font-size:12px"></span></label>
+      <label>Rooms <span id="roomsStatus" style="font-weight:400;color:var(--muted);font-size:12px"></span></label>
       <div id="roomsChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
-      <div class="hint">Tap a chip to remove it. These auto-label each pin in the export so reports can say things like "SW corner of Master Bedroom".</div>
+      <div class="hint">Tap Add rooms, pinch to zoom, drag to move the plan, then tap the room location to label it. These labels are used in the export.</div>
     </div>
   </div>
 
@@ -1201,69 +1201,39 @@ function onPlanFileChange(e) {
       document.getElementById('planPreview').style.display = '';
       document.getElementById('planDropZone').style.display = 'none';
       refreshStartBtn();
-      detectRoomsForSetup(dataUrl);
+      _setupRoomsToken++;
+      _setupRooms = [];
+      renderSetupRooms();
     });
   };
   reader.readAsDataURL(f);
 }
 
 function detectRoomsForSetup(dataUrl) {
-  const token = ++_setupRoomsToken;
-  _setupRooms = null;
-  const field = document.getElementById('roomsField');
-  const status = document.getElementById('roomsStatus');
-  const chips = document.getElementById('roomsChips');
-  field.style.display = '';
-  status.textContent = '— scanning plan…';
-  chips.innerHTML = '';
-  // Downscale to ~1200px for faster upload to the LLM.
-  resizeImage(dataUrl, 1200, (smallUrl) => {
-    fetch('/api/detect-rooms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageDataUrl: smallUrl }),
-    })
-      .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
-      .then(data => {
-        if (token !== _setupRoomsToken) return; // user uploaded a newer plan
-        _setupRooms = Array.isArray(data.rooms) ? data.rooms : [];
-        renderSetupRooms();
-      })
-      .catch(err => {
-        if (token !== _setupRoomsToken) return;
-        _setupRooms = [];
-        const detail = (err && (err.detail || err.error)) || '';
-        let msg = '— scan unavailable — tap "Add rooms" to place manually';
-        if (/payment_required|Not enough credits|402/i.test(detail) || (err && err.status === 402)) {
-          msg = '— out of AI credits — tap "Add rooms" to place manually';
-        } else if (/401|unauthorized|api[_ ]?key/i.test(detail)) {
-          msg = '— AI key missing — tap "Add rooms" to place manually';
-        }
-        status.textContent = msg;
-        renderSetupRooms();
-        console.warn('Room detection failed', err);
-      });
-  });
+  // Automatic room scanning is intentionally disabled so setup never spends AI credits.
+  _setupRoomsToken++;
+  if (!Array.isArray(_setupRooms)) _setupRooms = [];
+  renderSetupRooms();
 }
 
 function renderSetupRooms() {
   const status = document.getElementById('roomsStatus');
   const chips = document.getElementById('roomsChips');
+  const field = document.getElementById('roomsField');
+  if (field) field.style.display = _setupPlan ? '' : 'none';
   chips.innerHTML = '';
   const rooms = _setupRooms || [];
   const vbtn = document.getElementById('verifyRoomsBtn');
-  // Verify/manual-edit button is always available once a plan is uploaded.
+  // Manual room button is always available once a plan is uploaded. No automatic scan.
   if (vbtn) {
     vbtn.style.display = _setupPlan ? '' : 'none';
-    vbtn.textContent = rooms.length ? '🔍 Verify rooms' : '➕ Add rooms';
+    vbtn.textContent = rooms.length ? '🏷️ Rooms (' + rooms.length + ')' : '➕ Add rooms';
   }
   if (!rooms.length) {
-    if (!status.textContent || !/scanning/i.test(status.textContent)) {
-      status.textContent = '— none yet — tap "Add rooms" to place them manually';
-    }
+    status.textContent = '— none yet — tap "Add rooms" to place them manually';
     return;
   }
-  status.textContent = '— ' + rooms.length + ' room' + (rooms.length===1?'':'s') + ', tap to remove';
+  status.textContent = '— ' + rooms.length + ' room' + (rooms.length===1?'':'s') + ', tap a chip to remove';
   rooms.forEach((r, idx) => {
     const chip = document.createElement('button');
     chip.type = 'button';
@@ -1276,6 +1246,7 @@ function renderSetupRooms() {
 function openRoomVerify() {
   if (!_setupPlan) return;
   if (!Array.isArray(_setupRooms)) _setupRooms = [];
+  _initRoomVerifyGestures();
   const ov = document.getElementById('roomVerifyOverlay');
   const img = document.getElementById('rvImg');
   const wrap = document.getElementById('rvWrap');
@@ -1288,7 +1259,7 @@ function openRoomVerify() {
   img.src = _setupPlan.dataUrl;
   _rvRenderBadges();
   const t = document.getElementById('rvTitle');
-  if (t) t.textContent = 'Rooms — tap plan to add, tap badge to edit';
+  if (t) t.textContent = 'Rooms — pinch zoom, drag move, tap plan to add';
   ov.classList.add('open');
   requestAnimationFrame(() => { _rvFitToStage(); _applyRvTransform(); });
 }
