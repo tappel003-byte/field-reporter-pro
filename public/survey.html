@@ -414,8 +414,9 @@
 
   /* Toast */
   .toast{position:fixed;top:64px;left:50%;transform:translateX(-50%);
-    background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:10px;font-size:14px;
-    opacity:0;transition:opacity .2s;z-index:100;pointer-events:none;box-shadow:var(--shadow)}
+    background:var(--ink);color:var(--paper);padding:12px 16px;border-radius:10px;font-size:14px;
+    opacity:0;transition:opacity .2s;z-index:100;pointer-events:none;box-shadow:var(--shadow);
+    max-width:calc(100vw - 28px);white-space:normal;text-align:center;line-height:1.35}
   .toast.show{opacity:1}
 
   /* Menu popover */
@@ -566,6 +567,7 @@
         <button type="button" class="primary" onclick="openRoomVerify()">➕ Manual rooms</button>
         <button type="button" id="autoScanRoomsBtn" onclick="confirmDetectRoomsForSetup()">🔍 Auto-scan</button>
       </div>
+      <div id="roomsMessage" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font-size:13px;line-height:1.35"></div>
       <div class="hint">Manual is the default. Auto-scan only runs if you press Auto-scan and confirm that it uses AI credits.</div>
     </div>
   </div>
@@ -1228,8 +1230,10 @@ async function detectRoomsForSetup(dataUrl) {
   const token = ++_setupRoomsToken;
   if (!Array.isArray(_setupRooms)) _setupRooms = [];
   const status = document.getElementById('roomsStatus');
+  const message = document.getElementById('roomsMessage');
   const btn = document.getElementById('autoScanRoomsBtn');
   const oldText = btn ? btn.textContent : '';
+  if (message) { message.style.display = 'none'; message.textContent = ''; }
   if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
   if (status) status.textContent = '— scanning with AI…';
   try {
@@ -1246,20 +1250,35 @@ async function detectRoomsForSetup(dataUrl) {
       throw new Error(body.error || ('Room scan failed: ' + res.status));
     }
     if (token !== _setupRoomsToken) return;
+    if (body.rejected) {
+      _setupRooms = [];
+      renderSetupRooms();
+      const msg = body.error || 'Auto-scan found room names, but their positions were unreliable. No rooms were placed. Use Manual rooms for this plan.';
+      const msgEl = document.getElementById('roomsMessage');
+      if (msgEl) { msgEl.textContent = msg; msgEl.style.display = ''; }
+      if (status) status.textContent = '— auto-scan did not place rooms';
+      return;
+    }
     const rooms = Array.isArray(body.rooms) ? body.rooms : [];
     const scannedRooms = rooms
       .filter(r => r && typeof r.name === 'string' && typeof r.x === 'number' && typeof r.y === 'number')
       .map(r => ({ name: normalizeRoomName(r.name).slice(0, 60), x: Math.max(0, Math.min(1, r.x)), y: Math.max(0, Math.min(1, r.y)), confidence: r.confidence }))
       .filter(r => r.name);
-    if (looksLikeBadRoomScan(scannedRooms)) throw new Error('Auto-scan found room names, but their positions were unreliable. No rooms were placed.');
+    if (looksLikeBadRoomScan(scannedRooms)) throw new Error('Auto-scan found room names, but their positions were unreliable. No rooms were placed. Use Manual rooms for this plan.');
     _setupRooms = scannedRooms;
     renderSetupRooms();
+    if (message) {
+      message.textContent = _setupRooms.length ? 'Auto-scan placed ' + _setupRooms.length + ' room' + (_setupRooms.length===1?'':'s') + '. Review them before starting.' : 'Auto-scan did not find rooms. Use Manual rooms for this plan.';
+      message.style.display = '';
+    }
     toast(_setupRooms.length ? ('Found ' + _setupRooms.length + ' room' + (_setupRooms.length===1?'':'s')) : 'No rooms found — use manual rooms');
   } catch (err) {
     if (token === _setupRoomsToken) {
       renderSetupRooms();
       const msg = err && err.message ? err.message : 'Room scan failed. Manual room picking still works.';
       if (status) status.textContent = '— ' + msg;
+      const msgEl = document.getElementById('roomsMessage');
+      if (msgEl) { msgEl.textContent = msg; msgEl.style.display = ''; }
       toast(msg);
     }
   } finally {
@@ -1280,11 +1299,11 @@ function looksLikeBadRoomScan(rooms) {
   const ys = rooms.map(r => r.y);
   const spreadX = Math.max(...xs) - Math.min(...xs);
   const spreadY = Math.max(...ys) - Math.min(...ys);
-  const edgeYCount = ys.filter(y => y <= 0.04 || y >= 0.96).length;
-  const edgeXCount = xs.filter(x => x <= 0.04 || x >= 0.96).length;
-  const mostlyOnHorizontalLine = spreadY < 0.035 && spreadX > 0.2;
-  const mostlyOnVerticalLine = spreadX < 0.035 && spreadY > 0.2;
-  const mostlyOnEdge = edgeYCount / rooms.length >= 0.6 || edgeXCount / rooms.length >= 0.6;
+  const edgeYCount = ys.filter(y => y <= 0.02 || y >= 0.98).length;
+  const edgeXCount = xs.filter(x => x <= 0.02 || x >= 0.98).length;
+  const mostlyOnHorizontalLine = spreadY < 0.015 && spreadX > 0.25;
+  const mostlyOnVerticalLine = spreadX < 0.015 && spreadY > 0.25;
+  const mostlyOnEdge = edgeYCount / rooms.length >= 0.8 || edgeXCount / rooms.length >= 0.8;
   return mostlyOnHorizontalLine || mostlyOnVerticalLine || mostlyOnEdge;
 }
 
@@ -1292,7 +1311,9 @@ function renderSetupRooms() {
   const status = document.getElementById('roomsStatus');
   const chips = document.getElementById('roomsChips');
   const field = document.getElementById('roomsField');
+  const message = document.getElementById('roomsMessage');
   if (field) field.style.display = _setupPlan ? '' : 'none';
+  if (message && !_setupPlan) { message.style.display = 'none'; message.textContent = ''; }
   chips.innerHTML = '';
   const rooms = _setupRooms || [];
   const vbtn = document.getElementById('verifyRoomsBtn');
