@@ -1233,13 +1233,14 @@ function detectRoomsForSetup(dataUrl) {
         if (token !== _setupRoomsToken) return;
         _setupRooms = [];
         const detail = (err && (err.detail || err.error)) || '';
-        let msg = '— scan unavailable (you can still proceed)';
+        let msg = '— scan unavailable — tap "Add rooms" to place manually';
         if (/payment_required|Not enough credits|402/i.test(detail) || (err && err.status === 402)) {
-          msg = '— out of AI credits — add credits in Lovable to re-enable room scan';
+          msg = '— out of AI credits — tap "Add rooms" to place manually';
         } else if (/401|unauthorized|api[_ ]?key/i.test(detail)) {
-          msg = '— AI key missing/invalid (you can still proceed)';
+          msg = '— AI key missing — tap "Add rooms" to place manually';
         }
         status.textContent = msg;
+        renderSetupRooms();
         console.warn('Room detection failed', err);
       });
   });
