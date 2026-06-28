@@ -1242,37 +1242,43 @@ async function loadTesseractWorker() {
       });
     }
     const worker = await window.Tesseract.createWorker('eng');
+    try {
+      await worker.setParameters({
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .',
+        preserve_interword_spaces: '1',
+      });
+    } catch (_) {}
     return worker;
   })();
   return _tesseractWorkerPromise;
 }
 
 const ROOM_KEYWORDS = [
-  { rx: /\bprimary\s+bed(room)?\b|\bmaster\s+bed(room)?\b|\bmstr\s+bed(room)?\b/i, name: 'Primary Bedroom' },
-  { rx: /\bprimary\s+bath(room)?\b|\bmaster\s+bath(room)?\b|\bmstr\s+bath(room)?\b/i, name: 'Primary Bathroom' },
-  { rx: /\bbed(room)?\s*\d*\b|\bbr\s*\d*\b/i, name: 'Bedroom' },
-  { rx: /\bbath(room)?\s*\d*\b/i, name: 'Bathroom' },
+  { rx: /\b(primary|master|mstr)\s*bed(room|rm)?\b/i, name: 'Primary Bedroom' },
+  { rx: /\b(primary|master|mstr)\s*bath(room|rm)?\b/i, name: 'Primary Bathroom' },
   { rx: /\bpowder\b/i, name: 'Powder Room' },
-  { rx: /\bkitchen\b/i, name: 'Kitchen' },
-  { rx: /\bdining\b/i, name: 'Dining' },
-  { rx: /\bliving\b/i, name: 'Living' },
-  { rx: /\bfamily\b/i, name: 'Family Room' },
-  { rx: /\bgreat\s*room\b/i, name: 'Great Room' },
+  { rx: /\bbed(room|rm)?\s*\d*\b|\bbr\s*\d*\b/i, name: 'Bedroom' },
+  { rx: /\bbath(room|rm)?\s*\d*\b|\bba\s*\d*\b/i, name: 'Bathroom' },
+  { rx: /\bkitchen\b|\bkit\b/i, name: 'Kitchen' },
+  { rx: /\bdining\b|\bdin\b/i, name: 'Dining' },
+  { rx: /\bliving\b|\bliv\b/i, name: 'Living' },
+  { rx: /\bfamily\b|\bfam\b/i, name: 'Family Room' },
+  { rx: /\bgreat\s*room\b|\bgrt\s*rm\b/i, name: 'Great Room' },
   { rx: /\bfoyer\b|\bentry\b/i, name: 'Foyer' },
   { rx: /\bhall(way)?\b/i, name: 'Hall' },
-  { rx: /\blaundry\b|\butility\b/i, name: 'Laundry' },
-  { rx: /\bmud\s*room\b/i, name: 'Mud Room' },
+  { rx: /\blaundry\b|\bldry\b|\butility\b|\butil\b/i, name: 'Laundry' },
+  { rx: /\bmud\s*room\b|\bmud\s*rm\b/i, name: 'Mud Room' },
   { rx: /\boffice\b|\bstudy\b|\bden\b/i, name: 'Office' },
-  { rx: /\bgarage\b/i, name: 'Garage' },
-  { rx: /\bpantry\b/i, name: 'Pantry' },
-  { rx: /\bcloset\b|\bclos\b/i, name: 'Closet' },
+  { rx: /\bgarage\b|\bgar\b/i, name: 'Garage' },
+  { rx: /\bpantry\b|\bpan\b/i, name: 'Pantry' },
   { rx: /\bw\.?\s*i\.?\s*c\.?\b|\bwalk[\s-]*in\s*clos(et)?\b/i, name: 'W.I.C' },
-  { rx: /\bnook\b|\bbreakfast\b/i, name: 'Breakfast Nook' },
+  { rx: /\bcloset\b|\bclos\b/i, name: 'Closet' },
+  { rx: /\bnook\b|\bbreakfast\b|\bbkfst\b/i, name: 'Breakfast Nook' },
   { rx: /\bbonus\b/i, name: 'Bonus Room' },
   { rx: /\bporch\b/i, name: 'Porch' },
   { rx: /\bpatio\b|\bdeck\b|\blanai\b/i, name: 'Patio' },
   { rx: /\bstair(s|case)?\b/i, name: 'Stairs' },
-  { rx: /\bstorage\b/i, name: 'Storage' },
+  { rx: /\bstorage\b|\bstor\b/i, name: 'Storage' },
   { rx: /\bmech(anical)?\b|\bequip(ment)?\b/i, name: 'Mechanical' },
 ];
 
@@ -1285,6 +1291,50 @@ function matchRoomKeyword(text) {
   return null;
 }
 
+// Preprocess: upscale + grayscale + threshold. Returns canvas.
+function preprocessForOcr(img, targetW) {
+  const W0 = img.naturalWidth || img.width;
+  const H0 = img.naturalHeight || img.height;
+  const scale = Math.max(1, Math.min(3.5, targetW / W0));
+  const W = Math.round(W0 * scale);
+  const H = Math.round(H0 * scale);
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, W, H);
+  ctx.drawImage(img, 0, 0, W, H);
+  try {
+    const id = ctx.getImageData(0, 0, W, H);
+    const d = id.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const g = (d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114) | 0;
+      const v = g < 160 ? 0 : 255;
+      d[i] = d[i+1] = d[i+2] = v;
+    }
+    ctx.putImageData(id, 0, 0);
+  } catch (_) {}
+  return c;
+}
+
+function rotateCanvas90(src) {
+  const c = document.createElement('canvas');
+  c.width = src.height; c.height = src.width;
+  const ctx = c.getContext('2d');
+  ctx.translate(c.width, 0);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(src, 0, 0);
+  return c;
+}
+
+async function runOcrPass(worker, canvas, psm) {
+  try { await worker.setParameters({ tessedit_pageseg_mode: String(psm) }); } catch (_) {}
+  const { data } = await worker.recognize(canvas);
+  return data || {};
+}
+
 async function ocrScanRoomsForSetup() {
   if (!_setupPlan || !_setupPlan.dataUrl) return;
   const token = ++_setupRoomsToken;
@@ -1295,68 +1345,99 @@ async function ocrScanRoomsForSetup() {
   const oldText = btn ? btn.textContent : '';
   if (message) { message.style.display = 'none'; message.textContent = ''; }
   if (btn) { btn.disabled = true; btn.textContent = 'Reading…'; }
-  if (status) status.textContent = '— reading text on plan…';
+  if (status) status.textContent = '— loading text reader…';
   try {
     const worker = await loadTesseractWorker();
     if (token !== _setupRoomsToken) return;
-    if (btn) btn.textContent = 'Scanning…';
-    // Tesseract accepts data URLs directly
-    const { data } = await worker.recognize(_setupPlan.dataUrl);
-    if (token !== _setupRoomsToken) return;
 
-    // Image dimensions for normalization
     const img = await new Promise((res, rej) => {
       const im = new Image();
       im.onload = () => res(im);
       im.onerror = () => rej(new Error('Could not read plan image.'));
       im.src = _setupPlan.dataUrl;
     });
-    const W = img.naturalWidth || 1;
-    const H = img.naturalHeight || 1;
 
-    // Tesseract v5: data.words is an array with bbox {x0,y0,x1,y1} and text
-    const words = Array.isArray(data && data.words) ? data.words : [];
-    // Group nearby words into single labels (helps "MASTER BEDROOM" not split)
-    const lines = Array.isArray(data && data.lines) ? data.lines : [];
+    if (btn) btn.textContent = 'Preparing…';
+    if (status) status.textContent = '— enhancing image…';
+    const upright = preprocessForOcr(img, 2400);
+    const rotated = rotateCanvas90(upright);
+    const W = upright.width, H = upright.height;
+
+    // Multi-pass: catches sparse small labels, blocky labels, and sideways labels
+    const passes = [
+      { canvas: upright, psm: 11, rot: 0, label: 'upright sparse' },
+      { canvas: upright, psm: 6,  rot: 0, label: 'upright blocks' },
+      { canvas: rotated, psm: 11, rot: 90, label: 'sideways' },
+    ];
+
     const candidates = [];
-    for (const ln of lines) {
-      const text = (ln.text || '').trim();
-      if (!text) continue;
-      const matched = matchRoomKeyword(text);
-      if (!matched) continue;
-      const bb = ln.bbox || {};
-      const cx = ((bb.x0 + bb.x1) / 2) / W;
-      const cy = ((bb.y0 + bb.y1) / 2) / H;
-      if (!isFinite(cx) || !isFinite(cy)) continue;
-      candidates.push({ name: matched, x: Math.max(0, Math.min(1, cx)), y: Math.max(0, Math.min(1, cy)) });
-    }
-    // Also scan individual words for short labels (e.g., "KITCHEN")
-    for (const w of words) {
-      const text = (w.text || '').trim();
-      if (!text || text.length < 3) continue;
-      const matched = matchRoomKeyword(text);
-      if (!matched) continue;
-      const bb = w.bbox || {};
-      const cx = ((bb.x0 + bb.x1) / 2) / W;
-      const cy = ((bb.y0 + bb.y1) / 2) / H;
-      if (!isFinite(cx) || !isFinite(cy)) continue;
-      // Skip if close to an existing candidate of same name
-      const dup = candidates.some(c => c.name === matched && Math.hypot(c.x - cx, c.y - cy) < 0.04);
-      if (!dup) candidates.push({ name: matched, x: cx, y: cy });
+    let passNum = 0;
+    for (const p of passes) {
+      passNum++;
+      if (token !== _setupRoomsToken) return;
+      if (btn) btn.textContent = 'Scanning ' + passNum + '/' + passes.length + '…';
+      if (status) status.textContent = '— scan ' + passNum + '/' + passes.length + ' (' + p.label + ')';
+      const data = await runOcrPass(worker, p.canvas, p.psm);
+      const lines = Array.isArray(data.lines) ? data.lines : [];
+      const words = Array.isArray(data.words) ? data.words : [];
+
+      const harvest = (item, minConf) => {
+        const text = (item.text || '').replace(/\s+/g, ' ').trim();
+        if (!text) return;
+        const conf = typeof item.confidence === 'number' ? item.confidence : 100;
+        if (conf < minConf) return;
+        const matched = matchRoomKeyword(text);
+        if (!matched) return;
+        const bb = item.bbox || {};
+        let cx = (bb.x0 + bb.x1) / 2;
+        let cy = (bb.y0 + bb.y1) / 2;
+        if (p.rot === 90) {
+          // Un-rotate back to upright coords: rotated point (x,y) -> upright (y, rw - x)
+          const rw = p.canvas.width;
+          const nx = cy;
+          const ny = rw - cx;
+          cx = nx; cy = ny;
+        }
+        const nxr = cx / W;
+        const nyr = cy / H;
+        if (!isFinite(nxr) || !isFinite(nyr)) return;
+        if (nxr < 0 || nxr > 1 || nyr < 0 || nyr > 1) return;
+        candidates.push({ name: matched, x: nxr, y: nyr, conf, src: p.label });
+      };
+
+      for (const ln of lines) harvest(ln, 55);
+      for (const w of words) {
+        const t = (w.text || '').trim();
+        if (t.length < 3) continue;
+        harvest(w, 65);
+      }
     }
 
-    // Number duplicates: Bedroom, Bedroom 2, Bedroom 3...
-    const counts = {};
-    const numbered = candidates.map(c => {
-      counts[c.name] = (counts[c.name] || 0) + 1;
-      return { ...c, name: counts[c.name] === 1 && candidates.filter(x => x.name === c.name).length === 1 ? c.name : (c.name + ' ' + counts[c.name]) };
+    if (token !== _setupRoomsToken) return;
+
+    // Dedupe: cluster same-name candidates within ~5% of plan; keep highest confidence
+    candidates.sort((a, b) => b.conf - a.conf);
+    const kept = [];
+    for (const c of candidates) {
+      const dup = kept.find(k => k.name === c.name && Math.hypot(k.x - c.x, k.y - c.y) < 0.05);
+      if (!dup) kept.push(c);
+    }
+
+    // Number duplicates only when there's more than one of the same name
+    const totals = {};
+    for (const c of kept) totals[c.name] = (totals[c.name] || 0) + 1;
+    const seen = {};
+    const numbered = kept.map(c => {
+      seen[c.name] = (seen[c.name] || 0) + 1;
+      const name = totals[c.name] > 1 ? (c.name + ' ' + seen[c.name]) : c.name;
+      return { name, x: c.x, y: c.y };
     });
 
     _setupRooms = numbered;
     renderSetupRooms();
     const found = numbered.length;
     const msg = found
-      ? 'Read ' + found + ' label' + (found === 1 ? '' : 's') + ' from the plan. Tap any to edit or remove.'
+      ? 'Read ' + found + ' label' + (found === 1 ? '' : 's') + ' (3-pass scan). Tap any to edit, drag to move, or remove.'
       : 'No room labels found. Try AI auto-scan or add rooms manually.';
     if (message) { message.textContent = msg; message.style.display = ''; }
     if (status) status.textContent = found ? ('— read ' + found + ' label' + (found === 1 ? '' : 's')) : '— no labels read';
