@@ -1449,67 +1449,8 @@ async function ocrScanRoomsForSetup() {
   }
 }
 
-async function detectRoomsForSetup(dataUrl) {
-  // Explicit button only. Never call this from upload/open setup.
-  if (!dataUrl) return;
-  const token = ++_setupRoomsToken;
-  if (!Array.isArray(_setupRooms)) _setupRooms = [];
-  const status = document.getElementById('roomsStatus');
-  const message = document.getElementById('roomsMessage');
-  const btn = document.getElementById('autoScanRoomsBtn');
-  const oldText = btn ? btn.textContent : '';
-  if (message) { message.style.display = 'none'; message.textContent = ''; }
-  if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
-  if (status) status.textContent = '— scanning with AI…';
-  try {
-    const res = await fetch('/api/detect-rooms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageDataUrl: dataUrl })
-    });
-    let body = {};
-    try { body = await res.json(); } catch (_) {}
-    if (!res.ok) {
-      if (res.status === 402) throw new Error('Out of AI credits. Manual room picking still works.');
-      if (res.status === 422) throw new Error(body.error || 'Auto-scan found room names, but their positions were unreliable. No rooms were placed.');
-      throw new Error(body.error || ('Room scan failed: ' + res.status));
-    }
-    if (token !== _setupRoomsToken) return;
-    if (body.rejected) {
-      _setupRooms = [];
-      renderSetupRooms();
-      const msg = body.error || 'Auto-scan found room names, but their positions were unreliable. No rooms were placed. Use Manual rooms for this plan.';
-      const msgEl = document.getElementById('roomsMessage');
-      if (msgEl) { msgEl.textContent = msg; msgEl.style.display = ''; }
-      if (status) status.textContent = '— auto-scan did not place rooms';
-      return;
-    }
-    const rooms = Array.isArray(body.rooms) ? body.rooms : [];
-    const scannedRooms = rooms
-      .filter(r => r && typeof r.name === 'string' && typeof r.x === 'number' && typeof r.y === 'number')
-      .map(r => ({ name: normalizeRoomName(r.name).slice(0, 60), x: Math.max(0, Math.min(1, r.x)), y: Math.max(0, Math.min(1, r.y)), confidence: r.confidence }))
-      .filter(r => r.name);
-    if (looksLikeBadRoomScan(scannedRooms)) throw new Error('Auto-scan found room names, but their positions were unreliable. No rooms were placed. Use Manual rooms for this plan.');
-    _setupRooms = scannedRooms;
-    renderSetupRooms();
-    if (message) {
-      message.textContent = _setupRooms.length ? 'Auto-scan placed ' + _setupRooms.length + ' room' + (_setupRooms.length===1?'':'s') + '. Review them before starting.' : 'Auto-scan did not find rooms. Use Manual rooms for this plan.';
-      message.style.display = '';
-    }
-    toast(_setupRooms.length ? ('Found ' + _setupRooms.length + ' room' + (_setupRooms.length===1?'':'s')) : 'No rooms found — use manual rooms');
-  } catch (err) {
-    if (token === _setupRoomsToken) {
-      renderSetupRooms();
-      const msg = err && err.message ? err.message : 'Room scan failed. Manual room picking still works.';
-      if (status) status.textContent = '— ' + msg;
-      const msgEl = document.getElementById('roomsMessage');
-      if (msgEl) { msgEl.textContent = msg; msgEl.style.display = ''; }
-      toast(msg);
-    }
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = oldText || '🔍 Auto-scan'; }
-  }
-}
+
+
 
 function normalizeRoomName(name) {
   return String(name || '')
