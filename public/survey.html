@@ -1219,12 +1219,8 @@ function onPlanFileChange(e) {
   reader.readAsDataURL(f);
 }
 
-async function confirmDetectRoomsForSetup() {
-  if (!_setupPlan) return;
-  const ok = confirm('AI auto-scan uses AI credits.\n\nTry "Read labels" first — it is free. Tap OK only if you want to spend credits.');
-  if (!ok) return;
-  await detectRoomsForSetup(_setupPlan.dataUrl);
-}
+
+
 
 // ============= OCR room scan (free, in-browser, Tesseract.js) =============
 let _tesseractWorkerPromise = null;
