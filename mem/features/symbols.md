@@ -1,20 +1,16 @@
 ---
 name: Symbols on the plan
-description: Shared symbol concept across Field Reporter (secondary) and Topo Field (primary); symbol field inside pin dialog + standalone stamp toolbar; design data model once for clean cross-app/merged-app portability
+description: Option being explored — symbols across Field Reporter (secondary) and Topo Field (primary); nothing locked
 type: feature
 ---
-Symbols live in BOTH apps — design once, share schema:
-- **Field Reporter** (floor plan distress survey) — secondary value
-- **Topo Field** (distress overlaid on elevation contours) — PRIMARY value; symbols on topo tell the structural story
+NOTHING LOCKED. These are notes on an option discussed, not commitments.
 
-UX (Option C):
+Symbols may live in BOTH apps:
+- **Field Reporter** (floor plan distress survey) — secondary value
+- **Topo Field** (distress overlaid on elevation contours) — where symbols would shine most; they tell the structural story on top of topo
+
+UX option discussed (Option C):
 - Symbol field inside pin dialog (primary, photo-attached)
 - Standalone symbol-stamp toolbar mode (secondary) for no-photo diagram passes
 
-Cross-app contract (must match in both apps):
-- Shared glyph library / symbol set
-- Pin schema field: `symbol: string`
-- CSV export column: `Symbol`
-- Same storage shape
-
-Why: when merged version is built, no translation layer is needed between the two apps' symbol data.
+If symbols are built in both apps, it would be worth considering a shared shape (same glyph set, same pin field name, same CSV column) so a future merged app doesn't need a translation layer — but this is an option to weigh at build time, not a decision.
