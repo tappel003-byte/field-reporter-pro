@@ -1452,14 +1452,41 @@ function _activeRoomKeywords() {
   return list;
 }
 
+// Try to snap OCR text to a preset name.
+// 1) Prefer aliases for the active building type.
+// 2) Fall back to ALL aliases (any building type) so close matches still snap.
+// Returns canonical preset name or null.
 function matchRoomKeyword(text) {
   const t = String(text || '').trim();
   if (!t || t.length < 2) return null;
-  const list = _activeRoomKeywords();
-  for (const k of list) {
+  for (const k of _activeRoomKeywords()) {
+    if (k.rx.test(t)) return k.name;
+  }
+  for (const k of ROOM_KEYWORD_ALIASES) {
     if (k.rx.test(t)) return k.name;
   }
   return null;
+}
+
+// Clean raw OCR text into a usable room label when no preset matches.
+// Returns a tidied string or null if the text looks like junk.
+function cleanRawRoomText(text) {
+  let t = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!t) return null;
+  t = t.replace(/^[^A-Za-z]+/, '').replace(/[^A-Za-z0-9.)]+$/, '').trim();
+  if (t.length < 3 || t.length > 28) return null;
+  const letters = (t.match(/[A-Za-z]/g) || []).length;
+  if (letters < 3) return null;
+  if (letters / t.length < 0.5) return null;
+  if (/^\d/.test(t)) return null;
+  if (/['"]/.test(t)) return null;
+  if (/\b(ft|in|sq|sf|min|max)\b/i.test(t)) return null;
+  const small = new Set(['of','and','the','a']);
+  const words = t.toLowerCase().split(' ').map((w, i) => {
+    if (i > 0 && small.has(w)) return w;
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  });
+  return words.join(' ');
 }
 
 
@@ -1558,13 +1585,18 @@ async function ocrScanRoomsForSetup() {
         if (!text) return;
         const conf = typeof item.confidence === 'number' ? item.confidence : 100;
         if (conf < minConf) return;
-        const matched = matchRoomKeyword(text);
-        if (!matched) return;
+        // Try preset snap first; fall back to cleaned raw OCR text.
+        let matched = matchRoomKeyword(text);
+        let isRaw = false;
+        if (!matched) {
+          matched = cleanRawRoomText(text);
+          if (!matched) return;
+          isRaw = true;
+        }
         const bb = item.bbox || {};
         let cx = (bb.x0 + bb.x1) / 2;
         let cy = (bb.y0 + bb.y1) / 2;
         if (p.rot === 90) {
-          // Un-rotate back to upright coords: rotated point (x,y) -> upright (y, rw - x)
           const rw = p.canvas.width;
           const nx = cy;
           const ny = rw - cx;
@@ -1574,7 +1606,7 @@ async function ocrScanRoomsForSetup() {
         const nyr = cy / H;
         if (!isFinite(nxr) || !isFinite(nyr)) return;
         if (nxr < 0 || nxr > 1 || nyr < 0 || nyr > 1) return;
-        candidates.push({ name: matched, x: nxr, y: nyr, conf, src: p.label });
+        candidates.push({ name: matched, x: nxr, y: nyr, conf, src: p.label, raw: isRaw });
       };
 
       for (const ln of lines) harvest(ln, 55);
@@ -1587,11 +1619,12 @@ async function ocrScanRoomsForSetup() {
 
     if (token !== _setupRoomsToken) return;
 
-    // Dedupe: cluster same-name candidates within ~5% of plan; keep highest confidence
-    candidates.sort((a, b) => b.conf - a.conf);
+    // Dedupe: cluster candidates within ~5% of plan. Preset snaps beat raw OCR;
+    // among same-kind, higher confidence wins.
+    candidates.sort((a, b) => (Number(a.raw) - Number(b.raw)) || (b.conf - a.conf));
     const kept = [];
     for (const c of candidates) {
-      const dup = kept.find(k => k.name === c.name && Math.hypot(k.x - c.x, k.y - c.y) < 0.05);
+      const dup = kept.find(k => Math.hypot(k.x - c.x, k.y - c.y) < 0.05);
       if (!dup) kept.push(c);
     }
 
