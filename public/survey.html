@@ -1814,6 +1814,16 @@ function _rvPickRoomName(currentName, onPick, onDelete) {
     }
     return btn;
   };
+  const mkHeader = (text) => {
+    const h = document.createElement('div');
+    h.textContent = text;
+    h.style.cssText = 'grid-column:1/-1;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;margin:6px 2px 2px;padding-top:4px;border-top:1px solid var(--line)';
+    return h;
+  };
+
+  const common = _getCommonRooms(type);
+  const specialty = _getSpecialtyRooms(type);
+  const customs = _getCustomRooms(type);
 
   if (common.length) {
     const h = mkHeader('Common'); h.style.borderTop = 'none'; h.style.marginTop = '0';
@@ -1822,7 +1832,7 @@ function _rvPickRoomName(currentName, onPick, onDelete) {
   }
   if (customs.length) {
     grid.appendChild(mkHeader('Saved (' + typeLabel + ')'));
-    customs.forEach(n => grid.appendChild(mkRoomBtn(n, { star: true })));
+    customs.forEach(n => grid.appendChild(mkRoomBtn(n, { saved: true })));
   }
   if (specialty.length) {
     grid.appendChild(mkHeader('All rooms'));
