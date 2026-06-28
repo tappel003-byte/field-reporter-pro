@@ -1731,6 +1731,8 @@ function _rvRenderBadges() {
     b.style.left = (r.x * 100) + '%';
     b.style.top = (r.y * 100) + '%';
     b.dataset.idx = String(idx);
+    b.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
+    b.addEventListener('pointerup', (e) => { e.stopPropagation(); });
     b.addEventListener('click', (e) => { e.stopPropagation(); _rvEditRoom(idx); });
     b.addEventListener('touchend', (e) => { e.stopPropagation(); });
     wrap.appendChild(b);
@@ -1788,36 +1790,28 @@ function _rvPickRoomName(currentName, onPick, onDelete) {
   grid.innerHTML = '';
 
   const mkRoomBtn = (n, opts) => {
-    if (opts && opts.star) {
-      // Wrap chip + explicit ✕ remove badge so saved rooms can always be audited.
-      const wrap = document.createElement('div');
-      wrap.style.cssText = 'position:relative;display:flex';
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = '★ ' + n;
-      btn.style.cssText = 'flex:1;padding-right:26px';
-      btn.onclick = () => { ov.classList.remove('open'); onPick(n); };
-      const x = document.createElement('button');
-      x.type = 'button';
-      x.textContent = '×';
-      x.title = 'Remove "' + n + '" from saved ' + typeLabel + ' rooms';
-      x.setAttribute('aria-label', 'Remove ' + n + ' from saved rooms');
-      x.style.cssText = 'position:absolute;top:50%;right:4px;transform:translateY(-50%);width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,.08);color:var(--ink);font-size:14px;line-height:1;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center';
-      x.onclick = (e) => {
-        e.stopPropagation();
-        if (confirm('Remove "' + n + '" from ' + typeLabel + ' saved rooms?\n\n(This only removes it from your saved list — existing rooms on the plan stay.)')) {
-          _removeCustomRoom(n, type);
-          _rvPickRoomName(currentName, onPick, onDelete);
-        }
-      };
-      wrap.appendChild(btn);
-      wrap.appendChild(x);
-      return wrap;
-    }
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = n;
     btn.onclick = () => { ov.classList.remove('open'); onPick(n); };
+    if (opts && opts.saved) {
+      btn.title = 'Saved room — long-press to remove from saved list';
+      let pressTimer = null;
+      const startPress = () => { pressTimer = setTimeout(() => {
+        pressTimer = 'fired';
+        if (confirm('Remove "' + n + '" from ' + typeLabel + ' saved rooms?\n(Existing rooms on the plan are not affected.)')) {
+          _removeCustomRoom(n, type);
+          _rvPickRoomName(currentName, onPick, onDelete);
+        }
+      }, 600); };
+      const cancelPress = () => { if (pressTimer && pressTimer !== 'fired') { clearTimeout(pressTimer); } pressTimer = null; };
+      btn.addEventListener('pointerdown', startPress);
+      btn.addEventListener('pointerup', cancelPress);
+      btn.addEventListener('pointerleave', cancelPress);
+      btn.addEventListener('pointercancel', cancelPress);
+      // If long-press fired, swallow the click so it doesn't also pick the room.
+      btn.addEventListener('click', (e) => { if (pressTimer === 'fired') { e.stopImmediatePropagation(); e.preventDefault(); pressTimer = null; } }, true);
+    }
     return btn;
   };
   const mkHeader = (text) => {
@@ -1838,7 +1832,7 @@ function _rvPickRoomName(currentName, onPick, onDelete) {
   }
   if (customs.length) {
     grid.appendChild(mkHeader('Saved (' + typeLabel + ')'));
-    customs.forEach(n => grid.appendChild(mkRoomBtn(n, { star: true })));
+    customs.forEach(n => grid.appendChild(mkRoomBtn(n, { saved: true })));
   }
   if (specialty.length) {
     grid.appendChild(mkHeader('All rooms'));
