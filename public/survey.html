@@ -3146,20 +3146,51 @@ function buildRoomLabels(proj, offset) {
     const dirs = idxs.map(i => _roomCardinal(rooms[i], offset));
     const counts = {};
     dirs.forEach(d => { counts[d] = (counts[d] || 0) + 1; });
-    const seen = {};
+    // Group siblings by primary cardinal so we can add a secondary positional
+    // tag like "(Center)" or "(North)" when multiple rooms share the same wall.
+    const byDir = {};
+    idxs.forEach((i, n) => { (byDir[dirs[n]] = byDir[dirs[n]] || []).push(i); });
     idxs.forEach((i, n) => {
       const d = dirs[n];
       const word = _CARD_FULL[d] || d;
-      if (counts[d] === 1) {
-        labels[i] = word + ' ' + rooms[i].name;
-      } else {
-        seen[d] = (seen[d] || 0) + 1;
-        labels[i] = word + ' ' + rooms[i].name + ' ' + seen[d];
-      }
+      const base = word + ' ' + rooms[i].name;
+      if (counts[d] === 1) { labels[i] = base; return; }
+      const sub = _siblingPositionTag(rooms, byDir[d], i, offset);
+      labels[i] = sub ? (base + ' (' + sub + ')') : base;
     });
   });
   return labels;
 }
+// For siblings sharing the same primary cardinal, return a positional tag
+// ("North"/"Center"/"South" or "West"/"Center"/"East") describing where this
+// room sits within the sibling group, oriented to real-world bearing.
+function _siblingPositionTag(rooms, idxs, i, offset) {
+  if (!idxs || idxs.length < 2) return '';
+  // Rotate plan coords (x right, y down) into world coords where +Y is North.
+  // offset = real-world bearing of plan-up direction.
+  const theta = ((offset || 0) * Math.PI) / 180;
+  const ct = Math.cos(theta), st = Math.sin(theta);
+  const pts = idxs.map(j => {
+    const dx = rooms[j].x - 0.5, dy = 0.5 - rooms[j].y; // plan-up = +dy
+    // World East = dx*cos + dy*sin ; World North = -dx*sin + dy*cos
+    return { j, e: dx * ct + dy * st, n: -dx * st + dy * ct };
+  });
+  const ns = pts.map(p => p.n), es = pts.map(p => p.e);
+  const spreadN = Math.max(...ns) - Math.min(...ns);
+  const spreadE = Math.max(...es) - Math.min(...es);
+  const useNS = spreadN >= spreadE;
+  const vals = pts.map(p => useNS ? p.n : p.e);
+  const me = pts.find(p => p.j === i);
+  const mine = useNS ? me.n : me.e;
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const span = hi - lo || 1;
+  const t = (mine - lo) / span; // 0..1
+  if (idxs.length === 2) return useNS ? (t < 0.5 ? 'South' : 'North') : (t < 0.5 ? 'West' : 'East');
+  if (t < 0.34) return useNS ? 'South' : 'West';
+  if (t > 0.66) return useNS ? 'North' : 'East';
+  return 'Center';
+}
+
 
 function renderIntExtToggle() {
   const p = currentPin();
