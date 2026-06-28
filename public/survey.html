@@ -1192,6 +1192,7 @@ function startNewProject(mode) {
   document.getElementById('fPlanFile').value = '';
   const rf = document.getElementById('roomsField'); if (rf) rf.style.display = 'none';
   const rc = document.getElementById('roomsChips'); if (rc) rc.innerHTML = '';
+  const bt = document.getElementById('fBuildingType'); if (bt) bt.value = 'residential';
   refreshStartBtn();
   showScreen('screenSetup');
   setTimeout(()=>document.getElementById('fAddress').focus(), 200);
@@ -1203,6 +1204,18 @@ document.getElementById('fFrontDoor').addEventListener('change', () => {
     renderNorth();
   }
 });
+// Re-render the room picker if it's open when building type changes, so the
+// Common/All sections refresh to the new type's pool.
+document.getElementById('fBuildingType').addEventListener('change', () => {
+  const ov = document.getElementById('rvPicker');
+  if (ov && ov.classList.contains('open')) {
+    // Re-open the picker with the same callbacks isn't easy; just close it so
+    // the next tap shows the new type's rooms. The badges on the plan are
+    // unaffected — only the picker contents are type-scoped.
+    ov.classList.remove('open');
+  }
+});
+
 function validateSetup() { refreshStartBtn(); }
 function refreshStartBtn() {
   const addr = document.getElementById('fAddress').value.trim();
