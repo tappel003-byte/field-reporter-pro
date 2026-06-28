@@ -565,10 +565,12 @@
       <div id="roomsChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
       <div class="room-actions">
         <button type="button" class="primary" onclick="openRoomVerify()">➕ Manual rooms</button>
-        <button type="button" id="autoScanRoomsBtn" onclick="confirmDetectRoomsForSetup()">🔍 Auto-scan</button>
+        <button type="button" id="ocrScanRoomsBtn" onclick="ocrScanRoomsForSetup()">🔍 Read labels</button>
+        <button type="button" id="autoScanRoomsBtn" onclick="confirmDetectRoomsForSetup()">🤖 AI auto-scan</button>
       </div>
       <div id="roomsMessage" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font-size:13px;line-height:1.35"></div>
-      <div class="hint">Manual is the default. Auto-scan only runs if you press Auto-scan and confirm that it uses AI credits.</div>
+      <div class="hint">Manual is the default. "Read labels" reads printed text on the plan — free, no AI credits. "AI auto-scan" uses credits.</div>
+
     </div>
   </div>
 
@@ -1220,10 +1222,157 @@ function onPlanFileChange(e) {
 
 async function confirmDetectRoomsForSetup() {
   if (!_setupPlan) return;
-  const ok = confirm('Auto-scan rooms uses AI credits.\n\nManual rooms are still the default. Tap OK only if you want to spend credits for this scan.');
+  const ok = confirm('AI auto-scan uses AI credits.\n\nTry "Read labels" first — it is free. Tap OK only if you want to spend credits.');
   if (!ok) return;
   await detectRoomsForSetup(_setupPlan.dataUrl);
 }
+
+// ============= OCR room scan (free, in-browser, Tesseract.js) =============
+let _tesseractWorkerPromise = null;
+async function loadTesseractWorker() {
+  if (_tesseractWorkerPromise) return _tesseractWorkerPromise;
+  _tesseractWorkerPromise = (async () => {
+    if (!window.Tesseract) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('Could not load text reader. Check your connection.'));
+        document.head.appendChild(s);
+      });
+    }
+    const worker = await window.Tesseract.createWorker('eng');
+    return worker;
+  })();
+  return _tesseractWorkerPromise;
+}
+
+const ROOM_KEYWORDS = [
+  { rx: /\bprimary\s+bed(room)?\b|\bmaster\s+bed(room)?\b|\bmstr\s+bed(room)?\b/i, name: 'Primary Bedroom' },
+  { rx: /\bprimary\s+bath(room)?\b|\bmaster\s+bath(room)?\b|\bmstr\s+bath(room)?\b/i, name: 'Primary Bathroom' },
+  { rx: /\bbed(room)?\s*\d*\b|\bbr\s*\d*\b/i, name: 'Bedroom' },
+  { rx: /\bbath(room)?\s*\d*\b/i, name: 'Bathroom' },
+  { rx: /\bpowder\b/i, name: 'Powder Room' },
+  { rx: /\bkitchen\b/i, name: 'Kitchen' },
+  { rx: /\bdining\b/i, name: 'Dining' },
+  { rx: /\bliving\b/i, name: 'Living' },
+  { rx: /\bfamily\b/i, name: 'Family Room' },
+  { rx: /\bgreat\s*room\b/i, name: 'Great Room' },
+  { rx: /\bfoyer\b|\bentry\b/i, name: 'Foyer' },
+  { rx: /\bhall(way)?\b/i, name: 'Hall' },
+  { rx: /\blaundry\b|\butility\b/i, name: 'Laundry' },
+  { rx: /\bmud\s*room\b/i, name: 'Mud Room' },
+  { rx: /\boffice\b|\bstudy\b|\bden\b/i, name: 'Office' },
+  { rx: /\bgarage\b/i, name: 'Garage' },
+  { rx: /\bpantry\b/i, name: 'Pantry' },
+  { rx: /\bcloset\b|\bclos\b/i, name: 'Closet' },
+  { rx: /\bw\.?\s*i\.?\s*c\.?\b|\bwalk[\s-]*in\s*clos(et)?\b/i, name: 'W.I.C' },
+  { rx: /\bnook\b|\bbreakfast\b/i, name: 'Breakfast Nook' },
+  { rx: /\bbonus\b/i, name: 'Bonus Room' },
+  { rx: /\bporch\b/i, name: 'Porch' },
+  { rx: /\bpatio\b|\bdeck\b|\blanai\b/i, name: 'Patio' },
+  { rx: /\bstair(s|case)?\b/i, name: 'Stairs' },
+  { rx: /\bstorage\b/i, name: 'Storage' },
+  { rx: /\bmech(anical)?\b|\bequip(ment)?\b/i, name: 'Mechanical' },
+];
+
+function matchRoomKeyword(text) {
+  const t = String(text || '').trim();
+  if (!t || t.length < 2) return null;
+  for (const k of ROOM_KEYWORDS) {
+    if (k.rx.test(t)) return k.name;
+  }
+  return null;
+}
+
+async function ocrScanRoomsForSetup() {
+  if (!_setupPlan || !_setupPlan.dataUrl) return;
+  const token = ++_setupRoomsToken;
+  if (!Array.isArray(_setupRooms)) _setupRooms = [];
+  const status = document.getElementById('roomsStatus');
+  const message = document.getElementById('roomsMessage');
+  const btn = document.getElementById('ocrScanRoomsBtn');
+  const oldText = btn ? btn.textContent : '';
+  if (message) { message.style.display = 'none'; message.textContent = ''; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Reading…'; }
+  if (status) status.textContent = '— reading text on plan…';
+  try {
+    const worker = await loadTesseractWorker();
+    if (token !== _setupRoomsToken) return;
+    if (btn) btn.textContent = 'Scanning…';
+    // Tesseract accepts data URLs directly
+    const { data } = await worker.recognize(_setupPlan.dataUrl);
+    if (token !== _setupRoomsToken) return;
+
+    // Image dimensions for normalization
+    const img = await new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = () => rej(new Error('Could not read plan image.'));
+      im.src = _setupPlan.dataUrl;
+    });
+    const W = img.naturalWidth || 1;
+    const H = img.naturalHeight || 1;
+
+    // Tesseract v5: data.words is an array with bbox {x0,y0,x1,y1} and text
+    const words = Array.isArray(data && data.words) ? data.words : [];
+    // Group nearby words into single labels (helps "MASTER BEDROOM" not split)
+    const lines = Array.isArray(data && data.lines) ? data.lines : [];
+    const candidates = [];
+    for (const ln of lines) {
+      const text = (ln.text || '').trim();
+      if (!text) continue;
+      const matched = matchRoomKeyword(text);
+      if (!matched) continue;
+      const bb = ln.bbox || {};
+      const cx = ((bb.x0 + bb.x1) / 2) / W;
+      const cy = ((bb.y0 + bb.y1) / 2) / H;
+      if (!isFinite(cx) || !isFinite(cy)) continue;
+      candidates.push({ name: matched, x: Math.max(0, Math.min(1, cx)), y: Math.max(0, Math.min(1, cy)) });
+    }
+    // Also scan individual words for short labels (e.g., "KITCHEN")
+    for (const w of words) {
+      const text = (w.text || '').trim();
+      if (!text || text.length < 3) continue;
+      const matched = matchRoomKeyword(text);
+      if (!matched) continue;
+      const bb = w.bbox || {};
+      const cx = ((bb.x0 + bb.x1) / 2) / W;
+      const cy = ((bb.y0 + bb.y1) / 2) / H;
+      if (!isFinite(cx) || !isFinite(cy)) continue;
+      // Skip if close to an existing candidate of same name
+      const dup = candidates.some(c => c.name === matched && Math.hypot(c.x - cx, c.y - cy) < 0.04);
+      if (!dup) candidates.push({ name: matched, x: cx, y: cy });
+    }
+
+    // Number duplicates: Bedroom, Bedroom 2, Bedroom 3...
+    const counts = {};
+    const numbered = candidates.map(c => {
+      counts[c.name] = (counts[c.name] || 0) + 1;
+      return { ...c, name: counts[c.name] === 1 && candidates.filter(x => x.name === c.name).length === 1 ? c.name : (c.name + ' ' + counts[c.name]) };
+    });
+
+    _setupRooms = numbered;
+    renderSetupRooms();
+    const found = numbered.length;
+    const msg = found
+      ? 'Read ' + found + ' label' + (found === 1 ? '' : 's') + ' from the plan. Tap any to edit or remove.'
+      : 'No room labels found. Try AI auto-scan or add rooms manually.';
+    if (message) { message.textContent = msg; message.style.display = ''; }
+    if (status) status.textContent = found ? ('— read ' + found + ' label' + (found === 1 ? '' : 's')) : '— no labels read';
+    toast(found ? ('Found ' + found + ' label' + (found === 1 ? '' : 's')) : 'No labels found');
+  } catch (err) {
+    if (token === _setupRoomsToken) {
+      const msg = (err && err.message) ? err.message : 'Could not read labels. Try AI auto-scan or manual.';
+      if (status) status.textContent = '— ' + msg;
+      if (message) { message.textContent = msg; message.style.display = ''; }
+      toast(msg);
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = oldText || '🔍 Read labels'; }
+  }
+}
+
 async function detectRoomsForSetup(dataUrl) {
   // Explicit button only. Never call this from upload/open setup.
   if (!dataUrl) return;
