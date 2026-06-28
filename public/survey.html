@@ -1690,58 +1690,105 @@ function _rvRenderBadges() {
     wrap.appendChild(b);
   });
 }
-const ROOM_PRESETS_BUILTIN = ['Bedroom','Primary Bedroom','Bathroom','Primary Bathroom','Kitchen','Living Room','Family Room','Dining Room','Office','Garage','Hallway','Closet','W.I.C','Laundry','Foyer','Mud Room','Basement','Attic','Stairs','Pantry','Powder Room'];
-function _getCustomRooms() {
+// Custom rooms are scoped per building type. Storage key: customRoomPresets:<type>.
+// Legacy key 'customRoomPresets' (un-scoped, from older versions) is read into
+// every type's picker once as a one-time fallback so saved entries aren't lost.
+function _legacyCustoms() {
   try { return JSON.parse(localStorage.getItem('customRoomPresets') || '[]'); } catch { return []; }
 }
-function _saveCustomRoom(name) {
+function _getCustomRooms(type) {
+  const t = type || _getActiveBuildingType();
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem('customRoomPresets:' + t) || '[]'); } catch {}
+  // Merge legacy un-scoped customs (deduped) for backwards compat.
+  const legacy = _legacyCustoms();
+  if (legacy.length) {
+    const seen = new Set(list.map(s => s.toLowerCase()));
+    legacy.forEach(n => { if (!seen.has((n || '').toLowerCase())) { list.push(n); seen.add((n || '').toLowerCase()); } });
+  }
+  return list;
+}
+function _saveCustomRoom(name, type) {
   const n = (name || '').trim();
   if (!n) return;
-  const existing = [...ROOM_PRESETS_BUILTIN, ..._getCustomRooms()].map(s => s.toLowerCase());
-  if (existing.includes(n.toLowerCase())) return;
-  const list = _getCustomRooms();
+  const t = type || _getActiveBuildingType();
+  const presets = _getAllPresetRooms(t).map(s => s.toLowerCase());
+  if (presets.includes(n.toLowerCase())) return;
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem('customRoomPresets:' + t) || '[]'); } catch {}
+  if (list.map(s => s.toLowerCase()).includes(n.toLowerCase())) return;
   list.push(n);
-  localStorage.setItem('customRoomPresets', JSON.stringify(list));
+  localStorage.setItem('customRoomPresets:' + t, JSON.stringify(list));
 }
-function _removeCustomRoom(name) {
-  const list = _getCustomRooms().filter(r => r.toLowerCase() !== (name || '').toLowerCase());
-  localStorage.setItem('customRoomPresets', JSON.stringify(list));
+function _removeCustomRoom(name, type) {
+  const t = type || _getActiveBuildingType();
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem('customRoomPresets:' + t) || '[]'); } catch {}
+  list = list.filter(r => r.toLowerCase() !== (name || '').toLowerCase());
+  localStorage.setItem('customRoomPresets:' + t, JSON.stringify(list));
+  // Also strip from legacy bucket so it doesn't re-appear via merge.
+  const legacy = _legacyCustoms().filter(r => r.toLowerCase() !== (name || '').toLowerCase());
+  localStorage.setItem('customRoomPresets', JSON.stringify(legacy));
 }
-function _allRoomPresets() { return [...ROOM_PRESETS_BUILTIN, ..._getCustomRooms()]; }
-// Backwards compatibility for any other code referencing ROOM_PRESETS
-const ROOM_PRESETS = new Proxy([], { get(_, k) { const a = _allRoomPresets(); return a[k] !== undefined ? a[k] : a[k]; } });
+
 function _rvPickRoomName(currentName, onPick, onDelete) {
   const ov = document.getElementById('rvPicker');
   const grid = document.getElementById('rvPickerGrid');
   const title = document.getElementById('rvPickerTitle');
   const actions = document.getElementById('rvPickerActions');
-  title.textContent = currentName ? 'Edit room' : 'Add room';
+  const type = _getActiveBuildingType();
+  const typeLabel = type === 'all' ? 'All / Mixed' : (BUILDING_TYPES[type] && BUILDING_TYPES[type].label) || type;
+  title.textContent = (currentName ? 'Edit room' : 'Add room') + ' — ' + typeLabel;
   grid.innerHTML = '';
-  const customs = _getCustomRooms();
-  ROOM_PRESETS_BUILTIN.forEach(n => {
+
+  const mkRoomBtn = (n, opts) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.textContent = n;
+    btn.textContent = (opts && opts.star ? '★ ' : '') + n;
     btn.onclick = () => { ov.classList.remove('open'); onPick(n); };
-    grid.appendChild(btn);
-  });
-  customs.forEach(n => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = '★ ' + n;
-    btn.title = 'Saved room — long-press to remove';
-    btn.onclick = () => { ov.classList.remove('open'); onPick(n); };
-    let pressTimer = null;
-    const startPress = () => { pressTimer = setTimeout(() => {
-      if (confirm('Remove "' + n + '" from saved rooms?')) { _removeCustomRoom(n); ov.classList.remove('open'); _rvPickRoomName(currentName, onPick, onDelete); }
-    }, 600); };
-    const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
-    btn.addEventListener('pointerdown', startPress);
-    btn.addEventListener('pointerup', cancelPress);
-    btn.addEventListener('pointerleave', cancelPress);
-    btn.addEventListener('pointercancel', cancelPress);
-    grid.appendChild(btn);
-  });
+    if (opts && opts.star) {
+      btn.title = 'Saved room — long-press to remove';
+      let pressTimer = null;
+      const startPress = () => { pressTimer = setTimeout(() => {
+        if (confirm('Remove "' + n + '" from ' + typeLabel + ' saved rooms?')) {
+          _removeCustomRoom(n, type);
+          ov.classList.remove('open');
+          _rvPickRoomName(currentName, onPick, onDelete);
+        }
+      }, 600); };
+      const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+      btn.addEventListener('pointerdown', startPress);
+      btn.addEventListener('pointerup', cancelPress);
+      btn.addEventListener('pointerleave', cancelPress);
+      btn.addEventListener('pointercancel', cancelPress);
+    }
+    return btn;
+  };
+  const mkHeader = (text) => {
+    const h = document.createElement('div');
+    h.textContent = text;
+    h.style.cssText = 'grid-column:1/-1;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;margin:6px 2px 2px;padding-top:4px;border-top:1px solid var(--line)';
+    return h;
+  };
+
+  const common = _getCommonRooms(type);
+  const specialty = _getSpecialtyRooms(type);
+  const customs = _getCustomRooms(type);
+
+  if (common.length) {
+    const h = mkHeader('Common'); h.style.borderTop = 'none'; h.style.marginTop = '0';
+    grid.appendChild(h);
+    common.forEach(n => grid.appendChild(mkRoomBtn(n)));
+  }
+  if (customs.length) {
+    grid.appendChild(mkHeader('Saved (' + typeLabel + ')'));
+    customs.forEach(n => grid.appendChild(mkRoomBtn(n, { star: true })));
+  }
+  if (specialty.length) {
+    grid.appendChild(mkHeader('All rooms'));
+    specialty.forEach(n => grid.appendChild(mkRoomBtn(n)));
+  }
+
   const other = document.createElement('button');
   other.type = 'button';
   other.textContent = '+ Other / new room…';
@@ -1750,12 +1797,13 @@ function _rvPickRoomName(currentName, onPick, onDelete) {
     const n = prompt('Room name:', currentName || '');
     if (!n || !n.trim()) return;
     const name = n.trim();
-    const save = confirm('Save "' + name + '" to your room list for future projects?');
-    if (save) _saveCustomRoom(name);
+    const save = confirm('Save "' + name + '" to your ' + typeLabel + ' room list for future ' + typeLabel + ' projects?');
+    if (save) _saveCustomRoom(name, type);
     ov.classList.remove('open');
     onPick(name);
   };
   grid.appendChild(other);
+
   actions.innerHTML = '';
   const cancel = document.createElement('button');
   cancel.type = 'button'; cancel.textContent = 'Cancel';
@@ -1769,6 +1817,7 @@ function _rvPickRoomName(currentName, onPick, onDelete) {
   }
   ov.classList.add('open');
 }
+
 
 function _rvAddRoomAt(cx, cy) {
   const r = document.getElementById('rvStage').getBoundingClientRect();
