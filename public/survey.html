@@ -1731,6 +1731,8 @@ function _rvRenderBadges() {
     b.style.left = (r.x * 100) + '%';
     b.style.top = (r.y * 100) + '%';
     b.dataset.idx = String(idx);
+    b.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
+    b.addEventListener('pointerup', (e) => { e.stopPropagation(); });
     b.addEventListener('click', (e) => { e.stopPropagation(); _rvEditRoom(idx); });
     b.addEventListener('touchend', (e) => { e.stopPropagation(); });
     wrap.appendChild(b);
