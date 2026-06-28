@@ -560,6 +560,22 @@
       <div class="hint">The on-screen north arrow rotates to match. Assumes the front of the building is drawn at the bottom of the plan.</div>
     </div>
 
+    <div class="field">
+      <label>Building type</label>
+      <select id="fBuildingType" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--text);font-size:14px">
+        <option value="residential" selected>Residential</option>
+        <option value="office">Office</option>
+        <option value="medical">Medical Office</option>
+        <option value="vet">Vet Clinic</option>
+        <option value="dental">Dental</option>
+        <option value="warehouse">Warehouse</option>
+        <option value="all">All / Mixed</option>
+      </select>
+      <div class="hint">Sets which rooms appear in the picker and what "Read labels" hunts for. Saved custom rooms stay scoped to this type.</div>
+    </div>
+
+
+
     <div class="field" id="roomsField" style="display:none">
       <label>Rooms <span id="roomsStatus" style="font-weight:400;color:var(--muted);font-size:12px"></span></label>
       <div id="roomsChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
