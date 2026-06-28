@@ -1459,19 +1459,6 @@ function normalizeRoomName(name) {
     .replace(/\bmaster bath(room)?\b/gi, 'Primary Bathroom');
 }
 
-function looksLikeBadRoomScan(rooms) {
-  if (!Array.isArray(rooms) || rooms.length < 3) return false;
-  const xs = rooms.map(r => r.x);
-  const ys = rooms.map(r => r.y);
-  const spreadX = Math.max(...xs) - Math.min(...xs);
-  const spreadY = Math.max(...ys) - Math.min(...ys);
-  const edgeYCount = ys.filter(y => y <= 0.02 || y >= 0.98).length;
-  const edgeXCount = xs.filter(x => x <= 0.02 || x >= 0.98).length;
-  const mostlyOnHorizontalLine = spreadY < 0.015 && spreadX > 0.25;
-  const mostlyOnVerticalLine = spreadX < 0.015 && spreadY > 0.25;
-  const mostlyOnEdge = edgeYCount / rooms.length >= 0.8 || edgeXCount / rooms.length >= 0.8;
-  return mostlyOnHorizontalLine || mostlyOnVerticalLine || mostlyOnEdge;
-}
 
 function renderSetupRooms() {
   const status = document.getElementById('roomsStatus');
