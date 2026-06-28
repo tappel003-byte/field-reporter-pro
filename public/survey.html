@@ -560,6 +560,22 @@
       <div class="hint">The on-screen north arrow rotates to match. Assumes the front of the building is drawn at the bottom of the plan.</div>
     </div>
 
+    <div class="field">
+      <label>Building type</label>
+      <select id="fBuildingType" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--text);font-size:14px">
+        <option value="residential" selected>Residential</option>
+        <option value="office">Office</option>
+        <option value="medical">Medical Office</option>
+        <option value="vet">Vet Clinic</option>
+        <option value="dental">Dental</option>
+        <option value="warehouse">Warehouse</option>
+        <option value="all">All / Mixed</option>
+      </select>
+      <div class="hint">Sets which rooms appear in the picker and what "Read labels" hunts for. Saved custom rooms stay scoped to this type.</div>
+    </div>
+
+
+
     <div class="field" id="roomsField" style="display:none">
       <label>Rooms <span id="roomsStatus" style="font-weight:400;color:var(--muted);font-size:12px"></span></label>
       <div id="roomsChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
@@ -1176,6 +1192,7 @@ function startNewProject(mode) {
   document.getElementById('fPlanFile').value = '';
   const rf = document.getElementById('roomsField'); if (rf) rf.style.display = 'none';
   const rc = document.getElementById('roomsChips'); if (rc) rc.innerHTML = '';
+  const bt = document.getElementById('fBuildingType'); if (bt) bt.value = 'residential';
   refreshStartBtn();
   showScreen('screenSetup');
   setTimeout(()=>document.getElementById('fAddress').focus(), 200);
@@ -1187,6 +1204,18 @@ document.getElementById('fFrontDoor').addEventListener('change', () => {
     renderNorth();
   }
 });
+// Re-render the room picker if it's open when building type changes, so the
+// Common/All sections refresh to the new type's pool.
+document.getElementById('fBuildingType').addEventListener('change', () => {
+  const ov = document.getElementById('rvPicker');
+  if (ov && ov.classList.contains('open')) {
+    // Re-open the picker with the same callbacks isn't easy; just close it so
+    // the next tap shows the new type's rooms. The badges on the plan are
+    // unaffected — only the picker contents are type-scoped.
+    ov.classList.remove('open');
+  }
+});
+
 function validateSetup() { refreshStartBtn(); }
 function refreshStartBtn() {
   const addr = document.getElementById('fAddress').value.trim();
@@ -1248,43 +1277,191 @@ async function loadTesseractWorker() {
   return _tesseractWorkerPromise;
 }
 
-const ROOM_KEYWORDS = [
+// ====== BUILDING TYPES ======
+// Per-type room presets split into Common (fast-tap) and Specialty (in "All rooms" section).
+// Keywords are regex aliases used by OCR; the canonical name is what gets saved on the pin.
+const BUILDING_TYPES = {
+  residential: {
+    label: 'Residential',
+    common: ['Kitchen','Primary Bedroom','Primary Bathroom','Bedroom','Bathroom','Living Room','Dining Room','Family Room','Garage','Laundry','Hallway','Closet','Foyer','Office'],
+    specialty: ['Great Room','Breakfast Nook','Pantry','Butler\u2019s Pantry','Mud Room','Half Bath','Powder Room','Primary Closet','W.I.C','Den','Library','Study','Sunroom','Bonus Room','Game Room','Home Theater','Wine Cellar','Gym','Nursery','Guest Room','Basement','Attic','Crawl Space','Mechanical','Utility Room','Server Room','Workshop','Storage','Porch','Patio','Deck','Lanai','Pool House','Stairs'],
+  },
+  office: {
+    label: 'Office',
+    common: ['Reception','Waiting Area','Conference Room','Private Office','Open Office','Break Room','Restroom','Kitchen','Hallway','Storage'],
+    specialty: ['Lobby','Boardroom','Huddle Room','Phone Booth','Copy Room','Mail Room','Server Room','IT Closet','Mechanical','Janitor','Lounge','Training Room','Library','Stairs'],
+  },
+  medical: {
+    label: 'Medical Office',
+    common: ['Reception','Waiting Room','Exam Room','Nurse Station','Doctor Office','Restroom','Lab','Hallway','Storage'],
+    specialty: ['Triage','Procedure Room','X-Ray','Imaging','MRI','CT Scan','Ultrasound','Pharmacy','Sterilization','Recovery','Consult Room','Break Room','Mechanical','Janitor','Stairs'],
+  },
+  vet: {
+    label: 'Vet Clinic',
+    common: ['Reception','Waiting Area','Exam Room','Surgery','Kennel','Lab','Restroom','Storage','Hallway'],
+    specialty: ['Triage','Grooming','Pharmacy','Recovery','Isolation','Radiology','X-Ray','Boarding','Food Storage','Break Room','Mechanical','Stairs'],
+  },
+  dental: {
+    label: 'Dental',
+    common: ['Reception','Waiting Room','Operatory','Sterilization','X-Ray','Restroom','Hallway','Storage'],
+    specialty: ['Consult Room','Lab','Doctor Office','Break Room','Mechanical','Stairs'],
+  },
+  warehouse: {
+    label: 'Warehouse',
+    common: ['Receiving','Shipping','Loading Dock','Storage','Office','Restroom','Break Room'],
+    specialty: ['Cold Storage','Freezer','Forklift Charging','Mechanical','Electrical Room','Server Room','Hallway','Stairs','Mezzanine'],
+  },
+};
+
+// Keyword aliases used by OCR. Canonical name on the right; only entries whose
+// canonical name is in the active building type's room pool are matched.
+const ROOM_KEYWORD_ALIASES = [
   { rx: /\b(primary|master|mstr)\s*bed(room|rm)?\b/i, name: 'Primary Bedroom' },
   { rx: /\b(primary|master|mstr)\s*bath(room|rm)?\b/i, name: 'Primary Bathroom' },
   { rx: /\bpowder\b/i, name: 'Powder Room' },
+  { rx: /\bhalf\s*bath\b/i, name: 'Half Bath' },
   { rx: /\bbed(room|rm)?\s*\d*\b|\bbr\s*\d*\b/i, name: 'Bedroom' },
   { rx: /\bbath(room|rm)?\s*\d*\b|\bba\s*\d*\b/i, name: 'Bathroom' },
+  { rx: /\brest\s*room\b|\brestroom\b|\bwc\b|\btoilet\b/i, name: 'Restroom' },
   { rx: /\bkitchen\b|\bkit\b/i, name: 'Kitchen' },
-  { rx: /\bdining\b|\bdin\b/i, name: 'Dining' },
-  { rx: /\bliving\b|\bliv\b/i, name: 'Living' },
-  { rx: /\bfamily\b|\bfam\b/i, name: 'Family Room' },
+  { rx: /\bdining(\s*room)?\b|\bdin\b/i, name: 'Dining Room' },
+  { rx: /\bliving(\s*room)?\b|\bliv\b/i, name: 'Living Room' },
+  { rx: /\bfamily(\s*room)?\b|\bfam\b/i, name: 'Family Room' },
   { rx: /\bgreat\s*room\b|\bgrt\s*rm\b/i, name: 'Great Room' },
   { rx: /\bfoyer\b|\bentry\b/i, name: 'Foyer' },
-  { rx: /\bhall(way)?\b/i, name: 'Hall' },
-  { rx: /\blaundry\b|\bldry\b|\butility\b|\butil\b/i, name: 'Laundry' },
+  { rx: /\blobby\b/i, name: 'Lobby' },
+  { rx: /\bhall(way)?\b/i, name: 'Hallway' },
+  { rx: /\blaundry\b|\bldry\b/i, name: 'Laundry' },
+  { rx: /\butility\s*room\b|\butility\b|\butil\b/i, name: 'Utility Room' },
   { rx: /\bmud\s*room\b|\bmud\s*rm\b/i, name: 'Mud Room' },
-  { rx: /\boffice\b|\bstudy\b|\bden\b/i, name: 'Office' },
+  { rx: /\boffice\b/i, name: 'Office' },
+  { rx: /\bstudy\b/i, name: 'Study' },
+  { rx: /\bden\b/i, name: 'Den' },
+  { rx: /\blibrary\b/i, name: 'Library' },
   { rx: /\bgarage\b|\bgar\b/i, name: 'Garage' },
   { rx: /\bpantry\b|\bpan\b/i, name: 'Pantry' },
+  { rx: /\bbutler/i, name: 'Butler\u2019s Pantry' },
   { rx: /\bw\.?\s*i\.?\s*c\.?\b|\bwalk[\s-]*in\s*clos(et)?\b/i, name: 'W.I.C' },
   { rx: /\bcloset\b|\bclos\b/i, name: 'Closet' },
   { rx: /\bnook\b|\bbreakfast\b|\bbkfst\b/i, name: 'Breakfast Nook' },
   { rx: /\bbonus\b/i, name: 'Bonus Room' },
+  { rx: /\bgame\s*room\b/i, name: 'Game Room' },
+  { rx: /\b(home\s*)?theater\b|\bmedia\s*room\b/i, name: 'Home Theater' },
+  { rx: /\bgym\b|\bfitness\b/i, name: 'Gym' },
+  { rx: /\bnursery\b/i, name: 'Nursery' },
+  { rx: /\bguest\b/i, name: 'Guest Room' },
+  { rx: /\bbasement\b/i, name: 'Basement' },
+  { rx: /\battic\b/i, name: 'Attic' },
+  { rx: /\bsunroom\b|\bsun\s*room\b/i, name: 'Sunroom' },
   { rx: /\bporch\b/i, name: 'Porch' },
-  { rx: /\bpatio\b|\bdeck\b|\blanai\b/i, name: 'Patio' },
+  { rx: /\bpatio\b/i, name: 'Patio' },
+  { rx: /\bdeck\b/i, name: 'Deck' },
+  { rx: /\blanai\b/i, name: 'Lanai' },
   { rx: /\bstair(s|case)?\b/i, name: 'Stairs' },
   { rx: /\bstorage\b|\bstor\b/i, name: 'Storage' },
   { rx: /\bmech(anical)?\b|\bequip(ment)?\b/i, name: 'Mechanical' },
+  { rx: /\bserver\b/i, name: 'Server Room' },
+  { rx: /\belectrical\s*room\b|\belec\s*room\b/i, name: 'Electrical Room' },
+  { rx: /\bworkshop\b/i, name: 'Workshop' },
+  // Office
+  { rx: /\breception\b/i, name: 'Reception' },
+  { rx: /\bwaiting\s*(room|area)?\b/i, name: 'Waiting Room' },
+  { rx: /\bconference\b/i, name: 'Conference Room' },
+  { rx: /\bboard\s*room\b/i, name: 'Boardroom' },
+  { rx: /\bbreak\s*room\b|\bbreakroom\b/i, name: 'Break Room' },
+  { rx: /\bhuddle\b/i, name: 'Huddle Room' },
+  { rx: /\bcopy\s*room\b/i, name: 'Copy Room' },
+  { rx: /\bmail\s*room\b/i, name: 'Mail Room' },
+  { rx: /\btraining\b/i, name: 'Training Room' },
+  { rx: /\bjanitor\b/i, name: 'Janitor' },
+  { rx: /\blounge\b/i, name: 'Lounge' },
+  // Medical / Vet / Dental
+  { rx: /\bexam\s*(room)?\s*\d*\b/i, name: 'Exam Room' },
+  { rx: /\bnurse\b/i, name: 'Nurse Station' },
+  { rx: /\bdoctor\b|\bdr\.?\s*office\b/i, name: 'Doctor Office' },
+  { rx: /\bconsult\b/i, name: 'Consult Room' },
+  { rx: /\btriage\b/i, name: 'Triage' },
+  { rx: /\bprocedure\b/i, name: 'Procedure Room' },
+  { rx: /\b(x[-\s]*ray|xray)\b/i, name: 'X-Ray' },
+  { rx: /\bimaging\b/i, name: 'Imaging' },
+  { rx: /\bmri\b/i, name: 'MRI' },
+  { rx: /\bct\s*scan\b|\bcat\s*scan\b/i, name: 'CT Scan' },
+  { rx: /\bultrasound\b|\bsono\b/i, name: 'Ultrasound' },
+  { rx: /\bpharmacy\b/i, name: 'Pharmacy' },
+  { rx: /\bster(ilization|ile)\b/i, name: 'Sterilization' },
+  { rx: /\brecovery\b/i, name: 'Recovery' },
+  { rx: /\blab\b|\blaboratory\b/i, name: 'Lab' },
+  { rx: /\boperatory\b|\bop\s*\d+\b/i, name: 'Operatory' },
+  { rx: /\bsurgery\b|\bsurgical\b/i, name: 'Surgery' },
+  { rx: /\bkennel\b/i, name: 'Kennel' },
+  { rx: /\bgrooming\b/i, name: 'Grooming' },
+  { rx: /\bisolation\b/i, name: 'Isolation' },
+  { rx: /\bradiology\b/i, name: 'Radiology' },
+  { rx: /\bboarding\b/i, name: 'Boarding' },
+  // Warehouse
+  { rx: /\breceiving\b/i, name: 'Receiving' },
+  { rx: /\bshipping\b/i, name: 'Shipping' },
+  { rx: /\bloading\s*dock\b|\bdock\b/i, name: 'Loading Dock' },
+  { rx: /\bcold\s*storage\b/i, name: 'Cold Storage' },
+  { rx: /\bfreezer\b/i, name: 'Freezer' },
+  { rx: /\bforklift\b/i, name: 'Forklift Charging' },
+  { rx: /\bmezzanine\b/i, name: 'Mezzanine' },
 ];
+
+function _getActiveBuildingType() {
+  const sel = document.getElementById('fBuildingType');
+  if (sel && sel.value) return sel.value;
+  if (project && project.buildingType) return project.buildingType;
+  return 'residential';
+}
+
+function _getCommonRooms(type) {
+  const t = type || _getActiveBuildingType();
+  if (t === 'all') {
+    const all = new Set();
+    Object.values(BUILDING_TYPES).forEach(b => b.common.forEach(n => all.add(n)));
+    return Array.from(all);
+  }
+  return (BUILDING_TYPES[t] || BUILDING_TYPES.residential).common.slice();
+}
+function _getSpecialtyRooms(type) {
+  const t = type || _getActiveBuildingType();
+  if (t === 'all') {
+    const all = new Set();
+    Object.values(BUILDING_TYPES).forEach(b => b.specialty.forEach(n => all.add(n)));
+    return Array.from(all);
+  }
+  return (BUILDING_TYPES[t] || BUILDING_TYPES.residential).specialty.slice();
+}
+function _getAllPresetRooms(type) {
+  // Common + Specialty combined (preset only, no customs)
+  return [..._getCommonRooms(type), ..._getSpecialtyRooms(type)];
+}
+
+// Active OCR keyword list: only aliases whose canonical name exists in the
+// active building type's preset pool, plus saved customs (matched verbatim).
+function _activeRoomKeywords() {
+  const type = _getActiveBuildingType();
+  const pool = new Set(_getAllPresetRooms(type).map(s => s.toLowerCase()));
+  const list = ROOM_KEYWORD_ALIASES.filter(k => pool.has(k.name.toLowerCase()));
+  const customs = _getCustomRooms(type);
+  customs.forEach(name => {
+    const safe = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    list.push({ rx: new RegExp('\\b' + safe + '\\b', 'i'), name });
+  });
+  return list;
+}
 
 function matchRoomKeyword(text) {
   const t = String(text || '').trim();
   if (!t || t.length < 2) return null;
-  for (const k of ROOM_KEYWORDS) {
+  const list = _activeRoomKeywords();
+  for (const k of list) {
     if (k.rx.test(t)) return k.name;
   }
   return null;
 }
+
 
 // Preprocess: upscale + grayscale + threshold. Returns canvas.
 function preprocessForOcr(img, targetW) {
@@ -1526,58 +1703,105 @@ function _rvRenderBadges() {
     wrap.appendChild(b);
   });
 }
-const ROOM_PRESETS_BUILTIN = ['Bedroom','Primary Bedroom','Bathroom','Primary Bathroom','Kitchen','Living Room','Family Room','Dining Room','Office','Garage','Hallway','Closet','W.I.C','Laundry','Foyer','Mud Room','Basement','Attic','Stairs','Pantry','Powder Room'];
-function _getCustomRooms() {
+// Custom rooms are scoped per building type. Storage key: customRoomPresets:<type>.
+// Legacy key 'customRoomPresets' (un-scoped, from older versions) is read into
+// every type's picker once as a one-time fallback so saved entries aren't lost.
+function _legacyCustoms() {
   try { return JSON.parse(localStorage.getItem('customRoomPresets') || '[]'); } catch { return []; }
 }
-function _saveCustomRoom(name) {
+function _getCustomRooms(type) {
+  const t = type || _getActiveBuildingType();
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem('customRoomPresets:' + t) || '[]'); } catch {}
+  // Merge legacy un-scoped customs (deduped) for backwards compat.
+  const legacy = _legacyCustoms();
+  if (legacy.length) {
+    const seen = new Set(list.map(s => s.toLowerCase()));
+    legacy.forEach(n => { if (!seen.has((n || '').toLowerCase())) { list.push(n); seen.add((n || '').toLowerCase()); } });
+  }
+  return list;
+}
+function _saveCustomRoom(name, type) {
   const n = (name || '').trim();
   if (!n) return;
-  const existing = [...ROOM_PRESETS_BUILTIN, ..._getCustomRooms()].map(s => s.toLowerCase());
-  if (existing.includes(n.toLowerCase())) return;
-  const list = _getCustomRooms();
+  const t = type || _getActiveBuildingType();
+  const presets = _getAllPresetRooms(t).map(s => s.toLowerCase());
+  if (presets.includes(n.toLowerCase())) return;
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem('customRoomPresets:' + t) || '[]'); } catch {}
+  if (list.map(s => s.toLowerCase()).includes(n.toLowerCase())) return;
   list.push(n);
-  localStorage.setItem('customRoomPresets', JSON.stringify(list));
+  localStorage.setItem('customRoomPresets:' + t, JSON.stringify(list));
 }
-function _removeCustomRoom(name) {
-  const list = _getCustomRooms().filter(r => r.toLowerCase() !== (name || '').toLowerCase());
-  localStorage.setItem('customRoomPresets', JSON.stringify(list));
+function _removeCustomRoom(name, type) {
+  const t = type || _getActiveBuildingType();
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem('customRoomPresets:' + t) || '[]'); } catch {}
+  list = list.filter(r => r.toLowerCase() !== (name || '').toLowerCase());
+  localStorage.setItem('customRoomPresets:' + t, JSON.stringify(list));
+  // Also strip from legacy bucket so it doesn't re-appear via merge.
+  const legacy = _legacyCustoms().filter(r => r.toLowerCase() !== (name || '').toLowerCase());
+  localStorage.setItem('customRoomPresets', JSON.stringify(legacy));
 }
-function _allRoomPresets() { return [...ROOM_PRESETS_BUILTIN, ..._getCustomRooms()]; }
-// Backwards compatibility for any other code referencing ROOM_PRESETS
-const ROOM_PRESETS = new Proxy([], { get(_, k) { const a = _allRoomPresets(); return a[k] !== undefined ? a[k] : a[k]; } });
+
 function _rvPickRoomName(currentName, onPick, onDelete) {
   const ov = document.getElementById('rvPicker');
   const grid = document.getElementById('rvPickerGrid');
   const title = document.getElementById('rvPickerTitle');
   const actions = document.getElementById('rvPickerActions');
-  title.textContent = currentName ? 'Edit room' : 'Add room';
+  const type = _getActiveBuildingType();
+  const typeLabel = type === 'all' ? 'All / Mixed' : (BUILDING_TYPES[type] && BUILDING_TYPES[type].label) || type;
+  title.textContent = (currentName ? 'Edit room' : 'Add room') + ' — ' + typeLabel;
   grid.innerHTML = '';
-  const customs = _getCustomRooms();
-  ROOM_PRESETS_BUILTIN.forEach(n => {
+
+  const mkRoomBtn = (n, opts) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.textContent = n;
+    btn.textContent = (opts && opts.star ? '★ ' : '') + n;
     btn.onclick = () => { ov.classList.remove('open'); onPick(n); };
-    grid.appendChild(btn);
-  });
-  customs.forEach(n => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = '★ ' + n;
-    btn.title = 'Saved room — long-press to remove';
-    btn.onclick = () => { ov.classList.remove('open'); onPick(n); };
-    let pressTimer = null;
-    const startPress = () => { pressTimer = setTimeout(() => {
-      if (confirm('Remove "' + n + '" from saved rooms?')) { _removeCustomRoom(n); ov.classList.remove('open'); _rvPickRoomName(currentName, onPick, onDelete); }
-    }, 600); };
-    const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
-    btn.addEventListener('pointerdown', startPress);
-    btn.addEventListener('pointerup', cancelPress);
-    btn.addEventListener('pointerleave', cancelPress);
-    btn.addEventListener('pointercancel', cancelPress);
-    grid.appendChild(btn);
-  });
+    if (opts && opts.star) {
+      btn.title = 'Saved room — long-press to remove';
+      let pressTimer = null;
+      const startPress = () => { pressTimer = setTimeout(() => {
+        if (confirm('Remove "' + n + '" from ' + typeLabel + ' saved rooms?')) {
+          _removeCustomRoom(n, type);
+          ov.classList.remove('open');
+          _rvPickRoomName(currentName, onPick, onDelete);
+        }
+      }, 600); };
+      const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+      btn.addEventListener('pointerdown', startPress);
+      btn.addEventListener('pointerup', cancelPress);
+      btn.addEventListener('pointerleave', cancelPress);
+      btn.addEventListener('pointercancel', cancelPress);
+    }
+    return btn;
+  };
+  const mkHeader = (text) => {
+    const h = document.createElement('div');
+    h.textContent = text;
+    h.style.cssText = 'grid-column:1/-1;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;margin:6px 2px 2px;padding-top:4px;border-top:1px solid var(--line)';
+    return h;
+  };
+
+  const common = _getCommonRooms(type);
+  const specialty = _getSpecialtyRooms(type);
+  const customs = _getCustomRooms(type);
+
+  if (common.length) {
+    const h = mkHeader('Common'); h.style.borderTop = 'none'; h.style.marginTop = '0';
+    grid.appendChild(h);
+    common.forEach(n => grid.appendChild(mkRoomBtn(n)));
+  }
+  if (customs.length) {
+    grid.appendChild(mkHeader('Saved (' + typeLabel + ')'));
+    customs.forEach(n => grid.appendChild(mkRoomBtn(n, { star: true })));
+  }
+  if (specialty.length) {
+    grid.appendChild(mkHeader('All rooms'));
+    specialty.forEach(n => grid.appendChild(mkRoomBtn(n)));
+  }
+
   const other = document.createElement('button');
   other.type = 'button';
   other.textContent = '+ Other / new room…';
@@ -1586,12 +1810,13 @@ function _rvPickRoomName(currentName, onPick, onDelete) {
     const n = prompt('Room name:', currentName || '');
     if (!n || !n.trim()) return;
     const name = n.trim();
-    const save = confirm('Save "' + name + '" to your room list for future projects?');
-    if (save) _saveCustomRoom(name);
+    const save = confirm('Save "' + name + '" to your ' + typeLabel + ' room list for future ' + typeLabel + ' projects?');
+    if (save) _saveCustomRoom(name, type);
     ov.classList.remove('open');
     onPick(name);
   };
   grid.appendChild(other);
+
   actions.innerHTML = '';
   const cancel = document.createElement('button');
   cancel.type = 'button'; cancel.textContent = 'Cancel';
@@ -1605,6 +1830,7 @@ function _rvPickRoomName(currentName, onPick, onDelete) {
   }
   ov.classList.add('open');
 }
+
 
 function _rvAddRoomAt(cx, cy) {
   const r = document.getElementById('rvStage').getBoundingClientRect();
@@ -1900,6 +2126,9 @@ function editSetup() {
 
   const fd = document.getElementById('fFrontDoor');
   if (fd) fd.value = project.frontDoorFacing || '';
+  const bt = document.getElementById('fBuildingType');
+  if (bt) bt.value = project.buildingType || 'residential';
+
 
   if (_setupPlan) {
     document.getElementById('planPreviewImg').src = _setupPlan.dataUrl;
@@ -1940,7 +2169,9 @@ function commitNewProject() {
   if (!addr || !_setupPlan) return;
 
   const fd = (document.getElementById('fFrontDoor')||{}).value || '';
+  const bt = (document.getElementById('fBuildingType')||{}).value || 'residential';
   const northRot = frontDoorToNorthRotation(fd);
+
 
   if (_editingProjectId) {
     const p = (store.projects || []).find(x => x.id === _editingProjectId);
@@ -1949,6 +2180,7 @@ function commitNewProject() {
     p.plan = { dataUrl: _setupPlan.dataUrl, width: _setupPlan.width, height: _setupPlan.height };
     p.frontDoorFacing = fd;
     p.rooms = Array.isArray(_setupRooms) ? _setupRooms.slice() : [];
+    p.buildingType = bt;
     if (!p.north) p.north = { x: p.plan.width * 0.92, y: p.plan.height * 0.08, rotation: 0 };
     p.north.rotation = northRot;
     p.updatedAt = Date.now();
@@ -1973,6 +2205,7 @@ function commitNewProject() {
     drawings: [],
     frontDoorFacing: fd,
     rooms: Array.isArray(_setupRooms) ? _setupRooms.slice() : [],
+    buildingType: bt,
     north: { x: _setupPlan.width * 0.92, y: _setupPlan.height * 0.08, rotation: northRot },
     createdAt: now,
     updatedAt: now,
