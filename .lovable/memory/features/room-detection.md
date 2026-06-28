@@ -1,12 +1,12 @@
 ---
-name: Room auto-detection
-description: Vision LLM scans uploaded plan at setup, extracts room labels with normalized coords; powers Room column in pins.csv
+name: Room detection
+description: Manual rooms (default) + free in-browser OCR "Read labels" only. AI auto-scan has been removed — do not re-add without explicit ask.
 type: feature
 ---
-On plan upload during project setup, POST plan image (downscaled to ~1200px) to `/api/detect-rooms` (TanStack server route → Lovable AI Gateway, `google/gemini-3-flash-preview`, JSON output). Returns `rooms: [{name,x,y,confidence}]` where x,y are 0–1 of label center.
+Setup screen has two room actions:
+1. **Manual rooms** — primary. Tap plan to drop, pick from ROOM_PRESETS (includes W.I.C, Primary Bedroom/Bathroom, Other...).
+2. **🔍 Read labels** — free, runs Tesseract.js in browser (CDN loaded on demand). 3-pass scan (sparse, block, rotated 90°) on a preprocessed upscaled B&W canvas; dedupes by proximity and confidence; numbers duplicates.
 
-Stored on `project.rooms[]`. User can tap chips during setup to remove false positives. Skip is always allowed (network fail → empty list, setup still proceeds).
+AI auto-scan via `/api/detect-rooms` was removed (burned credits, unreliable coordinates). The route file, button, `detectRoomsForSetup`, `confirmDetectRoomsForSetup`, and `looksLikeBadRoomScan` are all gone. Do NOT add any automatic scan on plan upload.
 
-`pinRoom(proj, p)` finds nearest room by Euclidean distance in normalized coords. Adds **Room** column to internal-mode `pins.csv` between Photo Numbers and Direction. Combined with Direction, downstream LLM can write "SW corner of Master Bedroom" naturally.
-
-Endpoint: `src/routes/api/detect-rooms.ts`. Uses `LOVABLE_API_KEY` server-side only.
+Rooms power the Room column in pins.csv (compass-disambiguated by Front Door direction).
