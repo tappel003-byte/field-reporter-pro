@@ -1619,11 +1619,12 @@ async function ocrScanRoomsForSetup() {
 
     if (token !== _setupRoomsToken) return;
 
-    // Dedupe: cluster same-name candidates within ~5% of plan; keep highest confidence
-    candidates.sort((a, b) => b.conf - a.conf);
+    // Dedupe: cluster candidates within ~5% of plan. Preset snaps beat raw OCR;
+    // among same-kind, higher confidence wins.
+    candidates.sort((a, b) => (Number(a.raw) - Number(b.raw)) || (b.conf - a.conf));
     const kept = [];
     for (const c of candidates) {
-      const dup = kept.find(k => k.name === c.name && Math.hypot(k.x - c.x, k.y - c.y) < 0.05);
+      const dup = kept.find(k => Math.hypot(k.x - c.x, k.y - c.y) < 0.05);
       if (!dup) kept.push(c);
     }
 
