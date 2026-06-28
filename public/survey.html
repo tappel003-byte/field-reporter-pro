@@ -1475,8 +1475,6 @@ function renderSetupRooms() {
     vbtn.style.display = _setupPlan ? '' : 'none';
     vbtn.textContent = rooms.length ? '🏷️ Rooms (' + rooms.length + ')' : '➕ Add rooms';
   }
-  const scanBtn = document.getElementById('autoScanRoomsBtn');
-  if (scanBtn) scanBtn.disabled = !_setupPlan;
   if (!rooms.length) {
     status.textContent = '— none yet — tap "Add rooms" to place them manually';
     return;
