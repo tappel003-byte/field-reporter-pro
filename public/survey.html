@@ -3146,16 +3146,17 @@ function buildRoomLabels(proj, offset) {
     const dirs = idxs.map(i => _roomCardinal(rooms[i], offset));
     const counts = {};
     dirs.forEach(d => { counts[d] = (counts[d] || 0) + 1; });
-    const seen = {};
+    // Group siblings by primary cardinal so we can add a secondary positional
+    // tag like "(Center)" or "(North)" when multiple rooms share the same wall.
+    const byDir = {};
+    idxs.forEach((i, n) => { (byDir[dirs[n]] = byDir[dirs[n]] || []).push(i); });
     idxs.forEach((i, n) => {
       const d = dirs[n];
       const word = _CARD_FULL[d] || d;
-      if (counts[d] === 1) {
-        labels[i] = word + ' ' + rooms[i].name;
-      } else {
-        seen[d] = (seen[d] || 0) + 1;
-        labels[i] = word + ' ' + rooms[i].name + ' ' + seen[d];
-      }
+      const base = word + ' ' + rooms[i].name;
+      if (counts[d] === 1) { labels[i] = base; return; }
+      const sub = _siblingPositionTag(rooms, byDir[d], i, offset);
+      labels[i] = sub ? (base + ' (' + sub + ')') : base;
     });
   });
   return labels;
