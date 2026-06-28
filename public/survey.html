@@ -566,10 +566,9 @@
       <div class="room-actions">
         <button type="button" class="primary" onclick="openRoomVerify()">➕ Manual rooms</button>
         <button type="button" id="ocrScanRoomsBtn" onclick="ocrScanRoomsForSetup()">🔍 Read labels</button>
-        <button type="button" id="autoScanRoomsBtn" onclick="confirmDetectRoomsForSetup()">🤖 AI auto-scan</button>
       </div>
       <div id="roomsMessage" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font-size:13px;line-height:1.35"></div>
-      <div class="hint">Manual is the default. "Read labels" reads printed text on the plan — free, no AI credits. "AI auto-scan" uses credits.</div>
+      <div class="hint">Manual is the default. "Read labels" reads printed text on the plan — free, runs on your phone.</div>
 
     </div>
   </div>
@@ -1220,12 +1219,8 @@ function onPlanFileChange(e) {
   reader.readAsDataURL(f);
 }
 
-async function confirmDetectRoomsForSetup() {
-  if (!_setupPlan) return;
-  const ok = confirm('AI auto-scan uses AI credits.\n\nTry "Read labels" first — it is free. Tap OK only if you want to spend credits.');
-  if (!ok) return;
-  await detectRoomsForSetup(_setupPlan.dataUrl);
-}
+
+
 
 // ============= OCR room scan (free, in-browser, Tesseract.js) =============
 let _tesseractWorkerPromise = null;
@@ -1438,13 +1433,13 @@ async function ocrScanRoomsForSetup() {
     const found = numbered.length;
     const msg = found
       ? 'Read ' + found + ' label' + (found === 1 ? '' : 's') + ' (3-pass scan). Tap any to edit, drag to move, or remove.'
-      : 'No room labels found. Try AI auto-scan or add rooms manually.';
+      : 'No room labels found. Add rooms manually.';
     if (message) { message.textContent = msg; message.style.display = ''; }
     if (status) status.textContent = found ? ('— read ' + found + ' label' + (found === 1 ? '' : 's')) : '— no labels read';
     toast(found ? ('Found ' + found + ' label' + (found === 1 ? '' : 's')) : 'No labels found');
   } catch (err) {
     if (token === _setupRoomsToken) {
-      const msg = (err && err.message) ? err.message : 'Could not read labels. Try AI auto-scan or manual.';
+      const msg = (err && err.message) ? err.message : 'Could not read labels. Add rooms manually.';
       if (status) status.textContent = '— ' + msg;
       if (message) { message.textContent = msg; message.style.display = ''; }
       toast(msg);
@@ -1454,67 +1449,8 @@ async function ocrScanRoomsForSetup() {
   }
 }
 
-async function detectRoomsForSetup(dataUrl) {
-  // Explicit button only. Never call this from upload/open setup.
-  if (!dataUrl) return;
-  const token = ++_setupRoomsToken;
-  if (!Array.isArray(_setupRooms)) _setupRooms = [];
-  const status = document.getElementById('roomsStatus');
-  const message = document.getElementById('roomsMessage');
-  const btn = document.getElementById('autoScanRoomsBtn');
-  const oldText = btn ? btn.textContent : '';
-  if (message) { message.style.display = 'none'; message.textContent = ''; }
-  if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
-  if (status) status.textContent = '— scanning with AI…';
-  try {
-    const res = await fetch('/api/detect-rooms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageDataUrl: dataUrl })
-    });
-    let body = {};
-    try { body = await res.json(); } catch (_) {}
-    if (!res.ok) {
-      if (res.status === 402) throw new Error('Out of AI credits. Manual room picking still works.');
-      if (res.status === 422) throw new Error(body.error || 'Auto-scan found room names, but their positions were unreliable. No rooms were placed.');
-      throw new Error(body.error || ('Room scan failed: ' + res.status));
-    }
-    if (token !== _setupRoomsToken) return;
-    if (body.rejected) {
-      _setupRooms = [];
-      renderSetupRooms();
-      const msg = body.error || 'Auto-scan found room names, but their positions were unreliable. No rooms were placed. Use Manual rooms for this plan.';
-      const msgEl = document.getElementById('roomsMessage');
-      if (msgEl) { msgEl.textContent = msg; msgEl.style.display = ''; }
-      if (status) status.textContent = '— auto-scan did not place rooms';
-      return;
-    }
-    const rooms = Array.isArray(body.rooms) ? body.rooms : [];
-    const scannedRooms = rooms
-      .filter(r => r && typeof r.name === 'string' && typeof r.x === 'number' && typeof r.y === 'number')
-      .map(r => ({ name: normalizeRoomName(r.name).slice(0, 60), x: Math.max(0, Math.min(1, r.x)), y: Math.max(0, Math.min(1, r.y)), confidence: r.confidence }))
-      .filter(r => r.name);
-    if (looksLikeBadRoomScan(scannedRooms)) throw new Error('Auto-scan found room names, but their positions were unreliable. No rooms were placed. Use Manual rooms for this plan.');
-    _setupRooms = scannedRooms;
-    renderSetupRooms();
-    if (message) {
-      message.textContent = _setupRooms.length ? 'Auto-scan placed ' + _setupRooms.length + ' room' + (_setupRooms.length===1?'':'s') + '. Review them before starting.' : 'Auto-scan did not find rooms. Use Manual rooms for this plan.';
-      message.style.display = '';
-    }
-    toast(_setupRooms.length ? ('Found ' + _setupRooms.length + ' room' + (_setupRooms.length===1?'':'s')) : 'No rooms found — use manual rooms');
-  } catch (err) {
-    if (token === _setupRoomsToken) {
-      renderSetupRooms();
-      const msg = err && err.message ? err.message : 'Room scan failed. Manual room picking still works.';
-      if (status) status.textContent = '— ' + msg;
-      const msgEl = document.getElementById('roomsMessage');
-      if (msgEl) { msgEl.textContent = msg; msgEl.style.display = ''; }
-      toast(msg);
-    }
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = oldText || '🔍 Auto-scan'; }
-  }
-}
+
+
 
 function normalizeRoomName(name) {
   return String(name || '')
@@ -1523,19 +1459,6 @@ function normalizeRoomName(name) {
     .replace(/\bmaster bath(room)?\b/gi, 'Primary Bathroom');
 }
 
-function looksLikeBadRoomScan(rooms) {
-  if (!Array.isArray(rooms) || rooms.length < 3) return false;
-  const xs = rooms.map(r => r.x);
-  const ys = rooms.map(r => r.y);
-  const spreadX = Math.max(...xs) - Math.min(...xs);
-  const spreadY = Math.max(...ys) - Math.min(...ys);
-  const edgeYCount = ys.filter(y => y <= 0.02 || y >= 0.98).length;
-  const edgeXCount = xs.filter(x => x <= 0.02 || x >= 0.98).length;
-  const mostlyOnHorizontalLine = spreadY < 0.015 && spreadX > 0.25;
-  const mostlyOnVerticalLine = spreadX < 0.015 && spreadY > 0.25;
-  const mostlyOnEdge = edgeYCount / rooms.length >= 0.8 || edgeXCount / rooms.length >= 0.8;
-  return mostlyOnHorizontalLine || mostlyOnVerticalLine || mostlyOnEdge;
-}
 
 function renderSetupRooms() {
   const status = document.getElementById('roomsStatus');
@@ -1552,8 +1475,6 @@ function renderSetupRooms() {
     vbtn.style.display = _setupPlan ? '' : 'none';
     vbtn.textContent = rooms.length ? '🏷️ Rooms (' + rooms.length + ')' : '➕ Add rooms';
   }
-  const scanBtn = document.getElementById('autoScanRoomsBtn');
-  if (scanBtn) scanBtn.disabled = !_setupPlan;
   if (!rooms.length) {
     status.textContent = '— none yet — tap "Add rooms" to place them manually';
     return;

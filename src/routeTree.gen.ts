@@ -10,43 +10,33 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiDetectRoomsRouteImport } from './routes/api/detect-rooms'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiDetectRoomsRoute = ApiDetectRoomsRouteImport.update({
-  id: '/api/detect-rooms',
-  path: '/api/detect-rooms',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/api/detect-rooms': typeof ApiDetectRoomsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/api/detect-rooms': typeof ApiDetectRoomsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/api/detect-rooms': typeof ApiDetectRoomsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/detect-rooms'
+  fullPaths: '/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/detect-rooms'
-  id: '__root__' | '/' | '/api/detect-rooms'
+  to: '/'
+  id: '__root__' | '/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ApiDetectRoomsRoute: typeof ApiDetectRoomsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,19 +48,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/detect-rooms': {
-      id: '/api/detect-rooms'
-      path: '/api/detect-rooms'
-      fullPath: '/api/detect-rooms'
-      preLoaderRoute: typeof ApiDetectRoomsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ApiDetectRoomsRoute: ApiDetectRoomsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
