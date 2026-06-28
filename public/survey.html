@@ -565,10 +565,12 @@
       <div id="roomsChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
       <div class="room-actions">
         <button type="button" class="primary" onclick="openRoomVerify()">➕ Manual rooms</button>
-        <button type="button" id="autoScanRoomsBtn" onclick="confirmDetectRoomsForSetup()">🔍 Auto-scan</button>
+        <button type="button" id="ocrScanRoomsBtn" onclick="ocrScanRoomsForSetup()">🔍 Read labels</button>
+        <button type="button" id="autoScanRoomsBtn" onclick="confirmDetectRoomsForSetup()">🤖 AI auto-scan</button>
       </div>
       <div id="roomsMessage" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font-size:13px;line-height:1.35"></div>
-      <div class="hint">Manual is the default. Auto-scan only runs if you press Auto-scan and confirm that it uses AI credits.</div>
+      <div class="hint">Manual is the default. "Read labels" reads printed text on the plan — free, no AI credits. "AI auto-scan" uses credits.</div>
+
     </div>
   </div>
 
