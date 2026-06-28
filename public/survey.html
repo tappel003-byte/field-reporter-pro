@@ -1264,43 +1264,191 @@ async function loadTesseractWorker() {
   return _tesseractWorkerPromise;
 }
 
-const ROOM_KEYWORDS = [
+// ====== BUILDING TYPES ======
+// Per-type room presets split into Common (fast-tap) and Specialty (in "All rooms" section).
+// Keywords are regex aliases used by OCR; the canonical name is what gets saved on the pin.
+const BUILDING_TYPES = {
+  residential: {
+    label: 'Residential',
+    common: ['Kitchen','Primary Bedroom','Primary Bathroom','Bedroom','Bathroom','Living Room','Dining Room','Family Room','Garage','Laundry','Hallway','Closet','Foyer','Office'],
+    specialty: ['Great Room','Breakfast Nook','Pantry','Butler\u2019s Pantry','Mud Room','Half Bath','Powder Room','Primary Closet','W.I.C','Den','Library','Study','Sunroom','Bonus Room','Game Room','Home Theater','Wine Cellar','Gym','Nursery','Guest Room','Basement','Attic','Crawl Space','Mechanical','Utility Room','Server Room','Workshop','Storage','Porch','Patio','Deck','Lanai','Pool House','Stairs'],
+  },
+  office: {
+    label: 'Office',
+    common: ['Reception','Waiting Area','Conference Room','Private Office','Open Office','Break Room','Restroom','Kitchen','Hallway','Storage'],
+    specialty: ['Lobby','Boardroom','Huddle Room','Phone Booth','Copy Room','Mail Room','Server Room','IT Closet','Mechanical','Janitor','Lounge','Training Room','Library','Stairs'],
+  },
+  medical: {
+    label: 'Medical Office',
+    common: ['Reception','Waiting Room','Exam Room','Nurse Station','Doctor Office','Restroom','Lab','Hallway','Storage'],
+    specialty: ['Triage','Procedure Room','X-Ray','Imaging','MRI','CT Scan','Ultrasound','Pharmacy','Sterilization','Recovery','Consult Room','Break Room','Mechanical','Janitor','Stairs'],
+  },
+  vet: {
+    label: 'Vet Clinic',
+    common: ['Reception','Waiting Area','Exam Room','Surgery','Kennel','Lab','Restroom','Storage','Hallway'],
+    specialty: ['Triage','Grooming','Pharmacy','Recovery','Isolation','Radiology','X-Ray','Boarding','Food Storage','Break Room','Mechanical','Stairs'],
+  },
+  dental: {
+    label: 'Dental',
+    common: ['Reception','Waiting Room','Operatory','Sterilization','X-Ray','Restroom','Hallway','Storage'],
+    specialty: ['Consult Room','Lab','Doctor Office','Break Room','Mechanical','Stairs'],
+  },
+  warehouse: {
+    label: 'Warehouse',
+    common: ['Receiving','Shipping','Loading Dock','Storage','Office','Restroom','Break Room'],
+    specialty: ['Cold Storage','Freezer','Forklift Charging','Mechanical','Electrical Room','Server Room','Hallway','Stairs','Mezzanine'],
+  },
+};
+
+// Keyword aliases used by OCR. Canonical name on the right; only entries whose
+// canonical name is in the active building type's room pool are matched.
+const ROOM_KEYWORD_ALIASES = [
   { rx: /\b(primary|master|mstr)\s*bed(room|rm)?\b/i, name: 'Primary Bedroom' },
   { rx: /\b(primary|master|mstr)\s*bath(room|rm)?\b/i, name: 'Primary Bathroom' },
   { rx: /\bpowder\b/i, name: 'Powder Room' },
+  { rx: /\bhalf\s*bath\b/i, name: 'Half Bath' },
   { rx: /\bbed(room|rm)?\s*\d*\b|\bbr\s*\d*\b/i, name: 'Bedroom' },
   { rx: /\bbath(room|rm)?\s*\d*\b|\bba\s*\d*\b/i, name: 'Bathroom' },
+  { rx: /\brest\s*room\b|\brestroom\b|\bwc\b|\btoilet\b/i, name: 'Restroom' },
   { rx: /\bkitchen\b|\bkit\b/i, name: 'Kitchen' },
-  { rx: /\bdining\b|\bdin\b/i, name: 'Dining' },
-  { rx: /\bliving\b|\bliv\b/i, name: 'Living' },
-  { rx: /\bfamily\b|\bfam\b/i, name: 'Family Room' },
+  { rx: /\bdining(\s*room)?\b|\bdin\b/i, name: 'Dining Room' },
+  { rx: /\bliving(\s*room)?\b|\bliv\b/i, name: 'Living Room' },
+  { rx: /\bfamily(\s*room)?\b|\bfam\b/i, name: 'Family Room' },
   { rx: /\bgreat\s*room\b|\bgrt\s*rm\b/i, name: 'Great Room' },
   { rx: /\bfoyer\b|\bentry\b/i, name: 'Foyer' },
-  { rx: /\bhall(way)?\b/i, name: 'Hall' },
-  { rx: /\blaundry\b|\bldry\b|\butility\b|\butil\b/i, name: 'Laundry' },
+  { rx: /\blobby\b/i, name: 'Lobby' },
+  { rx: /\bhall(way)?\b/i, name: 'Hallway' },
+  { rx: /\blaundry\b|\bldry\b/i, name: 'Laundry' },
+  { rx: /\butility\s*room\b|\butility\b|\butil\b/i, name: 'Utility Room' },
   { rx: /\bmud\s*room\b|\bmud\s*rm\b/i, name: 'Mud Room' },
-  { rx: /\boffice\b|\bstudy\b|\bden\b/i, name: 'Office' },
+  { rx: /\boffice\b/i, name: 'Office' },
+  { rx: /\bstudy\b/i, name: 'Study' },
+  { rx: /\bden\b/i, name: 'Den' },
+  { rx: /\blibrary\b/i, name: 'Library' },
   { rx: /\bgarage\b|\bgar\b/i, name: 'Garage' },
   { rx: /\bpantry\b|\bpan\b/i, name: 'Pantry' },
+  { rx: /\bbutler/i, name: 'Butler\u2019s Pantry' },
   { rx: /\bw\.?\s*i\.?\s*c\.?\b|\bwalk[\s-]*in\s*clos(et)?\b/i, name: 'W.I.C' },
   { rx: /\bcloset\b|\bclos\b/i, name: 'Closet' },
   { rx: /\bnook\b|\bbreakfast\b|\bbkfst\b/i, name: 'Breakfast Nook' },
   { rx: /\bbonus\b/i, name: 'Bonus Room' },
+  { rx: /\bgame\s*room\b/i, name: 'Game Room' },
+  { rx: /\b(home\s*)?theater\b|\bmedia\s*room\b/i, name: 'Home Theater' },
+  { rx: /\bgym\b|\bfitness\b/i, name: 'Gym' },
+  { rx: /\bnursery\b/i, name: 'Nursery' },
+  { rx: /\bguest\b/i, name: 'Guest Room' },
+  { rx: /\bbasement\b/i, name: 'Basement' },
+  { rx: /\battic\b/i, name: 'Attic' },
+  { rx: /\bsunroom\b|\bsun\s*room\b/i, name: 'Sunroom' },
   { rx: /\bporch\b/i, name: 'Porch' },
-  { rx: /\bpatio\b|\bdeck\b|\blanai\b/i, name: 'Patio' },
+  { rx: /\bpatio\b/i, name: 'Patio' },
+  { rx: /\bdeck\b/i, name: 'Deck' },
+  { rx: /\blanai\b/i, name: 'Lanai' },
   { rx: /\bstair(s|case)?\b/i, name: 'Stairs' },
   { rx: /\bstorage\b|\bstor\b/i, name: 'Storage' },
   { rx: /\bmech(anical)?\b|\bequip(ment)?\b/i, name: 'Mechanical' },
+  { rx: /\bserver\b/i, name: 'Server Room' },
+  { rx: /\belectrical\s*room\b|\belec\s*room\b/i, name: 'Electrical Room' },
+  { rx: /\bworkshop\b/i, name: 'Workshop' },
+  // Office
+  { rx: /\breception\b/i, name: 'Reception' },
+  { rx: /\bwaiting\s*(room|area)?\b/i, name: 'Waiting Room' },
+  { rx: /\bconference\b/i, name: 'Conference Room' },
+  { rx: /\bboard\s*room\b/i, name: 'Boardroom' },
+  { rx: /\bbreak\s*room\b|\bbreakroom\b/i, name: 'Break Room' },
+  { rx: /\bhuddle\b/i, name: 'Huddle Room' },
+  { rx: /\bcopy\s*room\b/i, name: 'Copy Room' },
+  { rx: /\bmail\s*room\b/i, name: 'Mail Room' },
+  { rx: /\btraining\b/i, name: 'Training Room' },
+  { rx: /\bjanitor\b/i, name: 'Janitor' },
+  { rx: /\blounge\b/i, name: 'Lounge' },
+  // Medical / Vet / Dental
+  { rx: /\bexam\s*(room)?\s*\d*\b/i, name: 'Exam Room' },
+  { rx: /\bnurse\b/i, name: 'Nurse Station' },
+  { rx: /\bdoctor\b|\bdr\.?\s*office\b/i, name: 'Doctor Office' },
+  { rx: /\bconsult\b/i, name: 'Consult Room' },
+  { rx: /\btriage\b/i, name: 'Triage' },
+  { rx: /\bprocedure\b/i, name: 'Procedure Room' },
+  { rx: /\b(x[-\s]*ray|xray)\b/i, name: 'X-Ray' },
+  { rx: /\bimaging\b/i, name: 'Imaging' },
+  { rx: /\bmri\b/i, name: 'MRI' },
+  { rx: /\bct\s*scan\b|\bcat\s*scan\b/i, name: 'CT Scan' },
+  { rx: /\bultrasound\b|\bsono\b/i, name: 'Ultrasound' },
+  { rx: /\bpharmacy\b/i, name: 'Pharmacy' },
+  { rx: /\bster(ilization|ile)\b/i, name: 'Sterilization' },
+  { rx: /\brecovery\b/i, name: 'Recovery' },
+  { rx: /\blab\b|\blaboratory\b/i, name: 'Lab' },
+  { rx: /\boperatory\b|\bop\s*\d+\b/i, name: 'Operatory' },
+  { rx: /\bsurgery\b|\bsurgical\b/i, name: 'Surgery' },
+  { rx: /\bkennel\b/i, name: 'Kennel' },
+  { rx: /\bgrooming\b/i, name: 'Grooming' },
+  { rx: /\bisolation\b/i, name: 'Isolation' },
+  { rx: /\bradiology\b/i, name: 'Radiology' },
+  { rx: /\bboarding\b/i, name: 'Boarding' },
+  // Warehouse
+  { rx: /\breceiving\b/i, name: 'Receiving' },
+  { rx: /\bshipping\b/i, name: 'Shipping' },
+  { rx: /\bloading\s*dock\b|\bdock\b/i, name: 'Loading Dock' },
+  { rx: /\bcold\s*storage\b/i, name: 'Cold Storage' },
+  { rx: /\bfreezer\b/i, name: 'Freezer' },
+  { rx: /\bforklift\b/i, name: 'Forklift Charging' },
+  { rx: /\bmezzanine\b/i, name: 'Mezzanine' },
 ];
+
+function _getActiveBuildingType() {
+  const sel = document.getElementById('fBuildingType');
+  if (sel && sel.value) return sel.value;
+  if (project && project.buildingType) return project.buildingType;
+  return 'residential';
+}
+
+function _getCommonRooms(type) {
+  const t = type || _getActiveBuildingType();
+  if (t === 'all') {
+    const all = new Set();
+    Object.values(BUILDING_TYPES).forEach(b => b.common.forEach(n => all.add(n)));
+    return Array.from(all);
+  }
+  return (BUILDING_TYPES[t] || BUILDING_TYPES.residential).common.slice();
+}
+function _getSpecialtyRooms(type) {
+  const t = type || _getActiveBuildingType();
+  if (t === 'all') {
+    const all = new Set();
+    Object.values(BUILDING_TYPES).forEach(b => b.specialty.forEach(n => all.add(n)));
+    return Array.from(all);
+  }
+  return (BUILDING_TYPES[t] || BUILDING_TYPES.residential).specialty.slice();
+}
+function _getAllPresetRooms(type) {
+  // Common + Specialty combined (preset only, no customs)
+  return [..._getCommonRooms(type), ..._getSpecialtyRooms(type)];
+}
+
+// Active OCR keyword list: only aliases whose canonical name exists in the
+// active building type's preset pool, plus saved customs (matched verbatim).
+function _activeRoomKeywords() {
+  const type = _getActiveBuildingType();
+  const pool = new Set(_getAllPresetRooms(type).map(s => s.toLowerCase()));
+  const list = ROOM_KEYWORD_ALIASES.filter(k => pool.has(k.name.toLowerCase()));
+  const customs = _getCustomRooms(type);
+  customs.forEach(name => {
+    const safe = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    list.push({ rx: new RegExp('\\b' + safe + '\\b', 'i'), name });
+  });
+  return list;
+}
 
 function matchRoomKeyword(text) {
   const t = String(text || '').trim();
   if (!t || t.length < 2) return null;
-  for (const k of ROOM_KEYWORDS) {
+  const list = _activeRoomKeywords();
+  for (const k of list) {
     if (k.rx.test(t)) return k.name;
   }
   return null;
 }
+
 
 // Preprocess: upscale + grayscale + threshold. Returns canvas.
 function preprocessForOcr(img, targetW) {
