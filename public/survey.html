@@ -1788,26 +1788,36 @@ function _rvPickRoomName(currentName, onPick, onDelete) {
   grid.innerHTML = '';
 
   const mkRoomBtn = (n, opts) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = (opts && opts.star ? '★ ' : '') + n;
-    btn.onclick = () => { ov.classList.remove('open'); onPick(n); };
     if (opts && opts.star) {
-      btn.title = 'Saved room — long-press to remove';
-      let pressTimer = null;
-      const startPress = () => { pressTimer = setTimeout(() => {
-        if (confirm('Remove "' + n + '" from ' + typeLabel + ' saved rooms?')) {
+      // Wrap chip + explicit ✕ remove badge so saved rooms can always be audited.
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;display:flex';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = '★ ' + n;
+      btn.style.cssText = 'flex:1;padding-right:26px';
+      btn.onclick = () => { ov.classList.remove('open'); onPick(n); };
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.textContent = '×';
+      x.title = 'Remove "' + n + '" from saved ' + typeLabel + ' rooms';
+      x.setAttribute('aria-label', 'Remove ' + n + ' from saved rooms');
+      x.style.cssText = 'position:absolute;top:50%;right:4px;transform:translateY(-50%);width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,.08);color:var(--ink);font-size:14px;line-height:1;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center';
+      x.onclick = (e) => {
+        e.stopPropagation();
+        if (confirm('Remove "' + n + '" from ' + typeLabel + ' saved rooms?\n\n(This only removes it from your saved list — existing rooms on the plan stay.)')) {
           _removeCustomRoom(n, type);
-          ov.classList.remove('open');
           _rvPickRoomName(currentName, onPick, onDelete);
         }
-      }, 600); };
-      const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
-      btn.addEventListener('pointerdown', startPress);
-      btn.addEventListener('pointerup', cancelPress);
-      btn.addEventListener('pointerleave', cancelPress);
-      btn.addEventListener('pointercancel', cancelPress);
+      };
+      wrap.appendChild(btn);
+      wrap.appendChild(x);
+      return wrap;
     }
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = n;
+    btn.onclick = () => { ov.classList.remove('open'); onPick(n); };
     return btn;
   };
   const mkHeader = (text) => {
