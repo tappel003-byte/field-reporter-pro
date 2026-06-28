@@ -1585,13 +1585,18 @@ async function ocrScanRoomsForSetup() {
         if (!text) return;
         const conf = typeof item.confidence === 'number' ? item.confidence : 100;
         if (conf < minConf) return;
-        const matched = matchRoomKeyword(text);
-        if (!matched) return;
+        // Try preset snap first; fall back to cleaned raw OCR text.
+        let matched = matchRoomKeyword(text);
+        let isRaw = false;
+        if (!matched) {
+          matched = cleanRawRoomText(text);
+          if (!matched) return;
+          isRaw = true;
+        }
         const bb = item.bbox || {};
         let cx = (bb.x0 + bb.x1) / 2;
         let cy = (bb.y0 + bb.y1) / 2;
         if (p.rot === 90) {
-          // Un-rotate back to upright coords: rotated point (x,y) -> upright (y, rw - x)
           const rw = p.canvas.width;
           const nx = cy;
           const ny = rw - cx;
@@ -1601,7 +1606,7 @@ async function ocrScanRoomsForSetup() {
         const nyr = cy / H;
         if (!isFinite(nxr) || !isFinite(nyr)) return;
         if (nxr < 0 || nxr > 1 || nyr < 0 || nyr > 1) return;
-        candidates.push({ name: matched, x: nxr, y: nyr, conf, src: p.label });
+        candidates.push({ name: matched, x: nxr, y: nyr, conf, src: p.label, raw: isRaw });
       };
 
       for (const ln of lines) harvest(ln, 55);
