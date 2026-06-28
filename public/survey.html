@@ -1526,7 +1526,26 @@ function _rvRenderBadges() {
     wrap.appendChild(b);
   });
 }
-const ROOM_PRESETS = ['Bedroom','Primary Bedroom','Bathroom','Primary Bathroom','Kitchen','Living Room','Family Room','Dining Room','Office','Garage','Hallway','Closet','W.I.C','Laundry','Foyer','Mud Room','Basement','Attic','Stairs','Pantry','Powder Room'];
+const ROOM_PRESETS_BUILTIN = ['Bedroom','Primary Bedroom','Bathroom','Primary Bathroom','Kitchen','Living Room','Family Room','Dining Room','Office','Garage','Hallway','Closet','W.I.C','Laundry','Foyer','Mud Room','Basement','Attic','Stairs','Pantry','Powder Room'];
+function _getCustomRooms() {
+  try { return JSON.parse(localStorage.getItem('customRoomPresets') || '[]'); } catch { return []; }
+}
+function _saveCustomRoom(name) {
+  const n = (name || '').trim();
+  if (!n) return;
+  const existing = [...ROOM_PRESETS_BUILTIN, ..._getCustomRooms()].map(s => s.toLowerCase());
+  if (existing.includes(n.toLowerCase())) return;
+  const list = _getCustomRooms();
+  list.push(n);
+  localStorage.setItem('customRoomPresets', JSON.stringify(list));
+}
+function _removeCustomRoom(name) {
+  const list = _getCustomRooms().filter(r => r.toLowerCase() !== (name || '').toLowerCase());
+  localStorage.setItem('customRoomPresets', JSON.stringify(list));
+}
+function _allRoomPresets() { return [...ROOM_PRESETS_BUILTIN, ..._getCustomRooms()]; }
+// Backwards compatibility for any other code referencing ROOM_PRESETS
+const ROOM_PRESETS = new Proxy([], { get(_, k) { const a = _allRoomPresets(); return a[k] !== undefined ? a[k] : a[k]; } });
 function _rvPickRoomName(currentName, onPick, onDelete) {
   const ov = document.getElementById('rvPicker');
   const grid = document.getElementById('rvPickerGrid');
@@ -1534,20 +1553,43 @@ function _rvPickRoomName(currentName, onPick, onDelete) {
   const actions = document.getElementById('rvPickerActions');
   title.textContent = currentName ? 'Edit room' : 'Add room';
   grid.innerHTML = '';
-  ROOM_PRESETS.forEach(n => {
+  const customs = _getCustomRooms();
+  ROOM_PRESETS_BUILTIN.forEach(n => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = n;
     btn.onclick = () => { ov.classList.remove('open'); onPick(n); };
     grid.appendChild(btn);
   });
+  customs.forEach(n => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = '★ ' + n;
+    btn.title = 'Saved room — long-press to remove';
+    btn.onclick = () => { ov.classList.remove('open'); onPick(n); };
+    let pressTimer = null;
+    const startPress = () => { pressTimer = setTimeout(() => {
+      if (confirm('Remove "' + n + '" from saved rooms?')) { _removeCustomRoom(n); ov.classList.remove('open'); _rvPickRoomName(currentName, onPick, onDelete); }
+    }, 600); };
+    const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+    btn.addEventListener('pointerdown', startPress);
+    btn.addEventListener('pointerup', cancelPress);
+    btn.addEventListener('pointerleave', cancelPress);
+    btn.addEventListener('pointercancel', cancelPress);
+    grid.appendChild(btn);
+  });
   const other = document.createElement('button');
   other.type = 'button';
-  other.textContent = 'Other…';
+  other.textContent = '+ Other / new room…';
   other.style.gridColumn = '1 / -1';
   other.onclick = () => {
     const n = prompt('Room name:', currentName || '');
-    if (n && n.trim()) { ov.classList.remove('open'); onPick(n.trim()); }
+    if (!n || !n.trim()) return;
+    const name = n.trim();
+    const save = confirm('Save "' + name + '" to your room list for future projects?');
+    if (save) _saveCustomRoom(name);
+    ov.classList.remove('open');
+    onPick(name);
   };
   grid.appendChild(other);
   actions.innerHTML = '';
@@ -1563,6 +1605,7 @@ function _rvPickRoomName(currentName, onPick, onDelete) {
   }
   ov.classList.add('open');
 }
+
 function _rvAddRoomAt(cx, cy) {
   const r = document.getElementById('rvStage').getBoundingClientRect();
   const x = ((cx - r.left) - _rvState.tx) / _rvState.scale / _setupPlan.width;
