@@ -1433,7 +1433,7 @@ async function ocrScanRoomsForSetup() {
     const found = numbered.length;
     const msg = found
       ? 'Read ' + found + ' label' + (found === 1 ? '' : 's') + ' (3-pass scan). Tap any to edit, drag to move, or remove.'
-      : 'No room labels found. Try AI auto-scan or add rooms manually.';
+      : 'No room labels found. Add rooms manually.';
     if (message) { message.textContent = msg; message.style.display = ''; }
     if (status) status.textContent = found ? ('— read ' + found + ' label' + (found === 1 ? '' : 's')) : '— no labels read';
     toast(found ? ('Found ' + found + ' label' + (found === 1 ? '' : 's')) : 'No labels found');
