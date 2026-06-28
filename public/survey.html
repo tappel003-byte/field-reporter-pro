@@ -2153,7 +2153,9 @@ function commitNewProject() {
   if (!addr || !_setupPlan) return;
 
   const fd = (document.getElementById('fFrontDoor')||{}).value || '';
+  const bt = (document.getElementById('fBuildingType')||{}).value || 'residential';
   const northRot = frontDoorToNorthRotation(fd);
+
 
   if (_editingProjectId) {
     const p = (store.projects || []).find(x => x.id === _editingProjectId);
