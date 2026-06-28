@@ -1439,7 +1439,7 @@ async function ocrScanRoomsForSetup() {
     toast(found ? ('Found ' + found + ' label' + (found === 1 ? '' : 's')) : 'No labels found');
   } catch (err) {
     if (token === _setupRoomsToken) {
-      const msg = (err && err.message) ? err.message : 'Could not read labels. Try AI auto-scan or manual.';
+      const msg = (err && err.message) ? err.message : 'Could not read labels. Add rooms manually.';
       if (status) status.textContent = '— ' + msg;
       if (message) { message.textContent = msg; message.style.display = ''; }
       toast(msg);
