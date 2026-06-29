@@ -136,13 +136,13 @@
   .rv-badge{position:absolute;transform:translate(-50%,-50%);background:rgba(193,74,43,.92);color:#fff;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;pointer-events:auto;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.25);touch-action:none}
   .rv-picker{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:16px}
   .rv-picker.open{display:flex}
-  .rv-picker-card{background:var(--paper);border-radius:14px;width:100%;max-width:340px;max-height:80vh;overflow:auto;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
-  .rv-picker-card h3{margin:0 0 10px;font-size:15px;color:var(--text)}
-  .rv-picker-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+  .rv-picker-card{background:var(--paper);border-radius:14px;width:100%;max-width:340px;max-height:80vh;display:flex;flex-direction:column;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+  .rv-picker-card h3{margin:0 0 8px;font-size:15px;color:var(--text);flex:0 0 auto}
+  .rv-picker-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;overflow:auto;flex:1 1 auto;order:3}
   .rv-picker-grid button{padding:10px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;text-align:center}
   .rv-picker-grid button:active{background:var(--ink);color:var(--paper)}
-  .rv-picker-card .rv-pk-actions{display:flex;gap:6px;margin-top:8px}
-  .rv-picker-card .rv-pk-actions button{flex:1;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer}
+  .rv-picker-card .rv-pk-actions{display:flex;gap:6px;margin:0 0 10px;padding-bottom:10px;border-bottom:1px solid var(--line);flex:0 0 auto;order:2}
+  .rv-picker-card .rv-pk-actions button{flex:1;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--text);font-size:14px;font-weight:600;cursor:pointer}
   .rv-picker-card .rv-pk-actions button.danger{background:#c14a2b;color:#fff;border-color:#c14a2b}
   .room-actions{display:flex;gap:8px;margin-top:10px}
   .room-actions button{flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--text);font-size:14px;font-weight:600;cursor:pointer}
@@ -1283,7 +1283,7 @@ async function loadTesseractWorker() {
 const BUILDING_TYPES = {
   residential: {
     label: 'Residential',
-    common: ['Kitchen','Primary Bedroom','Primary Bathroom','Bedroom','Bathroom','Living Room','Dining Room','Family Room','Garage','Laundry','Hallway','Closet','Foyer','Office'],
+    common: ['W.I.C','Kitchen','Primary Bedroom','Primary Bathroom','Bedroom','Bathroom','Living Room','Dining Room','Family Room','Garage','Laundry','Hallway','Closet','Foyer','Office'],
     specialty: ['Great Room','Breakfast Nook','Pantry','Butler\u2019s Pantry','Mud Room','Half Bath','Powder Room','Primary Closet','W.I.C','Den','Library','Study','Sunroom','Bonus Room','Game Room','Home Theater','Wine Cellar','Gym','Nursery','Guest Room','Basement','Attic','Crawl Space','Mechanical','Utility Room','Server Room','Workshop','Storage','Porch','Patio','Deck','Lanai','Pool House','Stairs'],
   },
   office: {
@@ -1861,7 +1861,7 @@ function _rvPickRoomName(currentName, onPick, onDelete) {
   actions.appendChild(cancel);
   if (onDelete) {
     const del = document.createElement('button');
-    del.type = 'button'; del.textContent = 'Delete'; del.className = 'danger';
+    del.type = 'button'; del.innerHTML = '🗑 Delete room'; del.className = 'danger';
     del.onclick = () => { ov.classList.remove('open'); onDelete(); };
     actions.appendChild(del);
   }
