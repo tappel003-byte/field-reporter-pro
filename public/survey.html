@@ -1861,7 +1861,7 @@ function _rvPickRoomName(currentName, onPick, onDelete) {
   actions.appendChild(cancel);
   if (onDelete) {
     const del = document.createElement('button');
-    del.type = 'button'; del.textContent = 'Delete'; del.className = 'danger';
+    del.type = 'button'; del.innerHTML = '🗑 Delete room'; del.className = 'danger';
     del.onclick = () => { ov.classList.remove('open'); onDelete(); };
     actions.appendChild(del);
   }
