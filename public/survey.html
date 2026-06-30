@@ -582,9 +582,10 @@
       <div class="room-actions">
         <button type="button" class="primary" onclick="openRoomVerify()">➕ Manual rooms</button>
         <button type="button" id="ocrScanRoomsBtn" onclick="ocrScanRoomsForSetup()">🔍 Read labels</button>
+        <button type="button" id="findMoreRoomsBtn" onclick="findMoreLabelsForSetup()" style="display:none">➕ Find more</button>
       </div>
       <div id="roomsMessage" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font-size:13px;line-height:1.35"></div>
-      <div class="hint">Manual is the default. "Read labels" reads printed text on the plan — free, runs on your phone.</div>
+      <div class="hint">Manual is the default. "Read labels" reads printed text on the plan — free, runs on your phone. "Find more" runs extra digit + tile passes to catch small numbers.</div>
 
     </div>
   </div>
@@ -1719,6 +1720,8 @@ async function ocrScanRoomsForSetup() {
     if (message) { message.textContent = msg; message.style.display = ''; }
     if (status) status.textContent = found ? ('— read ' + found + ' label' + (found === 1 ? '' : 's')) : '— no labels read';
     toast(found ? ('Found ' + found + ' label' + (found === 1 ? '' : 's')) : 'No labels found');
+    const moreBtn = document.getElementById('findMoreRoomsBtn');
+    if (moreBtn) moreBtn.style.display = '';
   } catch (err) {
     if (token === _setupRoomsToken) {
       const msg = (err && err.message) ? err.message : 'Could not read labels. Add rooms manually.';
@@ -1728,8 +1731,217 @@ async function ocrScanRoomsForSetup() {
     }
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = oldText || '🔍 Read labels'; }
+}
+
+
+// ---- "Find more" — additive deep-scan. Never removes/renames existing rooms.
+// Runs digit-only OCR + higher upscale + 3x3 tiling, then merges new finds in.
+// Rule: text labels skip if within 5% of an existing room (existing wins);
+// numeric room IDs are added even near existing rooms.
+async function findMoreLabelsForSetup() {
+  if (!_setupPlan || !_setupPlan.dataUrl) return;
+  const token = ++_setupRoomsToken;
+  if (!Array.isArray(_setupRooms)) _setupRooms = [];
+  const status = document.getElementById('roomsStatus');
+  const message = document.getElementById('roomsMessage');
+  const btn = document.getElementById('findMoreRoomsBtn');
+  const oldText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Searching…'; }
+  if (status) status.textContent = '— deep scan…';
+  try {
+    const worker = await loadTesseractWorker();
+    if (token !== _setupRoomsToken) return;
+    const img = await new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = () => rej(new Error('Could not read plan image.'));
+      im.src = _setupPlan.dataUrl;
+    });
+
+    // Higher upscale for small print.
+    if (btn) btn.textContent = 'Preparing…';
+    const big = preprocessForOcr(img, 4000);
+    const W = big.width, H = big.height;
+
+    // Build tile list: full image + 3x3 tiles (with 5% overlap so labels on
+    // tile borders aren't sliced). Each tile records its offset so we can
+    // map bbox centers back into plan-relative (0-1) coordinates.
+    const tiles = [{ canvas: big, ox: 0, oy: 0, tw: W, th: H, label: 'full-4k' }];
+    const GRID = 3, OVL = 0.05;
+    const tw = Math.floor(W / GRID);
+    const th = Math.floor(H / GRID);
+    const ovx = Math.floor(tw * OVL), ovy = Math.floor(th * OVL);
+    for (let gy = 0; gy < GRID; gy++) {
+      for (let gx = 0; gx < GRID; gx++) {
+        const x0 = Math.max(0, gx * tw - ovx);
+        const y0 = Math.max(0, gy * th - ovy);
+        const x1 = Math.min(W, (gx + 1) * tw + ovx);
+        const y1 = Math.min(H, (gy + 1) * th + ovy);
+        const cw = x1 - x0, ch = y1 - y0;
+        const c = document.createElement('canvas');
+        c.width = cw; c.height = ch;
+        c.getContext('2d').drawImage(big, x0, y0, cw, ch, 0, 0, cw, ch);
+        tiles.push({ canvas: c, ox: x0, oy: y0, tw: cw, th: ch, label: 'tile ' + (gy*GRID+gx+1) });
+      }
+    }
+
+    const isResidential = _getActiveBuildingType() === 'residential';
+    const candidates = [];
+
+    // Pass type 1: digit-only whitelist (skip on residential).
+    // Pass type 2: general PSM 11 on each tile (catches small text labels).
+    let stepNum = 0;
+    const totalSteps = tiles.length * (isResidential ? 1 : 2);
+
+    for (const t of tiles) {
+      if (token !== _setupRoomsToken) return;
+
+      // General pass on the tile (text + numbers, voting still applies).
+      stepNum++;
+      if (btn) btn.textContent = 'Scan ' + stepNum + '/' + totalSteps;
+      if (status) status.textContent = '— deep ' + stepNum + '/' + totalSteps + ' (' + t.label + ' text)';
+      try { await worker.setParameters({ tessedit_pageseg_mode: '11', tessedit_char_whitelist: '' }); } catch(_) {}
+      const dataA = await worker.recognize(t.canvas);
+      collectFromTile(dataA, t, candidates, false);
+
+      if (!isResidential) {
+        stepNum++;
+        if (btn) btn.textContent = 'Scan ' + stepNum + '/' + totalSteps;
+        if (status) status.textContent = '— deep ' + stepNum + '/' + totalSteps + ' (' + t.label + ' digits)';
+        try { await worker.setParameters({ tessedit_pageseg_mode: '11', tessedit_char_whitelist: '0123456789ABCD' }); } catch(_) {}
+        const dataB = await worker.recognize(t.canvas);
+        collectFromTile(dataB, t, candidates, true);
+      }
+    }
+    // Restore worker defaults so the next "Read labels" run is unaffected.
+    try { await worker.setParameters({ tessedit_char_whitelist: '' }); } catch(_) {}
+
+    if (token !== _setupRoomsToken) return;
+
+    // Cluster within this deep run.
+    const kindRank = k => k === 'preset' ? 0 : (k === 'numeric' ? 1 : 2);
+    candidates.sort((a, b) => kindRank(a.kind) - kindRank(b.kind) || (b.conf - a.conf));
+    const clusters = [];
+    for (const c of candidates) {
+      const hit = clusters.find(k => Math.hypot(k.x - c.x, k.y - c.y) < 0.04);
+      if (hit) {
+        hit.passes.add(c.src);
+        if (kindRank(c.kind) < kindRank(hit.kind)) {
+          hit.name = c.name; hit.kind = c.kind; hit.x = c.x; hit.y = c.y; hit.conf = c.conf;
+        }
+      } else {
+        clusters.push({ name: c.name, x: c.x, y: c.y, conf: c.conf, kind: c.kind, passes: new Set([c.src]) });
+      }
+    }
+
+    // Voting for deep scan:
+    //  numeric: any pass at conf >= 55 (digit whitelist + tiling is reliable)
+    //  preset:  conf >= 75 OR 2+ passes
+    //  raw:     drop entirely (too noisy at this density)
+    const fresh = clusters.filter(k => {
+      if (k.kind === 'raw') return false;
+      if (k.kind === 'numeric') return k.conf >= 55;
+      return k.passes.size >= 2 || k.conf >= 75;
+    });
+
+    // Merge against existing _setupRooms. Skip rules:
+    //  - text label within 5% of existing: SKIP (existing name wins)
+    //  - numeric within 1.5% of existing same name: SKIP (true duplicate)
+    //  - else: ADD
+    const added = [];
+    const existing = _setupRooms.slice();
+    for (const f of fresh) {
+      const nearby = existing.find(r => Math.hypot((r.x||0) - f.x, (r.y||0) - f.y) < 0.05);
+      if (f.kind === 'numeric') {
+        const dup = existing.find(r => r.name === f.name && Math.hypot((r.x||0) - f.x, (r.y||0) - f.y) < 0.015);
+        if (dup) continue;
+        existing.push({ name: f.name, x: f.x, y: f.y });
+        added.push(f);
+      } else {
+        if (nearby) continue;
+        existing.push({ name: f.name, x: f.x, y: f.y });
+        added.push(f);
+      }
+    }
+
+    // Re-number duplicates across the whole list.
+    const totals = {};
+    for (const r of existing) {
+      const base = r.name.replace(/\s\d+$/, '');
+      totals[base] = (totals[base] || 0) + 1;
+    }
+    const seen = {};
+    _setupRooms = existing.map(r => {
+      const base = r.name.replace(/\s\d+$/, '');
+      if (totals[base] > 1) {
+        seen[base] = (seen[base] || 0) + 1;
+        return { name: base + ' ' + seen[base], x: r.x, y: r.y };
+      }
+      return { name: base, x: r.x, y: r.y };
+    });
+    renderSetupRooms();
+
+    const n = added.length;
+    const msg = n ? ('Found ' + n + ' more (' + added.filter(a => a.kind==='numeric').length + ' numeric). Tap to edit or remove.')
+                  : 'No additional labels found.';
+    if (message) { message.textContent = msg; message.style.display = ''; }
+    if (status) status.textContent = n ? ('— +' + n + ' added') : '— nothing new';
+    toast(n ? ('Added ' + n) : 'Nothing new');
+  } catch (err) {
+    if (token === _setupRoomsToken) {
+      const m = (err && err.message) ? err.message : 'Deep scan failed.';
+      if (status) status.textContent = '— ' + m;
+      if (message) { message.textContent = m; message.style.display = ''; }
+      toast(m);
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = oldText || '➕ Find more'; }
   }
 }
+
+// Helper for findMoreLabelsForSetup — pulls words from a tile result and
+// pushes plan-relative candidates. `digitsOnly` lowers the conf floor since
+// the whitelist already constrains what Tesseract can output.
+function collectFromTile(data, tile, candidates, digitsOnly) {
+  const W = (tile.ox === 0 && tile.oy === 0) ? tile.tw : (tile.ox + tile.tw); // fallback
+  // True plan size = first tile (full image) width/height.
+  const planW = window._findMorePlanW || tile.tw;
+  const planH = window._findMorePlanH || tile.th;
+  if (tile.ox === 0 && tile.oy === 0) {
+    window._findMorePlanW = tile.tw;
+    window._findMorePlanH = tile.th;
+  }
+  const words = Array.isArray(data && data.words) ? data.words : [];
+  const lines = Array.isArray(data && data.lines) ? data.lines : [];
+  const items = words.concat(lines);
+  for (const it of items) {
+    const text = (it.text || '').replace(/\s+/g, ' ').trim();
+    if (!text) continue;
+    const conf = typeof it.confidence === 'number' ? it.confidence : 100;
+    const numericCandidate = _looksNumeric(text);
+    const floor = digitsOnly ? 50 : (numericCandidate ? 55 : 72);
+    if (conf < floor) continue;
+    let matched = matchRoomKeyword(text);
+    let kind = 'preset';
+    if (!matched) {
+      matched = cleanRoomNumber(text);
+      if (matched) kind = 'numeric';
+      else if (!digitsOnly) {
+        matched = cleanRawRoomText(text);
+        if (!matched) continue;
+        kind = 'raw';
+      } else continue;
+    }
+    const bb = it.bbox || {};
+    const cx = (bb.x0 + bb.x1) / 2 + tile.ox;
+    const cy = (bb.y0 + bb.y1) / 2 + tile.oy;
+    const nx = cx / (window._findMorePlanW || planW);
+    const ny = cy / (window._findMorePlanH || planH);
+    if (!isFinite(nx) || !isFinite(ny) || nx < 0 || nx > 1 || ny < 0 || ny > 1) continue;
+    candidates.push({ name: matched, x: nx, y: ny, conf, src: tile.label + (digitsOnly ? ' D' : ' T'), kind });
+  }
+}
+
 
 
 
