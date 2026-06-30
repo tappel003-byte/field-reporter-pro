@@ -1453,18 +1453,38 @@ function _activeRoomKeywords() {
   return list;
 }
 
+// Strip CAD dimension strings (e.g. "12'-4\" x 11'-0\"", "10' X 12'", "144 SF")
+// from a candidate string before matching. Room labels on CAD plans are usually
+// stacked over a dimension line, and OCR often reads them as one token.
+function stripDimensions(text) {
+  let t = String(text || '');
+  // Feet/inches dimension pairs and singles: 12'-4" x 11'-0", 10' x 12', 8'6"
+  t = t.replace(/\d+\s*['\u2019]\s*[-\s]?\s*\d*\s*["\u201D]?\s*[xX\u00d7]\s*\d+\s*['\u2019]\s*[-\s]?\s*\d*\s*["\u201D]?/g, ' ');
+  t = t.replace(/\d+\s*['\u2019][-\s]?\d*\s*["\u201D]?/g, ' ');
+  // Bare dimension forms: 12 x 14, 12X14
+  t = t.replace(/\b\d{1,3}\s*[xX\u00d7]\s*\d{1,3}\b/g, ' ');
+  // Square footage / area tags
+  t = t.replace(/\b\d+\s*(sf|sq\s*ft|sqft|s\.f\.)\b/gi, ' ');
+  // Stray quote marks and excess whitespace
+  t = t.replace(/["\u201C\u201D\u2019']/g, ' ').replace(/\s+/g, ' ').trim();
+  return t;
+}
+
 // Try to snap OCR text to a preset name.
 // 1) Prefer aliases for the active building type.
 // 2) Fall back to ALL aliases (any building type) so close matches still snap.
 // Returns canonical preset name or null.
 function matchRoomKeyword(text) {
-  const t = String(text || '').trim();
-  if (!t || t.length < 2) return null;
-  for (const k of _activeRoomKeywords()) {
-    if (k.rx.test(t)) return k.name;
+  const raw = String(text || '').trim();
+  if (!raw || raw.length < 2) return null;
+  const cleaned = stripDimensions(raw);
+  const candidates = cleaned && cleaned !== raw ? [raw, cleaned] : [raw];
+  const active = _activeRoomKeywords();
+  for (const t of candidates) {
+    for (const k of active) { if (k.rx.test(t)) return k.name; }
   }
-  for (const k of ROOM_KEYWORD_ALIASES) {
-    if (k.rx.test(t)) return k.name;
+  for (const t of candidates) {
+    for (const k of ROOM_KEYWORD_ALIASES) { if (k.rx.test(t)) return k.name; }
   }
   return null;
 }
@@ -1472,7 +1492,7 @@ function matchRoomKeyword(text) {
 // Clean raw OCR text into a usable room label when no preset matches.
 // Returns a tidied string or null if the text looks like junk.
 function cleanRawRoomText(text) {
-  let t = String(text || '').replace(/\s+/g, ' ').trim();
+  let t = stripDimensions(String(text || '')).replace(/\s+/g, ' ').trim();
   if (!t) return null;
   t = t.replace(/^[^A-Za-z]+/, '').replace(/[^A-Za-z0-9.)]+$/, '').trim();
   if (t.length < 3 || t.length > 28) return null;
@@ -1480,7 +1500,6 @@ function cleanRawRoomText(text) {
   if (letters < 3) return null;
   if (letters / t.length < 0.5) return null;
   if (/^\d/.test(t)) return null;
-  if (/['"]/.test(t)) return null;
   if (/\b(ft|in|sq|sf|min|max)\b/i.test(t)) return null;
   const small = new Set(['of','and','the','a']);
   const words = t.toLowerCase().split(' ').map((w, i) => {
