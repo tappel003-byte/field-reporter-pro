@@ -1609,24 +1609,42 @@ async function ocrScanRoomsForSetup() {
         candidates.push({ name: matched, x: nxr, y: nyr, conf, src: p.label, raw: isRaw });
       };
 
-      for (const ln of lines) harvest(ln, 55);
+      // QA/QC pass A: raised confidence floors (was 55 / 65).
+      for (const ln of lines) harvest(ln, 70);
       for (const w of words) {
         const t = (w.text || '').trim();
         if (t.length < 3) continue;
-        harvest(w, 65);
+        harvest(w, 78);
       }
     }
 
     if (token !== _setupRoomsToken) return;
 
-    // Dedupe: cluster candidates within ~5% of plan. Preset snaps beat raw OCR;
-    // among same-kind, higher confidence wins.
+    // Cluster candidates within ~5% of plan, tracking which passes contributed.
+    // Sort: preset snaps before raw, then higher confidence first.
     candidates.sort((a, b) => (Number(a.raw) - Number(b.raw)) || (b.conf - a.conf));
-    const kept = [];
+    const clusters = [];
     for (const c of candidates) {
-      const dup = kept.find(k => Math.hypot(k.x - c.x, k.y - c.y) < 0.05);
-      if (!dup) kept.push(c);
+      const hit = clusters.find(k => Math.hypot(k.x - c.x, k.y - c.y) < 0.05);
+      if (hit) {
+        hit.passes.add(c.src);
+        hit.hits++;
+        if (hit.raw && !c.raw) { // upgrade raw cluster to preset if a preset hit lands here
+          hit.name = c.name; hit.raw = false; hit.x = c.x; hit.y = c.y; hit.conf = c.conf;
+        }
+      } else {
+        clusters.push({ name: c.name, x: c.x, y: c.y, conf: c.conf, raw: c.raw, passes: new Set([c.src]), hits: 1 });
+      }
     }
+
+    // QA/QC pass B: cross-pass voting.
+    //  - Preset match: keep if ≥1 pass at high conf (≥80) OR ≥2 passes agree.
+    //  - Raw OCR text: require ≥2 passes — single-pass raw hits are the ghost rooms.
+    const kept = clusters.filter(k => {
+      const votes = k.passes.size;
+      if (k.raw) return votes >= 2;
+      return votes >= 2 || k.conf >= 80;
+    });
 
     // Number duplicates only when there's more than one of the same name
     const totals = {};
@@ -1641,8 +1659,9 @@ async function ocrScanRoomsForSetup() {
     _setupRooms = numbered;
     renderSetupRooms();
     const found = numbered.length;
+    const dropped = clusters.length - kept.length;
     const msg = found
-      ? 'Read ' + found + ' label' + (found === 1 ? '' : 's') + ' (3-pass scan). Tap any to edit, drag to move, or remove.'
+      ? 'Read ' + found + ' label' + (found === 1 ? '' : 's') + (dropped ? ' (dropped ' + dropped + ' low-confidence)' : '') + '. Tap any to edit, drag to move, or remove.'
       : 'No room labels found. Add rooms manually.';
     if (message) { message.textContent = msg; message.style.display = ''; }
     if (status) status.textContent = found ? ('— read ' + found + ' label' + (found === 1 ? '' : 's')) : '— no labels read';
