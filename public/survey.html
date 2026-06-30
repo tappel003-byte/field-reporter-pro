@@ -1616,13 +1616,18 @@ async function ocrScanRoomsForSetup() {
         if (!text) return;
         const conf = typeof item.confidence === 'number' ? item.confidence : 100;
         if (conf < minConf) return;
-        // Try preset snap first; fall back to cleaned raw OCR text.
+        // Try preset snap → numeric room number (commercial) → cleaned raw text.
         let matched = matchRoomKeyword(text);
-        let isRaw = false;
+        let kind = 'preset';
         if (!matched) {
-          matched = cleanRawRoomText(text);
-          if (!matched) return;
-          isRaw = true;
+          matched = cleanRoomNumber(text);
+          if (matched) {
+            kind = 'numeric';
+          } else {
+            matched = cleanRawRoomText(text);
+            if (!matched) return;
+            kind = 'raw';
+          }
         }
         const bb = item.bbox || {};
         let cx = (bb.x0 + bb.x1) / 2;
@@ -1632,19 +1637,24 @@ async function ocrScanRoomsForSetup() {
           const nx = cy;
           const ny = rw - cx;
           cx = nx; cy = ny;
+        } else if (p.rot === -90) {
+          const rh = p.canvas.height;
+          const nx = rh - cy;
+          const ny = cx;
+          cx = nx; cy = ny;
         }
         const nxr = cx / W;
         const nyr = cy / H;
         if (!isFinite(nxr) || !isFinite(nyr)) return;
         if (nxr < 0 || nxr > 1 || nyr < 0 || nyr > 1) return;
-        candidates.push({ name: matched, x: nxr, y: nyr, conf, src: p.label, raw: isRaw });
+        candidates.push({ name: matched, x: nxr, y: nyr, conf, src: p.label, kind });
       };
 
-      // QA/QC pass A: raised confidence floors (was 55 / 65).
+      // QA/QC pass A: confidence floors.
       for (const ln of lines) harvest(ln, 70);
       for (const w of words) {
         const t = (w.text || '').trim();
-        if (t.length < 3) continue;
+        if (t.length < 2) continue; // allow short numeric tokens like "10"
         harvest(w, 78);
       }
     }
