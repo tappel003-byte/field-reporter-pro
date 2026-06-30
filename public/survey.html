@@ -1662,28 +1662,31 @@ async function ocrScanRoomsForSetup() {
     if (token !== _setupRoomsToken) return;
 
     // Cluster candidates within ~5% of plan, tracking which passes contributed.
-    // Sort: preset snaps before raw, then higher confidence first.
-    candidates.sort((a, b) => (Number(a.raw) - Number(b.raw)) || (b.conf - a.conf));
+    // Sort: preset > numeric > raw, then higher confidence first.
+    const kindRank = k => k === 'preset' ? 0 : (k === 'numeric' ? 1 : 2);
+    candidates.sort((a, b) => kindRank(a.kind) - kindRank(b.kind) || (b.conf - a.conf));
     const clusters = [];
     for (const c of candidates) {
       const hit = clusters.find(k => Math.hypot(k.x - c.x, k.y - c.y) < 0.05);
       if (hit) {
         hit.passes.add(c.src);
         hit.hits++;
-        if (hit.raw && !c.raw) { // upgrade raw cluster to preset if a preset hit lands here
-          hit.name = c.name; hit.raw = false; hit.x = c.x; hit.y = c.y; hit.conf = c.conf;
+        // Upgrade weaker kind to stronger if a better hit lands here.
+        if (kindRank(c.kind) < kindRank(hit.kind)) {
+          hit.name = c.name; hit.kind = c.kind; hit.x = c.x; hit.y = c.y; hit.conf = c.conf;
         }
       } else {
-        clusters.push({ name: c.name, x: c.x, y: c.y, conf: c.conf, raw: c.raw, passes: new Set([c.src]), hits: 1 });
+        clusters.push({ name: c.name, x: c.x, y: c.y, conf: c.conf, kind: c.kind, passes: new Set([c.src]), hits: 1 });
       }
     }
 
     // QA/QC pass B: cross-pass voting.
-    //  - Preset match: keep if ≥1 pass at high conf (≥80) OR ≥2 passes agree.
+    //  - Preset match: ≥1 pass at high conf (≥80) OR ≥2 passes agree.
+    //  - Numeric room number: ≥1 pass at high conf (≥80) OR ≥2 passes agree (digits OCR cleanly).
     //  - Raw OCR text: require ≥2 passes — single-pass raw hits are the ghost rooms.
     const kept = clusters.filter(k => {
       const votes = k.passes.size;
-      if (k.raw) return votes >= 2;
+      if (k.kind === 'raw') return votes >= 2;
       return votes >= 2 || k.conf >= 80;
     });
 
