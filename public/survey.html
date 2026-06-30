@@ -1641,7 +1641,7 @@ async function ocrScanRoomsForSetup() {
         // free-form raw text stricter so ghost rooms stay suppressed.
         const floor = kind === 'numeric'
           ? 45
-          : (kind === 'preset' ? Math.max(62, minConf - 8) : minConf);
+          : (kind === 'preset' ? Math.max(58, minConf - 12) : minConf);
         if (conf < floor) return;
         const bb = item.bbox || {};
         let cx = (bb.x0 + bb.x1) / 2;
@@ -1695,14 +1695,14 @@ async function ocrScanRoomsForSetup() {
     }
 
     // QA/QC pass B: cross-pass voting.
-    //  - Preset match: ≥1 pass at high conf (≥80) OR ≥2 passes agree.
+    //  - Preset match: ≥1 pass at usable conf (≥68) OR ≥2 passes agree.
     //  - Numeric room number: ≥1 pass at high conf (≥80) OR ≥2 passes agree (digits OCR cleanly).
     //  - Raw OCR text: require ≥2 passes — single-pass raw hits are the ghost rooms.
     const kept = clusters.filter(k => {
       const votes = k.passes.size;
       if (k.kind === 'raw') return votes >= 2;
       if (k.kind === 'numeric') return votes >= 1; // digits OCR cleanly; floor already enforced
-      return votes >= 2 || k.conf >= 80;
+      return votes >= 2 || k.conf >= 68;
     });
 
     // Number duplicates only when there's more than one of the same name
@@ -1847,12 +1847,12 @@ async function findMoreLabelsForSetup() {
 
     // Voting for deep scan:
     //  numeric: any pass at conf >= 40 (fuzzy tiny digits often score low)
-    //  preset:  conf >= 75 OR 2+ passes
+    //  preset:  conf >= 68 OR 2+ passes
     //  raw:     drop entirely (too noisy at this density)
     const fresh = clusters.filter(k => {
       if (k.kind === 'raw') return false;
       if (k.kind === 'numeric') return k.conf >= 40;
-      return k.passes.size >= 2 || k.conf >= 75;
+      return k.passes.size >= 2 || k.conf >= 68;
     });
 
     // Merge against existing _setupRooms. Skip rules:
@@ -1930,9 +1930,10 @@ function collectFromTile(data, tile, candidates, digitsOnly) {
     if (!text) continue;
     const conf = typeof it.confidence === 'number' ? it.confidence : 100;
     const numericCandidate = _looksNumeric(text);
-    const floor = digitsOnly ? 38 : (numericCandidate ? 42 : 64);
+    const presetCandidate = matchRoomKeyword(text);
+    const floor = digitsOnly ? 38 : (numericCandidate ? 42 : (presetCandidate ? 56 : 64));
     if (conf < floor) continue;
-    let matched = matchRoomKeyword(text);
+    let matched = presetCandidate;
     let kind = 'preset';
     if (!matched) {
       matched = cleanRoomNumber(text);
