@@ -1695,6 +1695,7 @@ async function ocrScanRoomsForSetup() {
     const kept = clusters.filter(k => {
       const votes = k.passes.size;
       if (k.kind === 'raw') return votes >= 2;
+      if (k.kind === 'numeric') return votes >= 1; // digits OCR cleanly; floor already enforced
       return votes >= 2 || k.conf >= 80;
     });
 
