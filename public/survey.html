@@ -1515,10 +1515,12 @@ function _looksNumeric(text) {
 
 
 // Preprocess: upscale + grayscale + threshold. Returns canvas.
-function preprocessForOcr(img, targetW) {
+function preprocessForOcr(img, targetW, maxScale) {
   const W0 = img.naturalWidth || img.width;
   const H0 = img.naturalHeight || img.height;
-  const scale = Math.max(1, Math.min(3.5, targetW / W0));
+  const cap = typeof maxScale === 'number' ? maxScale : 3.5;
+  const scale = Math.max(1, Math.min(cap, targetW / W0));
+
   const W = Math.round(W0 * scale);
   const H = Math.round(H0 * scale);
   const c = document.createElement('canvas');
