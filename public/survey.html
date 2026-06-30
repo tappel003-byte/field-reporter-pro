@@ -1589,13 +1589,15 @@ async function ocrScanRoomsForSetup() {
     if (status) status.textContent = '— enhancing image…';
     const upright = preprocessForOcr(img, 2400);
     const rotated = rotateCanvas90(upright);
+    const rotatedNeg = rotateCanvasNeg90(upright);
     const W = upright.width, H = upright.height;
 
-    // Multi-pass: catches sparse small labels, blocky labels, and sideways labels
+    // Multi-pass: sparse small labels, blocky labels, and labels rotated both ways.
     const passes = [
-      { canvas: upright, psm: 11, rot: 0, label: 'upright sparse' },
-      { canvas: upright, psm: 6,  rot: 0, label: 'upright blocks' },
-      { canvas: rotated, psm: 11, rot: 90, label: 'sideways' },
+      { canvas: upright,    psm: 11, rot: 0,   label: 'upright sparse' },
+      { canvas: upright,    psm: 6,  rot: 0,   label: 'upright blocks' },
+      { canvas: rotated,    psm: 11, rot: 90,  label: 'sideways CW' },
+      { canvas: rotatedNeg, psm: 11, rot: -90, label: 'sideways CCW' },
     ];
 
     const candidates = [];
