@@ -1515,10 +1515,12 @@ function _looksNumeric(text) {
 
 
 // Preprocess: upscale + grayscale + threshold. Returns canvas.
-function preprocessForOcr(img, targetW) {
+function preprocessForOcr(img, targetW, maxScale) {
   const W0 = img.naturalWidth || img.width;
   const H0 = img.naturalHeight || img.height;
-  const scale = Math.max(1, Math.min(3.5, targetW / W0));
+  const cap = typeof maxScale === 'number' ? maxScale : 3.5;
+  const scale = Math.max(1, Math.min(cap, targetW / W0));
+
   const W = Math.round(W0 * scale);
   const H = Math.round(H0 * scale);
   const c = document.createElement('canvas');
@@ -1759,16 +1761,18 @@ async function findMoreLabelsForSetup() {
       im.src = _setupPlan.dataUrl;
     });
 
-    // Higher upscale for small print.
+    // Higher upscale for small print. Deep scan goes to 6000px and lifts the
+    // per-image cap so tiny commercial room numbers actually get enough pixels.
     if (btn) btn.textContent = 'Preparing…';
-    const big = preprocessForOcr(img, 4000);
+    const big = preprocessForOcr(img, 6000, 6);
     const W = big.width, H = big.height;
 
-    // Build tile list: full image + 3x3 tiles (with 5% overlap so labels on
-    // tile borders aren't sliced). Each tile records its offset so we can
-    // map bbox centers back into plan-relative (0-1) coordinates.
-    const tiles = [{ canvas: big, ox: 0, oy: 0, tw: W, th: H, label: 'full-4k' }];
-    const GRID = 3, OVL = 0.05;
+    // Build tile list: full image + 5x5 tiles (with 6% overlap so labels on
+    // tile borders aren't sliced). Denser tiling = each room number ends up
+    // physically larger in the OCR pass, which is the single biggest win
+    // for small digits.
+    const tiles = [{ canvas: big, ox: 0, oy: 0, tw: W, th: H, label: 'full-6k' }];
+    const GRID = 5, OVL = 0.06;
     const tw = Math.floor(W / GRID);
     const th = Math.floor(H / GRID);
     const ovx = Math.floor(tw * OVL), ovy = Math.floor(th * OVL);
@@ -1785,6 +1789,7 @@ async function findMoreLabelsForSetup() {
         tiles.push({ canvas: c, ox: x0, oy: y0, tw: cw, th: ch, label: 'tile ' + (gy*GRID+gx+1) });
       }
     }
+
 
     const isResidential = _getActiveBuildingType() === 'residential';
     const candidates = [];
