@@ -1489,6 +1489,25 @@ function cleanRawRoomText(text) {
   return words.join(' ');
 }
 
+// Detect numeric room labels (e.g. "143", "101A") used on commercial plans.
+// Only active for non-residential building types. Filters out dimensions and
+// stray numbers. Returns "Room 143" or null.
+function cleanRoomNumber(text) {
+  const type = _getActiveBuildingType();
+  if (type === 'residential') return null;
+  let t = String(text || '').replace(/\s+/g, '').trim();
+  if (!t) return null;
+  // Reject dimension-like strings: feet/inches marks, hyphens, decimals, x.
+  if (/['"\-x×.,/]/.test(t)) return null;
+  // Allow pure digits (2-4) optionally followed by a single letter suffix.
+  const m = t.match(/^(\d{2,4})([A-Za-z])?$/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  // Plausible room-number range. Excludes years, tiny stray digits.
+  if (n < 10 || n > 9999) return null;
+  return 'Room ' + m[1] + (m[2] ? m[2].toUpperCase() : '');
+}
+
 
 // Preprocess: upscale + grayscale + threshold. Returns canvas.
 function preprocessForOcr(img, targetW) {
