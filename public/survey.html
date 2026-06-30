@@ -1515,10 +1515,11 @@ function _looksNumeric(text) {
 
 
 // Preprocess: upscale + grayscale + threshold. Returns canvas.
-function preprocessForOcr(img, targetW, maxScale) {
+function preprocessForOcr(img, targetW, maxScale, threshold) {
   const W0 = img.naturalWidth || img.width;
   const H0 = img.naturalHeight || img.height;
   const cap = typeof maxScale === 'number' ? maxScale : 3.5;
+  const bwThreshold = typeof threshold === 'number' ? threshold : 160;
   const scale = Math.max(1, Math.min(cap, targetW / W0));
 
   const W = Math.round(W0 * scale);
@@ -1536,7 +1537,7 @@ function preprocessForOcr(img, targetW, maxScale) {
     const d = id.data;
     for (let i = 0; i < d.length; i += 4) {
       const g = (d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114) | 0;
-      const v = g < 160 ? 0 : 255;
+      const v = g < bwThreshold ? 0 : 255;
       d[i] = d[i+1] = d[i+2] = v;
     }
     ctx.putImageData(id, 0, 0);
@@ -1622,11 +1623,6 @@ async function ocrScanRoomsForSetup() {
         const text = (item.text || '').replace(/\s+/g, ' ').trim();
         if (!text) return;
         const conf = typeof item.confidence === 'number' ? item.confidence : 100;
-        // Numeric room-number tokens get a lower confidence floor — digits OCR
-        // cleanly but small print on commercial plans often scores in the 50s-60s.
-        const numericCandidate = _looksNumeric(text);
-        const floor = numericCandidate ? Math.min(minConf, 55) : minConf;
-        if (conf < floor) return;
         // Try preset snap → numeric room number (commercial) → cleaned raw text.
         let matched = matchRoomKeyword(text);
         let kind = 'preset';
@@ -1640,6 +1636,13 @@ async function ocrScanRoomsForSetup() {
             kind = 'raw';
           }
         }
+        // Fuzzy plan scans often read real labels at lower confidence. Let
+        // known preset names and numeric room IDs through earlier, but keep
+        // free-form raw text stricter so ghost rooms stay suppressed.
+        const floor = kind === 'numeric'
+          ? 45
+          : (kind === 'preset' ? Math.max(62, minConf - 8) : minConf);
+        if (conf < floor) return;
         const bb = item.bbox || {};
         let cx = (bb.x0 + bb.x1) / 2;
         let cy = (bb.y0 + bb.y1) / 2;
@@ -1738,7 +1741,7 @@ async function ocrScanRoomsForSetup() {
 
 
 // ---- "Find more" — additive deep-scan. Never removes/renames existing rooms.
-// Runs digit-only OCR + higher upscale + 3x3 tiling, then merges new finds in.
+// Runs digit-only OCR + higher upscale + 5x5 tiling, then merges new finds in.
 // Rule: text labels skip if within 5% of an existing room (existing wins);
 // numeric room IDs are added even near existing rooms.
 async function findMoreLabelsForSetup() {
@@ -1764,8 +1767,10 @@ async function findMoreLabelsForSetup() {
     // Higher upscale for small print. Deep scan goes to 6000px and lifts the
     // per-image cap so tiny commercial room numbers actually get enough pixels.
     if (btn) btn.textContent = 'Preparing…';
-    const big = preprocessForOcr(img, 6000, 6);
+    const big = preprocessForOcr(img, 6000, 6, 200);
     const W = big.width, H = big.height;
+    window._findMorePlanW = W;
+    window._findMorePlanH = H;
 
     // Build tile list: full image + 5x5 tiles (with 6% overlap so labels on
     // tile borders aren't sliced). Denser tiling = each room number ends up
@@ -1841,12 +1846,12 @@ async function findMoreLabelsForSetup() {
     }
 
     // Voting for deep scan:
-    //  numeric: any pass at conf >= 55 (digit whitelist + tiling is reliable)
+    //  numeric: any pass at conf >= 40 (fuzzy tiny digits often score low)
     //  preset:  conf >= 75 OR 2+ passes
     //  raw:     drop entirely (too noisy at this density)
     const fresh = clusters.filter(k => {
       if (k.kind === 'raw') return false;
-      if (k.kind === 'numeric') return k.conf >= 55;
+      if (k.kind === 'numeric') return k.conf >= 40;
       return k.passes.size >= 2 || k.conf >= 75;
     });
 
@@ -1925,7 +1930,7 @@ function collectFromTile(data, tile, candidates, digitsOnly) {
     if (!text) continue;
     const conf = typeof it.confidence === 'number' ? it.confidence : 100;
     const numericCandidate = _looksNumeric(text);
-    const floor = digitsOnly ? 50 : (numericCandidate ? 55 : 72);
+    const floor = digitsOnly ? 38 : (numericCandidate ? 42 : 64);
     if (conf < floor) continue;
     let matched = matchRoomKeyword(text);
     let kind = 'preset';
