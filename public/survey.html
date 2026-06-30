@@ -1317,12 +1317,12 @@ const BUILDING_TYPES = {
 // Keyword aliases used by OCR. Canonical name on the right; only entries whose
 // canonical name is in the active building type's room pool are matched.
 const ROOM_KEYWORD_ALIASES = [
-  { rx: /\b(primary|master|mstr)\s*bed(room|rm)?\b|\bmbr\b|\bm\.?bed\b/i, name: 'Primary Bedroom' },
-  { rx: /\b(primary|master|mstr)\s*bath(room|rm)?\b|\bmba\b|\bm\.?bath\b/i, name: 'Primary Bathroom' },
+  { rx: /\b(primary|master|mstr)\s*bed\s*(room|rm)?\b|\bmbr\b|\bm\.?bed\b/i, name: 'Primary Bedroom' },
+  { rx: /\b(primary|master|mstr)\s*bath\s*(room|rm)?\b|\bmba\b|\bm\.?bath\b/i, name: 'Primary Bathroom' },
   { rx: /\bpowder\b|\bpwdr\b|\bpdr\b/i, name: 'Powder Room' },
   { rx: /\bhalf\s*bath\b|\bhb\b/i, name: 'Half Bath' },
-  { rx: /\bbed(room|rm)?\s*\d*\b|\bbr\s*\d*\b|\bbdrm\s*\d*\b/i, name: 'Bedroom' },
-  { rx: /\bbath(room|rm)?\s*\d*\b|\bba\s*\d*\b|\bbthrm\s*\d*\b/i, name: 'Bathroom' },
+  { rx: /\bbed\s*(room|rm)?\s*\d*\b|\bbr\s*\d*\b|\bbdrm\s*\d*\b/i, name: 'Bedroom' },
+  { rx: /\bbath\s*(room|rm)?\s*\d*\b|\bba\s*\d*\b|\bbthrm\s*\d*\b/i, name: 'Bathroom' },
   { rx: /\brest\s*room\b|\brestroom\b|\bwc\b|\btoilet\b/i, name: 'Restroom' },
   { rx: /\bkitchen\b|\bkit\b|\bkitch\b/i, name: 'Kitchen' },
   { rx: /\bdining(\s*room)?\b|\bdin\b|\bdr\b/i, name: 'Dining Room' },
@@ -1564,6 +1564,84 @@ function preprocessForOcr(img, targetW, maxScale, threshold) {
   return c;
 }
 
+// CAD/floor-plan apps often render room names as white text inside red/orange
+// pills. A normal black/white OCR threshold turns those into reversed white-on-
+// black labels, which Tesseract misses. This pass isolates those colored label
+// pills and converts only their white letters into black text on white.
+function preprocessColorLabelTextForOcr(img, targetW, maxScale) {
+  const W0 = img.naturalWidth || img.width;
+  const H0 = img.naturalHeight || img.height;
+  const cap = typeof maxScale === 'number' ? maxScale : 3.5;
+  const scale = Math.max(1, Math.min(cap, targetW / W0));
+  const W = Math.round(W0 * scale);
+  const H = Math.round(H0 * scale);
+  const src = document.createElement('canvas');
+  src.width = W; src.height = H;
+  const sctx = src.getContext('2d');
+  sctx.imageSmoothingEnabled = true;
+  sctx.imageSmoothingQuality = 'high';
+  sctx.fillStyle = '#fff';
+  sctx.fillRect(0, 0, W, H);
+  sctx.drawImage(img, 0, 0, W, H);
+
+  const out = document.createElement('canvas');
+  out.width = W; out.height = H;
+  const octx = out.getContext('2d');
+  octx.fillStyle = '#fff';
+  octx.fillRect(0, 0, W, H);
+
+  try {
+    const srcId = sctx.getImageData(0, 0, W, H);
+    const sd = srcId.data;
+    const red = new Uint8Array(W * H);
+    const nearRed = new Uint8Array(W * H);
+
+    for (let p = 0, i = 0; p < sd.length; p += 4, i++) {
+      const r = sd[p], g = sd[p + 1], b = sd[p + 2];
+      // Covers the reddish/orange labels from the user's floor-plan app while
+      // avoiding black walls and gray symbols.
+      if (r > 120 && g > 30 && g < 155 && b < 135 && r > g * 1.18 && r > b * 1.35) {
+        red[i] = 1;
+      }
+    }
+
+    // Dilate around colored pixels so the white letters cut out of the pill are
+    // included, but keep the region tight enough to ignore the white plan field.
+    const radius = 4;
+    for (let y = 0; y < H; y++) {
+      const row = y * W;
+      for (let x = 0; x < W; x++) {
+        const idx = row + x;
+        if (!red[idx]) continue;
+        for (let dy = -radius; dy <= radius; dy++) {
+          const yy = y + dy;
+          if (yy < 0 || yy >= H) continue;
+          const rr = yy * W;
+          for (let dx = -radius; dx <= radius; dx++) {
+            const xx = x + dx;
+            if (xx < 0 || xx >= W) continue;
+            nearRed[rr + xx] = 1;
+          }
+        }
+      }
+    }
+
+    const outId = octx.getImageData(0, 0, W, H);
+    const od = outId.data;
+    for (let p = 0, i = 0; p < sd.length; p += 4, i++) {
+      if (!nearRed[i] || red[i]) continue;
+      const r = sd[p], g = sd[p + 1], b = sd[p + 2];
+      const bright = (r * 0.299 + g * 0.587 + b * 0.114);
+      if (bright > 145) {
+        od[p] = od[p + 1] = od[p + 2] = 0;
+        od[p + 3] = 255;
+      }
+    }
+    octx.putImageData(outId, 0, 0);
+  } catch (_) {}
+  return out;
+}
+
 function rotateCanvas90(src) {
   const c = document.createElement('canvas');
   c.width = src.height; c.height = src.width;
@@ -1615,12 +1693,19 @@ async function ocrScanRoomsForSetup() {
     if (btn) btn.textContent = 'Preparing…';
     if (status) status.textContent = '— enhancing image…';
     const upright = preprocessForOcr(img, 2400);
+    const colorLabels = preprocessColorLabelTextForOcr(img, 2400);
     const rotated = rotateCanvas90(upright);
     const rotatedNeg = rotateCanvasNeg90(upright);
+    const colorLabelsRotated = rotateCanvas90(colorLabels);
+    const colorLabelsRotatedNeg = rotateCanvasNeg90(colorLabels);
     const W = upright.width, H = upright.height;
 
-    // Multi-pass: sparse small labels, blocky labels, and labels rotated both ways.
+    // Multi-pass: color-pill labels from CAD apps, sparse small labels, blocky
+    // labels, and labels rotated both ways.
     const passes = [
+      { canvas: colorLabels,           psm: 11, rot: 0,   label: 'color room labels' },
+      { canvas: colorLabelsRotated,    psm: 11, rot: 90,  label: 'color labels CW' },
+      { canvas: colorLabelsRotatedNeg, psm: 11, rot: -90, label: 'color labels CCW' },
       { canvas: upright,    psm: 11, rot: 0,   label: 'upright sparse' },
       { canvas: upright,    psm: 6,  rot: 0,   label: 'upright blocks' },
       { canvas: rotated,    psm: 11, rot: 90,  label: 'sideways CW' },
