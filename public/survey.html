@@ -1547,6 +1547,16 @@ function rotateCanvas90(src) {
   return c;
 }
 
+function rotateCanvasNeg90(src) {
+  const c = document.createElement('canvas');
+  c.width = src.height; c.height = src.width;
+  const ctx = c.getContext('2d');
+  ctx.translate(0, c.height);
+  ctx.rotate(-Math.PI / 2);
+  ctx.drawImage(src, 0, 0);
+  return c;
+}
+
 async function runOcrPass(worker, canvas, psm) {
   try { await worker.setParameters({ tessedit_pageseg_mode: String(psm) }); } catch (_) {}
   const { data } = await worker.recognize(canvas);
