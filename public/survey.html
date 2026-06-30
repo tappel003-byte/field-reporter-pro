@@ -1619,7 +1619,11 @@ async function ocrScanRoomsForSetup() {
         const text = (item.text || '').replace(/\s+/g, ' ').trim();
         if (!text) return;
         const conf = typeof item.confidence === 'number' ? item.confidence : 100;
-        if (conf < minConf) return;
+        // Numeric room-number tokens get a lower confidence floor — digits OCR
+        // cleanly but small print on commercial plans often scores in the 50s-60s.
+        const numericCandidate = _looksNumeric(text);
+        const floor = numericCandidate ? Math.min(minConf, 55) : minConf;
+        if (conf < floor) return;
         // Try preset snap → numeric room number (commercial) → cleaned raw text.
         let matched = matchRoomKeyword(text);
         let kind = 'preset';
