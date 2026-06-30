@@ -1720,6 +1720,8 @@ async function ocrScanRoomsForSetup() {
     if (message) { message.textContent = msg; message.style.display = ''; }
     if (status) status.textContent = found ? ('— read ' + found + ' label' + (found === 1 ? '' : 's')) : '— no labels read';
     toast(found ? ('Found ' + found + ' label' + (found === 1 ? '' : 's')) : 'No labels found');
+    const moreBtn = document.getElementById('findMoreRoomsBtn');
+    if (moreBtn) moreBtn.style.display = '';
   } catch (err) {
     if (token === _setupRoomsToken) {
       const msg = (err && err.message) ? err.message : 'Could not read labels. Add rooms manually.';
