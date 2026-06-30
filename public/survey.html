@@ -1489,6 +1489,25 @@ function cleanRawRoomText(text) {
   return words.join(' ');
 }
 
+// Detect numeric room labels (e.g. "143", "101A") used on commercial plans.
+// Only active for non-residential building types. Filters out dimensions and
+// stray numbers. Returns "Room 143" or null.
+function cleanRoomNumber(text) {
+  const type = _getActiveBuildingType();
+  if (type === 'residential') return null;
+  let t = String(text || '').replace(/\s+/g, '').trim();
+  if (!t) return null;
+  // Reject dimension-like strings: feet/inches marks, hyphens, decimals, x.
+  if (/['"\-x×.,/]/.test(t)) return null;
+  // Allow pure digits (2-4) optionally followed by a single letter suffix.
+  const m = t.match(/^(\d{2,4})([A-Za-z])?$/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  // Plausible room-number range. Excludes years, tiny stray digits.
+  if (n < 10 || n > 9999) return null;
+  return 'Room ' + m[1] + (m[2] ? m[2].toUpperCase() : '');
+}
+
 
 // Preprocess: upscale + grayscale + threshold. Returns canvas.
 function preprocessForOcr(img, targetW) {
@@ -1528,6 +1547,16 @@ function rotateCanvas90(src) {
   return c;
 }
 
+function rotateCanvasNeg90(src) {
+  const c = document.createElement('canvas');
+  c.width = src.height; c.height = src.width;
+  const ctx = c.getContext('2d');
+  ctx.translate(0, c.height);
+  ctx.rotate(-Math.PI / 2);
+  ctx.drawImage(src, 0, 0);
+  return c;
+}
+
 async function runOcrPass(worker, canvas, psm) {
   try { await worker.setParameters({ tessedit_pageseg_mode: String(psm) }); } catch (_) {}
   const { data } = await worker.recognize(canvas);
@@ -1560,13 +1589,15 @@ async function ocrScanRoomsForSetup() {
     if (status) status.textContent = '— enhancing image…';
     const upright = preprocessForOcr(img, 2400);
     const rotated = rotateCanvas90(upright);
+    const rotatedNeg = rotateCanvasNeg90(upright);
     const W = upright.width, H = upright.height;
 
-    // Multi-pass: catches sparse small labels, blocky labels, and sideways labels
+    // Multi-pass: sparse small labels, blocky labels, and labels rotated both ways.
     const passes = [
-      { canvas: upright, psm: 11, rot: 0, label: 'upright sparse' },
-      { canvas: upright, psm: 6,  rot: 0, label: 'upright blocks' },
-      { canvas: rotated, psm: 11, rot: 90, label: 'sideways' },
+      { canvas: upright,    psm: 11, rot: 0,   label: 'upright sparse' },
+      { canvas: upright,    psm: 6,  rot: 0,   label: 'upright blocks' },
+      { canvas: rotated,    psm: 11, rot: 90,  label: 'sideways CW' },
+      { canvas: rotatedNeg, psm: 11, rot: -90, label: 'sideways CCW' },
     ];
 
     const candidates = [];
@@ -1585,13 +1616,18 @@ async function ocrScanRoomsForSetup() {
         if (!text) return;
         const conf = typeof item.confidence === 'number' ? item.confidence : 100;
         if (conf < minConf) return;
-        // Try preset snap first; fall back to cleaned raw OCR text.
+        // Try preset snap → numeric room number (commercial) → cleaned raw text.
         let matched = matchRoomKeyword(text);
-        let isRaw = false;
+        let kind = 'preset';
         if (!matched) {
-          matched = cleanRawRoomText(text);
-          if (!matched) return;
-          isRaw = true;
+          matched = cleanRoomNumber(text);
+          if (matched) {
+            kind = 'numeric';
+          } else {
+            matched = cleanRawRoomText(text);
+            if (!matched) return;
+            kind = 'raw';
+          }
         }
         const bb = item.bbox || {};
         let cx = (bb.x0 + bb.x1) / 2;
@@ -1601,19 +1637,24 @@ async function ocrScanRoomsForSetup() {
           const nx = cy;
           const ny = rw - cx;
           cx = nx; cy = ny;
+        } else if (p.rot === -90) {
+          const rh = p.canvas.height;
+          const nx = rh - cy;
+          const ny = cx;
+          cx = nx; cy = ny;
         }
         const nxr = cx / W;
         const nyr = cy / H;
         if (!isFinite(nxr) || !isFinite(nyr)) return;
         if (nxr < 0 || nxr > 1 || nyr < 0 || nyr > 1) return;
-        candidates.push({ name: matched, x: nxr, y: nyr, conf, src: p.label, raw: isRaw });
+        candidates.push({ name: matched, x: nxr, y: nyr, conf, src: p.label, kind });
       };
 
-      // QA/QC pass A: raised confidence floors (was 55 / 65).
+      // QA/QC pass A: confidence floors.
       for (const ln of lines) harvest(ln, 70);
       for (const w of words) {
         const t = (w.text || '').trim();
-        if (t.length < 3) continue;
+        if (t.length < 2) continue; // allow short numeric tokens like "10"
         harvest(w, 78);
       }
     }
@@ -1621,28 +1662,31 @@ async function ocrScanRoomsForSetup() {
     if (token !== _setupRoomsToken) return;
 
     // Cluster candidates within ~5% of plan, tracking which passes contributed.
-    // Sort: preset snaps before raw, then higher confidence first.
-    candidates.sort((a, b) => (Number(a.raw) - Number(b.raw)) || (b.conf - a.conf));
+    // Sort: preset > numeric > raw, then higher confidence first.
+    const kindRank = k => k === 'preset' ? 0 : (k === 'numeric' ? 1 : 2);
+    candidates.sort((a, b) => kindRank(a.kind) - kindRank(b.kind) || (b.conf - a.conf));
     const clusters = [];
     for (const c of candidates) {
       const hit = clusters.find(k => Math.hypot(k.x - c.x, k.y - c.y) < 0.05);
       if (hit) {
         hit.passes.add(c.src);
         hit.hits++;
-        if (hit.raw && !c.raw) { // upgrade raw cluster to preset if a preset hit lands here
-          hit.name = c.name; hit.raw = false; hit.x = c.x; hit.y = c.y; hit.conf = c.conf;
+        // Upgrade weaker kind to stronger if a better hit lands here.
+        if (kindRank(c.kind) < kindRank(hit.kind)) {
+          hit.name = c.name; hit.kind = c.kind; hit.x = c.x; hit.y = c.y; hit.conf = c.conf;
         }
       } else {
-        clusters.push({ name: c.name, x: c.x, y: c.y, conf: c.conf, raw: c.raw, passes: new Set([c.src]), hits: 1 });
+        clusters.push({ name: c.name, x: c.x, y: c.y, conf: c.conf, kind: c.kind, passes: new Set([c.src]), hits: 1 });
       }
     }
 
     // QA/QC pass B: cross-pass voting.
-    //  - Preset match: keep if ≥1 pass at high conf (≥80) OR ≥2 passes agree.
+    //  - Preset match: ≥1 pass at high conf (≥80) OR ≥2 passes agree.
+    //  - Numeric room number: ≥1 pass at high conf (≥80) OR ≥2 passes agree (digits OCR cleanly).
     //  - Raw OCR text: require ≥2 passes — single-pass raw hits are the ghost rooms.
     const kept = clusters.filter(k => {
       const votes = k.passes.size;
-      if (k.raw) return votes >= 2;
+      if (k.kind === 'raw') return votes >= 2;
       return votes >= 2 || k.conf >= 80;
     });
 
