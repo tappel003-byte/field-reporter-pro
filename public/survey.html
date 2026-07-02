@@ -1242,6 +1242,7 @@ function onPlanFileChange(e) {
   reader.onload = ev => {
     resizeImage(ev.target.result, MAX_IMG_DIM, (dataUrl, w, h) => {
       _setupPlan = { dataUrl, width: w, height: h };
+      _setupFrontDoor = null; // plan changed; require re-place
       document.getElementById('planPreviewImg').src = dataUrl;
       document.getElementById('planPreview').style.display = '';
       document.getElementById('planDropZone').style.display = 'none';
