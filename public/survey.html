@@ -2128,8 +2128,8 @@ function openRoomVerify() {
 function _rvRenderBadges() {
   const wrap = document.getElementById('rvWrap');
   if (!wrap) return;
-  // Remove existing badges
-  Array.from(wrap.querySelectorAll('.rv-badge')).forEach(b => b.remove());
+  // Remove existing badges + FD marker
+  Array.from(wrap.querySelectorAll('.rv-badge, .rv-fd')).forEach(b => b.remove());
   (_setupRooms || []).forEach((r, idx) => {
     const b = document.createElement('div');
     b.className = 'rv-badge';
@@ -2143,6 +2143,35 @@ function _rvRenderBadges() {
     b.addEventListener('touchend', (e) => { e.stopPropagation(); });
     wrap.appendChild(b);
   });
+  if (_setupFrontDoor) {
+    const fd = document.createElement('div');
+    fd.className = 'rv-fd';
+    fd.textContent = 'FD';
+    fd.title = 'Front door — tap to move or remove';
+    fd.style.left = (_setupFrontDoor.x * 100) + '%';
+    fd.style.top = (_setupFrontDoor.y * 100) + '%';
+    fd.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
+    fd.addEventListener('pointerup', (e) => { e.stopPropagation(); });
+    fd.addEventListener('touchend', (e) => { e.stopPropagation(); });
+    fd.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (confirm('Remove the front door marker?')) {
+        _setupFrontDoor = null;
+        _rvRenderBadges();
+      }
+    });
+    wrap.appendChild(fd);
+  }
+}
+function _rvToggleFdMode() {
+  if (!_setupPlan) return;
+  _rvFdMode = !_rvFdMode;
+  const btn = document.getElementById('rvFdBtn');
+  const title = document.getElementById('rvTitle');
+  if (btn) btn.classList.toggle('active', _rvFdMode);
+  if (title) title.textContent = _rvFdMode
+    ? 'Tap the plan where the FRONT DOOR is'
+    : 'Rooms — pinch zoom, drag move, tap plan to add';
 }
 // Custom rooms are scoped per building type. Storage key: customRoomPresets:<type>.
 // Legacy key 'customRoomPresets' (un-scoped, from older versions) is read into
