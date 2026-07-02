@@ -2624,6 +2624,7 @@ function commitNewProject() {
     p.address = addr;
     p.plan = { dataUrl: _setupPlan.dataUrl, width: _setupPlan.width, height: _setupPlan.height };
     p.frontDoorFacing = fd;
+    p.frontDoor = _setupFrontDoor ? { x: _setupFrontDoor.x, y: _setupFrontDoor.y } : null;
     p.rooms = Array.isArray(_setupRooms) ? _setupRooms.slice() : [];
     p.buildingType = bt;
     if (!p.north) p.north = { x: p.plan.width * 0.92, y: p.plan.height * 0.08, rotation: 0 };
