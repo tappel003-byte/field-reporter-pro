@@ -130,6 +130,7 @@
   .rv-head{position:absolute;top:0;left:0;right:0;z-index:5;padding:calc(env(safe-area-inset-top,0px)+8px) 12px 12px;display:flex;align-items:center;gap:8px;background:linear-gradient(rgba(0,0,0,.7),transparent)}
   .rv-head span{flex:1;color:#fff;font-size:14px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.6)}
   .rv-btn{background:rgba(0,0,0,.5);color:#fff;border:none;width:42px;height:42px;border-radius:50%;font-size:18px;display:flex;align-items:center;justify:center;backdrop-filter:blur(6px)}
+  #rvFdBtn{background:#2563eb;position:absolute;bottom:calc(env(safe-area-inset-bottom, 0px) + 16px);right:16px;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.4)}
   .rv-stage{flex:1;position:relative;overflow:hidden;touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
   .rv-content{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;line-height:0}
   .rv-content img{display:block;-webkit-user-drag:none;pointer-events:none;max-width:none;max-height:none}
@@ -5821,7 +5822,6 @@ pvSetupGestures();
 <div id="roomVerifyOverlay" class="rv-overlay" onclick="if(event.target===this)closeRoomVerify()">
   <div class="rv-head">
     <span id="rvTitle">Verify detected rooms</span>
-    <button class="rv-btn" id="rvFdBtn" onclick="_rvToggleFdMode()" aria-label="Place front door" title="Place FD marker">FD</button>
     <button class="rv-btn" onclick="closeRoomVerify()" aria-label="Close">✕</button>
   </div>
   <div class="rv-stage" id="rvStage">
@@ -5829,6 +5829,7 @@ pvSetupGestures();
       <img id="rvImg" alt="Floor plan" />
     </div>
   </div>
+  <button class="rv-btn" id="rvFdBtn" onclick="_rvToggleFdMode()" aria-label="Place front door" title="Place FD marker">FD</button>
 </div>
 
 <!-- Room name picker -->
