@@ -2563,6 +2563,7 @@ function editSetup() {
   _setupMode = project.mode;
   _setupPlan = project.plan ? { dataUrl: project.plan.dataUrl, width: project.plan.width, height: project.plan.height } : null;
   _setupRooms = Array.isArray(project.rooms) ? project.rooms.slice() : null;
+  _setupFrontDoor = (project.frontDoor && typeof project.frontDoor.x === 'number' && typeof project.frontDoor.y === 'number') ? { x: project.frontDoor.x, y: project.frontDoor.y } : null;
 
   document.getElementById('setupTitle').textContent = 'Edit Setup';
   document.getElementById('fAddress').value = project.address || '';
