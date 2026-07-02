@@ -2382,7 +2382,7 @@ function _initRoomVerifyGestures() {
   let pinch = null;
   let drag = null;
   let tap = null;
-  const isControl = (target) => target && target.closest && (target.closest('button') || target.closest('.rv-badge') || target.closest('.rv-picker'));
+  const isControl = (target) => target && target.closest && (target.closest('button') || target.closest('.rv-badge') || target.closest('.rv-fd') || target.closest('.rv-picker'));
   const beginPinch = () => {
     const pts = Array.from(pointers.values());
     if (pts.length < 2) { pinch = null; return; }
