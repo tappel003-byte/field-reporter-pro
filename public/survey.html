@@ -1188,6 +1188,7 @@ let _rvFdMode = false;   // when true, next tap in room verify overlay places FD
 function startNewProject(mode) {
   _setupMode = mode;
   _setupPlan = null;
+  _setupFrontDoor = null;
   _setupRooms = null;
   _setupRoomsToken++;
   document.getElementById('setupTitle').textContent = mode === 'internal' ? 'New Internal Survey' : 'New External Survey';
