@@ -2650,6 +2650,7 @@ function commitNewProject() {
     pins: [],
     drawings: [],
     frontDoorFacing: fd,
+    frontDoor: _setupFrontDoor ? { x: _setupFrontDoor.x, y: _setupFrontDoor.y } : null,
     rooms: Array.isArray(_setupRooms) ? _setupRooms.slice() : [],
     buildingType: bt,
     north: { x: _setupPlan.width * 0.92, y: _setupPlan.height * 0.08, rotation: northRot },
