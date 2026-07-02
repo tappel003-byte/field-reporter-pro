@@ -3610,7 +3610,8 @@ function buildRoomLabels(proj, offset) {
       idxs.forEach((i, n) => { labels[i] = rooms[i].name + ' ' + (n + 1); });
       return;
     }
-    const dirs = idxs.map(i => _roomCardinal(rooms[i], offset));
+    const origin = _originXY(proj);
+    const dirs = idxs.map(i => _roomCardinal(rooms[i], offset, origin));
     const counts = {};
     dirs.forEach(d => { counts[d] = (counts[d] || 0) + 1; });
     // Group siblings by primary cardinal so we can add a secondary positional
