@@ -2120,6 +2120,9 @@ function openRoomVerify() {
   img.style.height = '100%';
   img.src = _setupPlan.dataUrl;
   _rvRenderBadges();
+  _rvFdMode = false;
+  const fdBtn = document.getElementById('rvFdBtn');
+  if (fdBtn) fdBtn.classList.remove('active');
   const t = document.getElementById('rvTitle');
   if (t) t.textContent = 'Rooms — pinch zoom, drag move, tap plan to add';
   ov.classList.add('open');
