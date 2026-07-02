@@ -3547,11 +3547,20 @@ function _orientationOffset(proj) {
   if (beta == null) return null;
   return (beta + 180) % 360;
 }
+function _originXY(proj) {
+  // Use the placed front door as origin when available for sharper front/back
+  // geometry. Otherwise fall back to the plan center.
+  if (proj && proj.frontDoor && typeof proj.frontDoor.x === 'number' && typeof proj.frontDoor.y === 'number') {
+    return { x: proj.frontDoor.x, y: proj.frontDoor.y };
+  }
+  return { x: 0.5, y: 0.5 };
+}
 function pinCardinal(proj, p, offset) {
   if (offset == null) return '';
   const pw = proj.plan.width, ph = proj.plan.height;
-  const dx = (p.x / pw) - 0.5;
-  const dy = (p.y / ph) - 0.5;
+  const o = _originXY(proj);
+  const dx = (p.x / pw) - o.x;
+  const dy = (p.y / ph) - o.y;
   if (Math.hypot(dx, dy) < 0.03) return 'Center';
   const alpha = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
   const bearing = (alpha + offset) % 360;
@@ -3573,11 +3582,13 @@ function pinRoom(proj, p, labels) {
 }
 // Disambiguate duplicate room names for the export only (plan/UI keep raw names).
 // Two "Bedroom" rooms become "South Bedroom" / "North Bedroom" using each room's
-// cardinal position relative to the plan center, oriented by the front door.
+// cardinal position relative to the origin (front door if placed, else center),
+// oriented by the front door facing.
 // If two duplicates land in the same octant, fall back to numbering for that pair.
 const _CARD_FULL = {N:'North',S:'South',E:'East',W:'West',NE:'NE',NW:'NW',SE:'SE',SW:'SW'};
-function _roomCardinal(r, offset) {
-  const dx = r.x - 0.5, dy = r.y - 0.5;
+function _roomCardinal(r, offset, origin) {
+  const o = origin || { x: 0.5, y: 0.5 };
+  const dx = r.x - o.x, dy = r.y - o.y;
   if (Math.hypot(dx, dy) < 0.03) return 'Center';
   const alpha = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
   const bearing = (alpha + offset) % 360;
