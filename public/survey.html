@@ -5767,6 +5767,7 @@ pvSetupGestures();
 <div id="roomVerifyOverlay" class="rv-overlay" onclick="if(event.target===this)closeRoomVerify()">
   <div class="rv-head">
     <span id="rvTitle">Verify detected rooms</span>
+    <button class="rv-btn" id="rvFdBtn" onclick="_rvToggleFdMode()" aria-label="Place front door" title="Place FD marker">FD</button>
     <button class="rv-btn" onclick="closeRoomVerify()" aria-label="Close">✕</button>
   </div>
   <div class="rv-stage" id="rvStage">
