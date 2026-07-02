@@ -2309,6 +2309,16 @@ function _rvAddRoomAt(cx, cy) {
   const x = ((cx - r.left) - _rvState.tx) / _rvState.scale / _setupPlan.width;
   const y = ((cy - r.top) - _rvState.ty) / _rvState.scale / _setupPlan.height;
   if (x < 0 || x > 1 || y < 0 || y > 1) return;
+  if (_rvFdMode) {
+    _setupFrontDoor = { x, y };
+    _rvFdMode = false;
+    const btn = document.getElementById('rvFdBtn');
+    if (btn) btn.classList.remove('active');
+    const title = document.getElementById('rvTitle');
+    if (title) title.textContent = 'Rooms — pinch zoom, drag move, tap plan to add';
+    _rvRenderBadges();
+    return;
+  }
   _rvPickRoomName('', (name) => {
     _setupRooms.push({ name, x, y });
     _rvRenderBadges();
