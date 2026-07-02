@@ -1183,6 +1183,8 @@ function openProject(id) {
 let _setupMode = null;
 let _editingProjectId = null;
 let _setupPlan = null;   // { dataUrl, width, height }
+let _setupFrontDoor = null; // { x, y } normalized 0..1, or null
+let _rvFdMode = false;   // when true, next tap in room verify overlay places FD
 function startNewProject(mode) {
   _setupMode = mode;
   _setupPlan = null;
