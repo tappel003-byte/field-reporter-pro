@@ -1,53 +1,26 @@
-# Separate location numbers from photo numbers
+## Plan
 
-## Concept
-- **Pin number on the plan** = a **location** (1, 2, 3, … 34). Stays unchanged.
-- **Photo number** = a **global sequential count** across the whole survey (1, 2, 3, … 60).
-- These two numbering systems are independent. The plan never shows photo numbers; the export filenames never show location numbers.
+I checked the current PWA setup. The likely issue is that the app is being cached around `/`, but the real field app lives inside `/survey.html`. On iPhone Safari, reopening the site from the address bar can fail before the cached app shell gets a chance to redirect/render that iframe path.
 
-## What changes
+### What I will change
+1. Keep the service worker guarded so it still does **not** run in Lovable preview, dev, or editor iframe.
+2. Change the install/start path to `/survey.html` so the phone opens the actual Distress Survey page directly.
+3. Update the offline fallback so `/survey.html` is the document Safari can serve when there is no internet.
+4. Keep the kill switch: `?sw=off` disables and clears the app-shell service worker; `?sw=on` re-enables it.
+5. Do not touch survey data, IndexedDB, localStorage, pins, photos, UI, or the survey model.
 
-### 1. Exported photo filenames (internal mode)
-Today: `01-photo1.jpg`, `01-photo2.jpg`, `02-photo1.jpg` …
-After: `photo-01.jpg`, `photo-02.jpg`, … `photo-60.jpg`
+### Technical notes
+- Update `manifest.webmanifest` `start_url` from `/` to `/survey.html`.
+- Update the PWA `navigateFallback` from `/` to `/survey.html`.
+- Keep `NetworkFirst` for HTML navigations and cache-first only for built/static app-shell files.
+- Leave the registration wrapper in one place, with preview guards intact.
 
-Numbering order: walk pins in pin-number order, and within each pin walk photos in the order they were taken. So:
-- Location 1 has 3 photos → `photo-01.jpg`, `photo-02.jpg`, `photo-03.jpg`
-- Location 2 has 1 photo → `photo-04.jpg`
-- Location 3 has 2 photos → `photo-05.jpg`, `photo-06.jpg`
-- …continues through location 34
-
-Zero-padding width auto-sized to the total (2 digits for ≤99, 3 digits for ≤999).
-
-### 2. `pins.csv` gets a "Photos" range column
-Today (internal): `Pin, Type, Description, Photos` — where `Photos` is just a count.
-After (internal): `Location, Type, Description, Photo Count, Photo Numbers`
-
-Example row:
-```
-1, Interior, "Kitchen leak under sink", 3, 1-3
-2, Interior, "Hallway", 1, 4
-3, Exterior, "North wall crack", 2, 5-6
-```
-
-`Photo Numbers` uses compact ranges when consecutive (`1-3`), comma-list when not (`4, 7, 9`). Rename header `Pin` → `Location` to reinforce the concept.
-
-### 3. Wording cleanup in the UI
-- Pin sheet title stays `Pin #N` (this is the location number — no change needed).
-- "Photos" label on the photo strip stays as-is — these are still photos under a location, just no longer numbered per-pin in the export.
-- No change to the plan rendering: pins still show their location number 1..N.
-
-### 4. External mode is untouched
-External mode is already a separate counting model (the user manages a real camera, pins reference picture-number ranges). No changes there.
-
-## Files affected
-- `public/survey.html` only.
-  - Photo export loop (~line 3523): switch from per-pin filename to global counter.
-  - CSV header + row builder (~line 3512–3519): add Photo Numbers column, rename Pin → Location, compute ranges.
-  - `Pin, Description, Photos` header in the "What you'll get" help text (~line 637): update to match.
-
-## Out of scope
-- No changes to how pins are created, dragged, deleted, or rendered on the plan.
-- No changes to the interior/exterior toggle or its grey rendering.
-- No changes to external mode.
-- No change to the PDF export's pin labels (still location numbers).
+### After publishing, test this way
+1. On iPhone, turn Wi-Fi/cell back on.
+2. Open `https://field-reporter-pro.lovable.app/survey.html` once and let it fully load.
+3. Refresh that same page once while still online.
+4. Add it to Home Screen again if you use the icon, because iPhone may keep the old start path.
+5. Fully close Safari/the Home Screen app.
+6. Turn on Airplane Mode.
+7. Reopen from the Home Screen icon or the same `/survey.html` bookmark.
+8. Confirm the app opens, then start a new pin, take a photo, enter/save a description, and confirm it remains in the project offline.
