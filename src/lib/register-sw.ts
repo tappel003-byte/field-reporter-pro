@@ -103,9 +103,17 @@ export function registerAppShellSW(): void {
     return;
   }
 
-  window.addEventListener("load", () => {
+  const register = () => {
     navigator.serviceWorker.register(SW_PATH, { scope: "/" }).catch(() => {
       // no-op: offline support is a progressive enhancement
     });
-  });
+  };
+
+  // Do not wait only for `load`: on mobile Safari the app can be restored so quickly
+  // that this module runs after the event has already fired, leaving no SW installed.
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", register, { once: true });
+  } else {
+    register();
+  }
 }
