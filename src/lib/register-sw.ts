@@ -1,6 +1,8 @@
 export function registerAppShellSW(): void {
   if (typeof window === "undefined") return;
-  void import(/* @vite-ignore */ "/register-sw.js").catch(() => {
-    // no-op: offline support is a progressive enhancement
-  });
+  const script = document.createElement("script");
+  script.type = "module";
+  script.src = "/register-sw.js";
+  script.async = true;
+  document.head.appendChild(script);
 }
