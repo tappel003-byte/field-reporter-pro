@@ -1,6 +1,9 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
+import { registerAppShellSW } from "./lib/register-sw";
+
+registerAppShellSW();
 
 export const getRouter = () => {
   const queryClient = new QueryClient();
