@@ -1,26 +1,53 @@
-## Plan
+## What I checked on the live published URL
 
-I checked the current PWA setup. The likely issue is that the app is being cached around `/`, but the real field app lives inside `/survey.html`. On iPhone Safari, reopening the site from the address bar can fail before the cached app shell gets a chance to redirect/render that iframe path.
+I tested the published site directly, not the Lovable preview:
 
-### What I will change
-1. Keep the service worker guarded so it still does **not** run in Lovable preview, dev, or editor iframe.
-2. Change the install/start path to `/survey.html` so the phone opens the actual Distress Survey page directly.
-3. Update the offline fallback so `/survey.html` is the document Safari can serve when there is no internet.
-4. Keep the kill switch: `?sw=off` disables and clears the app-shell service worker; `?sw=on` re-enables it.
-5. Do not touch survey data, IndexedDB, localStorage, pins, photos, UI, or the survey model.
+`https://field-reporter-pro.lovable.app/survey.html`
 
-### Technical notes
-- Update `manifest.webmanifest` `start_url` from `/` to `/survey.html`.
-- Update the PWA `navigateFallback` from `/` to `/survey.html`.
-- Keep `NetworkFirst` for HTML navigations and cache-first only for built/static app-shell files.
-- Leave the registration wrapper in one place, with preview guards intact.
+The check did three things:
 
-### After publishing, test this way
-1. On iPhone, turn Wi-Fi/cell back on.
-2. Open `https://field-reporter-pro.lovable.app/survey.html` once and let it fully load.
-3. Refresh that same page once while still online.
-4. Add it to Home Screen again if you use the icon, because iPhone may keep the old start path.
-5. Fully close Safari/the Home Screen app.
-6. Turn on Airplane Mode.
-7. Reopen from the Home Screen icon or the same `/survey.html` bookmark.
-8. Confirm the app opens, then start a new pin, take a photo, enter/save a description, and confirm it remains in the project offline.
+1. Requested the live files directly.
+2. Opened the live page in a fresh browser session.
+3. Asked the browser what service workers are actually registered for that live origin.
+
+### Live result
+
+```text
+survey.html status: 200
+sw.js status: 200
+register-sw.js status: 404
+serviceWorker registrations: []
+serviceWorker ready: null
+caches: []
+```
+
+### What that means
+
+The service worker file exists on the live site, but the registration script I added is not available on the published site. Because `/register-sw.js` is returning 404, the page never runs the code that calls `navigator.serviceWorker.register('/sw.js')`.
+
+So you are right: the failure is not whether the build can generate a service worker locally. The live published page is not actually registering it.
+
+## Plan for the next fix
+
+1. Remove the separate `/register-sw.js` file approach because the live published site is not serving it.
+2. Put the guarded registration script directly inside `public/survey.html`, so the actual page you open always contains the registration code.
+3. Keep the same safety rules:
+   - no registration in preview/editor iframe
+   - no registration on dev/localhost
+   - `?sw=off` disables and clears it
+   - `?sw=on` re-enables it
+4. Keep `/survey.html` as the offline fallback and manifest start page.
+5. After the change, verify against the published URL again using the same live-origin check:
+
+```text
+https://field-reporter-pro.lovable.app/survey.html
+navigator.serviceWorker.getRegistrations()
+navigator.serviceWorker.ready
+caches.keys()
+```
+
+The fix is not complete until the live published check shows at least one registration for:
+
+```text
+https://field-reporter-pro.lovable.app/sw.js
+```
