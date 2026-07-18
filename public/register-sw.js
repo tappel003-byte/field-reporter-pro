@@ -41,7 +41,6 @@ function readKillSwitch() {
 
 function isPreviewOrDevHost() {
   if (!isBrowser()) return true;
-  if (window.self !== window.top) return true;
 
   const { hostname } = window.location;
   return (
@@ -58,6 +57,12 @@ function isPreviewOrDevHost() {
     hostname === "lovable.dev" ||
     hostname.endsWith(".lovable.dev")
   );
+}
+
+function isEmbeddedPublishedSurvey() {
+  if (!isBrowser()) return false;
+  if (window.self === window.top) return false;
+  return !isPreviewOrDevHost();
 }
 
 async function unregisterMatchingAndPurge() {
@@ -96,6 +101,11 @@ async function unregisterMatchingAndPurge() {
 function registerAppShellSW() {
   if (!isBrowser()) return;
   if (!("serviceWorker" in navigator)) return;
+
+  // The React shell embeds survey.html at `/`; that child frame must not undo
+  // the parent page's service-worker registration. Direct `/survey.html` loads
+  // still register normally because they are top-level pages.
+  if (isEmbeddedPublishedSurvey()) return;
 
   const refused = readKillSwitch() || isPreviewOrDevHost();
   if (refused) {
