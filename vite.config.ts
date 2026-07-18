@@ -26,6 +26,21 @@ export default defineConfig({
           // Precache the built app shell (HTML/JS/CSS) plus the static survey page.
           globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}"],
           globIgnores: ["**/node_modules/**", "sw.js", "workbox-*.js"],
+          // TanStack Start emits `client/` and `server/` subdirs, but the
+          // deployed origin serves those files at the root. Rewrite the
+          // precache manifest so cached URLs match what the browser fetches.
+          manifestTransforms: [
+            async (entries) => {
+              const manifest = entries
+                .filter((e) => !e.url.startsWith("server/"))
+                .map((e) =>
+                  e.url.startsWith("client/")
+                    ? { ...e, url: e.url.slice("client/".length) }
+                    : e,
+                );
+              return { manifest, warnings: [] };
+            },
+          ],
           // survey.html loads two external scripts; cache them so the shell opens offline.
           runtimeCaching: [
             {
