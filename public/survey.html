@@ -1157,20 +1157,31 @@ function goHome() {
 }
 
 // ---------- HOME ----------
+function exportStatus(p) {
+  const updated = p.updatedAt || 0;
+  const exported = p.lastExportedAt || 0;
+  if (!exported) return { state: 'none', label: 'Not exported' };
+  if (updated > exported + 1000) return { state: 'stale', label: 'Unsaved changes' };
+  return { state: 'ok', label: 'Exported ' + relTime(exported) };
+}
 function renderHome() {
   const list = document.getElementById('recentList');
   const count = document.getElementById('recentCount');
+  const reminder = document.getElementById('exportReminder');
   const projs = (store.projects || []).slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
   count.textContent = projs.length ? projs.length + ' project' + (projs.length===1?'':'s') : '';
   if (!projs.length) {
     list.innerHTML = '<div class="recent-empty">No surveys yet. Start one above.</div>';
+    if (reminder) reminder.innerHTML = '';
   } else {
     list.innerHTML = projs.map(p => {
       const pinCount = (p.pins||[]).length;
+      const status = exportStatus(p);
+      const badgeClass = status.state === 'ok' ? 'ri-badge ok' : 'ri-badge warn';
       return `
         <div class="recent-item">
           <div class="ri-body" onclick="openProject('${p.id}')">
-            <div class="ri-title"><span class="ri-tag ${p.mode}">${p.mode}</span>${escapeHtml(p.address||'(no address)')}</div>
+            <div class="ri-title"><span class="ri-tag ${p.mode}">${p.mode}</span>${escapeHtml(p.address||'(no address)')}<span class="${badgeClass}">${status.label}</span></div>
             <div class="ri-sub">${pinCount} pin${pinCount===1?'':'s'} · ${relTime(p.updatedAt)}</div>
           </div>
           <div class="ri-actions">
@@ -1179,7 +1190,35 @@ function renderHome() {
         </div>`;
     }).join('');
   }
+  // Dismissible reminder banner for projects not exported in 7+ days
+  if (reminder) {
+    const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+    const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
+    const stale = projs.filter(p => {
+      const status = exportStatus(p);
+      if (status.state === 'ok') return false;
+      const exported = p.lastExportedAt || 0;
+      const sinceExport = exported ? (Date.now() - exported) : Infinity;
+      return sinceExport >= SEVEN_DAYS;
+    });
+    let dismissed = 0;
+    try { dismissed = parseInt(localStorage.getItem('exportReminderDismissed') || '0', 10) || 0; } catch {}
+    if (stale.length && (Date.now() - dismissed) >= THREE_DAYS) {
+      reminder.innerHTML = `<div class="export-reminder">
+        <span>You have ${stale.length} project${stale.length===1?'':'s'} not yet backed up. Tap a project to export it.</span>
+        <button onclick="dismissExportReminder(event)" aria-label="Dismiss">×</button>
+      </div>`;
+    } else {
+      reminder.innerHTML = '';
+    }
+  }
   renderTrashFab();
+}
+function dismissExportReminder(e) {
+  if (e && e.stopPropagation) e.stopPropagation();
+  try { localStorage.setItem('exportReminderDismissed', String(Date.now())); } catch {}
+  const reminder = document.getElementById('exportReminder');
+  if (reminder) reminder.innerHTML = '';
 }
 function renderTrashFab() {
   const fab = document.getElementById('fabTrash');
