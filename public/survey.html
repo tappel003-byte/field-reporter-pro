@@ -5458,6 +5458,8 @@ async function exportProjectZip() {
     a.download = folderName + '.zip';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    project.lastExportedAt = Date.now();
+    save();
     toast('Project ZIP downloaded');
   } catch (err) {
     console.error(err);
