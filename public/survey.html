@@ -5949,7 +5949,7 @@ pvSetupGestures();
 </div>
 
 <script>
-// Update app link — visible only when a real network probe succeeds.
+// Update app link — shown by default; hidden only when we confirm we're offline.
 (function(){
   var link = document.getElementById("updateAppLink");
   if (!link) return;
@@ -5987,24 +5987,32 @@ pvSetupGestures();
   link.addEventListener("click", function(e){
     e.preventDefault();
     if (busy) return;
-    probe().then(function(ok){
-      if (!ok) return; // silent no-op
-      busy = true;
-      link.textContent = STATE_BUSY;
+    busy = true;
+    link.textContent = STATE_BUSY;
+    link.style.display = "inline-block";
+
+    var reloaded = false;
+    function doReload(){ if (reloaded) return; reloaded = true; window.location.reload(true); }
+
+    // 6s failsafe reload
+    var reloadTimer = setTimeout(doReload, 6000);
+    // 10s failsafe error
+    var errTimer = setTimeout(function(){
+      if (reloaded) return;
+      busy = false;
+      link.textContent = STATE_ERR;
       link.style.display = "inline-block";
+    }, 10000);
 
-      var reloaded = false;
-      function doReload(){ if (reloaded) return; reloaded = true; window.location.reload(); }
-
-      // 6s failsafe reload
-      setTimeout(doReload, 6000);
-      // 10s failsafe error
-      setTimeout(function(){
-        if (reloaded) return;
+    probe().then(function(ok){
+      if (!ok) {
+        clearTimeout(reloadTimer);
+        clearTimeout(errTimer);
         busy = false;
         link.textContent = STATE_ERR;
         link.style.display = "inline-block";
-      }, 10000);
+        return;
+      }
 
       (async function(){
         try {
