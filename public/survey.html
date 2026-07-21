@@ -95,7 +95,6 @@
 
   const register = () => {
     navigator.serviceWorker.register(SW_PATH, { scope: "/" }).then((registration) => {
-      trackUpdates(registration);
       checkForUpdate(registration);
       window.addEventListener("pageshow", () => checkForUpdate(registration));
       window.addEventListener("focus", () => checkForUpdate(registration));
