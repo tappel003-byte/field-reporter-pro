@@ -9,6 +9,7 @@
 (() => {
   const SW_PATH = "/sw.js";
   const KILL_KEY = "lovable:sw:killed";
+  const APP_CACHE_PATTERN = /^(workbox-|html-navigations$|app-shell-assets$|cdn-libs$|html-shell$)/;
 
   const isPreviewOrDevHost = () => {
     const { hostname } = window.location;
@@ -58,7 +59,7 @@
       if ("caches" in window) {
         const names = await caches.keys();
         await Promise.all(names
-          .filter((name) => /workbox|precache|runtime|html-shell|cdn-libs/i.test(name))
+          .filter((name) => APP_CACHE_PATTERN.test(name))
           .map((name) => caches.delete(name).catch(() => false)));
       }
     } catch {}
@@ -66,13 +67,90 @@
 
   if (!("serviceWorker" in navigator)) return;
 
-  if (readKillSwitch() || isPreviewOrDevHost() || window.self !== window.top) {
+  // NOTE: intentionally NOT bailing on window.self !== window.top — this page
+  // is loaded both directly (home-screen shortcut) and inside the React
+  // shell's <iframe>. In both cases this document IS the visible UI, so it
+  // owns SW registration and the update banner.
+
+  if (readKillSwitch() || isPreviewOrDevHost()) {
     void unregisterMatchingAndPurge();
     return;
   }
 
+  // --- Visible update banner ---
+  let bannerEl = null;
+  const showUpdateBanner = (waiting) => {
+    if (bannerEl) return;
+    const mount = () => {
+      if (bannerEl || !document.body) return;
+      bannerEl = document.createElement("div");
+      bannerEl.setAttribute("role", "status");
+      bannerEl.style.cssText = [
+        "position:fixed","left:0","right:0","top:0","z-index:2147483647",
+        "background:#1a1a1a","color:#fff","padding:12px 16px",
+        "font:600 15px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
+        "display:flex","align-items:center","justify-content:space-between","gap:12px",
+        "box-shadow:0 4px 16px rgba(0,0,0,.3)","padding-top:calc(12px + env(safe-area-inset-top))"
+      ].join(";");
+      const label = document.createElement("span");
+      label.textContent = "Update available";
+      label.style.cssText = "flex:1;min-width:0";
+      const btn = document.createElement("button");
+      btn.textContent = "Tap to refresh";
+      btn.style.cssText = "background:#c14a2b;color:#fff;border:0;border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer";
+      btn.addEventListener("click", () => {
+        btn.disabled = true;
+        btn.textContent = "Updating…";
+        try { waiting.postMessage({ type: "SKIP_WAITING" }); } catch {}
+      });
+      bannerEl.appendChild(label);
+      bannerEl.appendChild(btn);
+      document.body.appendChild(bannerEl);
+    };
+    if (document.body) mount();
+    else document.addEventListener("DOMContentLoaded", mount, { once: true });
+  };
+
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloaded) return;
+    reloaded = true;
+    window.location.reload();
+  });
+
+  const trackUpdates = (registration) => {
+    if (registration.waiting && navigator.serviceWorker.controller) {
+      showUpdateBanner(registration.waiting);
+    }
+    registration.addEventListener("updatefound", () => {
+      const installing = registration.installing;
+      if (!installing) return;
+      installing.addEventListener("statechange", () => {
+        if (installing.state === "installed" && navigator.serviceWorker.controller) {
+          showUpdateBanner(installing);
+        }
+      });
+    });
+  };
+
+  let lastCheck = 0;
+  const checkForUpdate = (registration) => {
+    const now = Date.now();
+    if (now - lastCheck < 10000) return;
+    lastCheck = now;
+    registration.update().catch(() => {});
+  };
+
   const register = () => {
-    navigator.serviceWorker.register(SW_PATH, { scope: "/" }).catch(() => {});
+    navigator.serviceWorker.register(SW_PATH, { scope: "/" }).then((registration) => {
+      trackUpdates(registration);
+      checkForUpdate(registration);
+      window.addEventListener("pageshow", () => checkForUpdate(registration));
+      window.addEventListener("focus", () => checkForUpdate(registration));
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") checkForUpdate(registration);
+      });
+    }).catch(() => {});
   };
 
   if (document.readyState === "loading") {
