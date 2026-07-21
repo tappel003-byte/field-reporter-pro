@@ -25,8 +25,10 @@ export default defineConfig({
         devOptions: { enabled: false },
         injectManifest: {
           swDest: resolve(process.cwd(), "dist/sw.js"),
-          // Precache the built app shell (HTML/JS/CSS) plus the static survey page.
-          globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}"],
+          // Precache hashed JS/CSS/assets only. HTML is fetched network-first
+          // so deploys are visible immediately; the SW caches the latest HTML
+          // for offline fallback on first visit.
+          globPatterns: ["**/*.{js,css,ico,png,svg,webmanifest}"],
           globIgnores: ["**/node_modules/**", "**/*.map", "sw.js", "workbox-*.js"],
           // TanStack Start emits `client/` and `server/` subdirs, but the
           // deployed origin serves those files at the root. Rewrite the
@@ -44,8 +46,7 @@ export default defineConfig({
             },
           ],
           additionalManifestEntries: [
-            // Only add `/` — `survey.html` is already precached via globPatterns,
-            // re-adding it here throws add-to-cache-list-conflicting-entries at SW init.
+            // `/` is the React shell route; precache it so the root loads offline.
             { url: "/", revision: null },
           ],
         },
