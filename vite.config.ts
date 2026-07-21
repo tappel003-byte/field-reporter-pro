@@ -6,6 +6,7 @@
 // You can pass additional config via defineConfig({ vite: { ... } }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { VitePWA } from "vite-plugin-pwa";
+import { resolve } from "node:path";
 
 // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
 // @cloudflare/vite-plugin builds from this — wrangler.jsonc main alone is insufficient.
@@ -18,14 +19,15 @@ export default defineConfig({
       VitePWA({
         registerType: "autoUpdate",
         injectRegister: null, // wrapper module is the only registrar
-        filename: "sw.js",
+        strategies: "injectManifest",
+        srcDir: "src",
+        filename: "sw.ts",
         devOptions: { enabled: false },
-        workbox: {
-          navigateFallback: "/survey.html",
-          navigateFallbackDenylist: [/^\/~oauth/, /^\/api\//],
+        injectManifest: {
+          swDest: resolve(process.cwd(), "dist/sw.js"),
           // Precache the built app shell (HTML/JS/CSS) plus the static survey page.
           globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}"],
-          globIgnores: ["**/node_modules/**", "sw.js", "workbox-*.js"],
+          globIgnores: ["**/node_modules/**", "**/*.map", "sw.js", "workbox-*.js"],
           // TanStack Start emits `client/` and `server/` subdirs, but the
           // deployed origin serves those files at the root. Rewrite the
           // precache manifest so cached URLs match what the browser fetches.
@@ -41,28 +43,9 @@ export default defineConfig({
               return { manifest, warnings: [] };
             },
           ],
-          // survey.html loads two external scripts; cache them so the shell opens offline.
-          runtimeCaching: [
-            {
-              urlPattern: ({ url }) =>
-                url.origin === "https://cdn.jsdelivr.net" &&
-                (url.pathname.includes("jszip") || url.pathname.includes("jspdf")),
-              handler: "CacheFirst",
-              options: {
-                cacheName: "cdn-libs",
-                expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 90 },
-                cacheableResponse: { statuses: [0, 200] },
-              },
-            },
-            {
-              urlPattern: ({ request, sameOrigin }) =>
-                sameOrigin && request.destination === "document",
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "html-shell",
-                networkTimeoutSeconds: 3,
-              },
-            },
+          additionalManifestEntries: [
+            { url: "/", revision: null },
+            { url: "/survey.html", revision: null },
           ],
         },
       }),
