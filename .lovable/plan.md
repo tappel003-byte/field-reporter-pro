@@ -1,53 +1,33 @@
-## What I checked on the live published URL
+# Export reminder for individual project exports
 
-I tested the published site directly, not the Lovable preview:
+Add a lightweight reminder system so users know which projects still need exporting. No bulk-export feature.
 
-`https://field-reporter-pro.lovable.app/survey.html`
+## 1. Track last export per project
 
-The check did three things:
+- Add optional `lastExportedAt` (ms) to each project object.
+- In `exportProjectZip()`, on successful ZIP download, set `project.lastExportedAt = Date.now()` and persist — **do not** bump `updatedAt` (an export isn't an edit).
+- Backwards compatible: missing field = never exported.
 
-1. Requested the live files directly.
-2. Opened the live page in a fresh browser session.
-3. Asked the browser what service workers are actually registered for that live origin.
+## 2. Home screen status badge (per project)
 
-### Live result
+In `renderHome()`, next to each recent item, show one of three pill badges (same visual language as Floor Survey):
 
-```text
-survey.html status: 200
-sw.js status: 200
-register-sw.js status: 404
-serviceWorker registrations: []
-serviceWorker ready: null
-caches: []
-```
+- **"Not exported"** (amber) — no `lastExportedAt`
+- **"Unsaved changes"** (amber) — `updatedAt > lastExportedAt + 1s` tolerance
+- **"Exported {relTime}"** (green) — otherwise
 
-### What that means
+## 3. Soft reminder banner on app open
 
-The service worker file exists on the live site, but the registration script I added is not available on the published site. Because `/register-sw.js` is returning 404, the page never runs the code that calls `navigator.serviceWorker.register('/sw.js')`.
+- On `renderHome()`, if any project shows "Unsaved changes" or "Not exported" AND it's been ≥ 7 days since the last export event on that project, show a small dismissible banner above the recent list:
+  > "You have {N} project(s) not yet backed up. Tap a project to export it."
+- Dismiss stores a `remindDismissedAt` in localStorage, suppressing the banner for 3 days.
 
-So you are right: the failure is not whether the build can generate a service worker locally. The live published page is not actually registering it.
+## Out of scope
 
-## Plan for the next fix
+- No bulk export.
+- No changes to ZIP contents, photo storage, service worker, or update-app link.
 
-1. Remove the separate `/register-sw.js` file approach because the live published site is not serving it.
-2. Put the guarded registration script directly inside `public/survey.html`, so the actual page you open always contains the registration code.
-3. Keep the same safety rules:
-   - no registration in preview/editor iframe
-   - no registration on dev/localhost
-   - `?sw=off` disables and clears it
-   - `?sw=on` re-enables it
-4. Keep `/survey.html` as the offline fallback and manifest start page.
-5. After the change, verify against the published URL again using the same live-origin check:
+## Technical notes
 
-```text
-https://field-reporter-pro.lovable.app/survey.html
-navigator.serviceWorker.getRegistrations()
-navigator.serviceWorker.ready
-caches.keys()
-```
-
-The fix is not complete until the live published check shows at least one registration for:
-
-```text
-https://field-reporter-pro.lovable.app/sw.js
-```
+- All work in `public/survey.html` (vanilla JS, matches project's single-file convention).
+- New field `lastExportedAt` is additive on the existing `store.projects[]` shape in localStorage.
