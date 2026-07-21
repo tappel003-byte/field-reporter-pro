@@ -44,8 +44,9 @@ export default defineConfig({
             },
           ],
           additionalManifestEntries: [
+            // Only add `/` — `survey.html` is already precached via globPatterns,
+            // re-adding it here throws add-to-cache-list-conflicting-entries at SW init.
             { url: "/", revision: null },
-            { url: "/survey.html", revision: null },
           ],
         },
       }),
