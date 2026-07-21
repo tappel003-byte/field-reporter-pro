@@ -79,54 +79,10 @@
     return;
   }
 
-  // --- Silent auto-update (no banner) ---
-  // When a new worker is waiting, immediately activate it. Reload only when
-  // the tab isn't actively being viewed (hidden or bfcache restore) so we
-  // never yank the page mid-use.
-  let reloadedForUpdate = false;
-  let reloadPending = false;
+  // No auto-activate / auto-reload. Updates happen only when the user taps
+  // the "Update app" link (see #updateAppLink logic further down).
 
-  const performReload = () => {
-    if (reloadedForUpdate) return;
-    reloadedForUpdate = true;
-    window.location.reload();
-  };
 
-  const schedulePendingReload = () => {
-    if (reloadPending) return;
-    reloadPending = true;
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") performReload();
-    });
-    window.addEventListener("pageshow", (e) => {
-      if (e.persisted) performReload();
-    });
-  };
-
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (reloadedForUpdate) return;
-    if (document.visibilityState === "hidden") performReload();
-    else schedulePendingReload();
-  });
-
-  const activateWaiting = (waiting) => {
-    try { waiting.postMessage({ type: "SKIP_WAITING" }); } catch {}
-  };
-
-  const trackUpdates = (registration) => {
-    if (registration.waiting && navigator.serviceWorker.controller) {
-      activateWaiting(registration.waiting);
-    }
-    registration.addEventListener("updatefound", () => {
-      const installing = registration.installing;
-      if (!installing) return;
-      installing.addEventListener("statechange", () => {
-        if (installing.state === "installed" && navigator.serviceWorker.controller) {
-          activateWaiting(installing);
-        }
-      });
-    });
-  };
 
 
   let lastCheck = 0;
