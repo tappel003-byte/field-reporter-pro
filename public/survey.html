@@ -5948,5 +5948,89 @@ pvSetupGestures();
   </div>
 </div>
 
+<script>
+// Update app link — visible only when a real network probe succeeds.
+(function(){
+  var link = document.getElementById("updateAppLink");
+  if (!link) return;
+  var STATE_IDLE = "Update app";
+  var STATE_BUSY = "Fetching latest…";
+  var STATE_ERR  = "Couldn't update — tap to retry";
+  var busy = false;
+
+  function probe(){
+    return new Promise(function(resolve){
+      var done = false;
+      var t = setTimeout(function(){ if(!done){done=true;resolve(false);} }, 3000);
+      try {
+        fetch("/", { method: "HEAD", cache: "no-store" })
+          .then(function(r){ if(!done){done=true;clearTimeout(t);resolve(!!r && r.ok);} })
+          .catch(function(){ if(!done){done=true;clearTimeout(t);resolve(false);} });
+      } catch(e){ if(!done){done=true;clearTimeout(t);resolve(false);} }
+    });
+  }
+
+  function setVisibility(v){
+    if (busy) return;
+    link.style.display = v ? "inline-block" : "none";
+  }
+
+  function refreshVisibility(){
+    if (!navigator.onLine) { setVisibility(false); return; }
+    probe().then(setVisibility);
+  }
+
+  window.addEventListener("online", refreshVisibility);
+  window.addEventListener("offline", function(){ if(!busy) setVisibility(false); });
+  refreshVisibility();
+
+  link.addEventListener("click", function(e){
+    e.preventDefault();
+    if (busy) return;
+    probe().then(function(ok){
+      if (!ok) return; // silent no-op
+      busy = true;
+      link.textContent = STATE_BUSY;
+      link.style.display = "inline-block";
+
+      var reloaded = false;
+      function doReload(){ if (reloaded) return; reloaded = true; window.location.reload(); }
+
+      // 6s failsafe reload
+      setTimeout(doReload, 6000);
+      // 10s failsafe error
+      setTimeout(function(){
+        if (reloaded) return;
+        busy = false;
+        link.textContent = STATE_ERR;
+        link.style.display = "inline-block";
+      }, 10000);
+
+      (async function(){
+        try {
+          if ("serviceWorker" in navigator) {
+            var regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(async function(reg){
+              var url = (reg.active && reg.active.scriptURL) || (reg.installing && reg.installing.scriptURL) || (reg.waiting && reg.waiting.scriptURL) || "";
+              if (url.indexOf("/sw.js") !== -1) {
+                try { await reg.unregister(); } catch(_){}
+              }
+            }));
+          }
+          if ("caches" in window) {
+            var names = await caches.keys();
+            await Promise.all(names
+              .filter(function(n){ return /^(workbox-|html-navigations|app-shell-assets|cdn-libs)/.test(n); })
+              .map(function(n){ return caches.delete(n).catch(function(){return false;}); }));
+          }
+        } catch(_){}
+        doReload();
+      })();
+    });
+  });
+})();
+</script>
+
 </body>
 </html>
+
