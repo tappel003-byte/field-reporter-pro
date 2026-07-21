@@ -75,13 +75,12 @@ setCatchHandler(async ({ request }) => {
   return Response.error();
 });
 
-// Do NOT skipWaiting on install — we want the new SW to sit in the
-// "waiting" state so the app can show an "Update available — tap to
-// refresh" banner and let the user activate the new version at a safe
-// moment (via the SKIP_WAITING message below).
+// Activate new versions promptly. The visible page (public/survey.html) owns
+// the reload timing — it defers reload until the tab is hidden.
 self.addEventListener("install", () => {
-  // intentionally empty
+  self.skipWaiting();
 });
+
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
