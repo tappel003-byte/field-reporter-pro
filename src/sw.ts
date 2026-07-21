@@ -75,11 +75,12 @@ setCatchHandler(async ({ request }) => {
   return Response.error();
 });
 
-// Take over as soon as a new version installs so users always get the
-// latest code the next time the app is backgrounded/reopened. The app
-// side defers the reload to a safe moment.
+// Do NOT skipWaiting on install — we want the new SW to sit in the
+// "waiting" state so the app can show an "Update available — tap to
+// refresh" banner and let the user activate the new version at a safe
+// moment (via the SKIP_WAITING message below).
 self.addEventListener("install", () => {
-  self.skipWaiting();
+  // intentionally empty
 });
 
 self.addEventListener("activate", (event) => {
