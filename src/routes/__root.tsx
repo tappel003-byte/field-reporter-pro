@@ -118,8 +118,8 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <UpdateBanner />
       <Outlet />
     </QueryClientProvider>
+
   );
 }
