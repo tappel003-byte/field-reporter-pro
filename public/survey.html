@@ -1394,7 +1394,7 @@ function onPlanFileChange(e) {
   const reader = new FileReader();
   reader.onload = ev => {
     resizeImage(ev.target.result, MAX_IMG_DIM, (dataUrl, w, h) => {
-      addPlanGutter(dataUrl, w, h, 0.10, (paddedUrl, pw, ph) => {
+      addPlanGutter(dataUrl, w, h, 0.05, (paddedUrl, pw, ph) => {
         _setupPlan = { dataUrl: paddedUrl, width: pw, height: ph };
         _setupFrontDoor = null; // plan changed; require re-place
         document.getElementById('planPreviewImg').src = paddedUrl;
@@ -2637,7 +2637,7 @@ function resizeImage(dataUrl, maxDim, cb) {
   img.src = dataUrl;
 }
 
-// Add a uniform white gutter around a plan image. `pct` is fraction per side (0.10 = 10%).
+// Add a uniform white gutter around a plan image. `pct` is fraction per side (0.05 = 5%).
 function addPlanGutter(dataUrl, w, h, pct, cb) {
   const img = new Image();
   img.onload = () => {
