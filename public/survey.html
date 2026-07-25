@@ -1394,15 +1394,17 @@ function onPlanFileChange(e) {
   const reader = new FileReader();
   reader.onload = ev => {
     resizeImage(ev.target.result, MAX_IMG_DIM, (dataUrl, w, h) => {
-      _setupPlan = { dataUrl, width: w, height: h };
-      _setupFrontDoor = null; // plan changed; require re-place
-      document.getElementById('planPreviewImg').src = dataUrl;
-      document.getElementById('planPreview').style.display = '';
-      document.getElementById('planDropZone').style.display = 'none';
-      refreshStartBtn();
-      _setupRoomsToken++;
-      _setupRooms = [];
-      renderSetupRooms();
+      addPlanGutter(dataUrl, w, h, 0.10, (paddedUrl, pw, ph) => {
+        _setupPlan = { dataUrl: paddedUrl, width: pw, height: ph };
+        _setupFrontDoor = null; // plan changed; require re-place
+        document.getElementById('planPreviewImg').src = paddedUrl;
+        document.getElementById('planPreview').style.display = '';
+        document.getElementById('planDropZone').style.display = 'none';
+        refreshStartBtn();
+        _setupRoomsToken++;
+        _setupRooms = [];
+        renderSetupRooms();
+      });
     });
   };
   reader.readAsDataURL(f);
@@ -2632,6 +2634,26 @@ function resizeImage(dataUrl, maxDim, cb) {
     cb(c.toDataURL('image/jpeg', 0.85), w, h);
   };
   img.onerror = () => toast('Could not load that image.');
+  img.src = dataUrl;
+}
+
+// Add a uniform white gutter around a plan image. `pct` is fraction per side (0.10 = 10%).
+function addPlanGutter(dataUrl, w, h, pct, cb) {
+  const img = new Image();
+  img.onload = () => {
+    const padX = Math.round(w * pct);
+    const padY = Math.round(h * pct);
+    const nw = w + padX * 2;
+    const nh = h + padY * 2;
+    const c = document.createElement('canvas');
+    c.width = nw; c.height = nh;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, nw, nh);
+    ctx.drawImage(img, padX, padY, w, h);
+    cb(c.toDataURL('image/jpeg', 0.85), nw, nh);
+  };
+  img.onerror = () => cb(dataUrl, w, h);
   img.src = dataUrl;
 }
 
