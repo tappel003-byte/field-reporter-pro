@@ -1394,15 +1394,17 @@ function onPlanFileChange(e) {
   const reader = new FileReader();
   reader.onload = ev => {
     resizeImage(ev.target.result, MAX_IMG_DIM, (dataUrl, w, h) => {
-      _setupPlan = { dataUrl, width: w, height: h };
-      _setupFrontDoor = null; // plan changed; require re-place
-      document.getElementById('planPreviewImg').src = dataUrl;
-      document.getElementById('planPreview').style.display = '';
-      document.getElementById('planDropZone').style.display = 'none';
-      refreshStartBtn();
-      _setupRoomsToken++;
-      _setupRooms = [];
-      renderSetupRooms();
+      addPlanGutter(dataUrl, w, h, 0.10, (paddedUrl, pw, ph) => {
+        _setupPlan = { dataUrl: paddedUrl, width: pw, height: ph };
+        _setupFrontDoor = null; // plan changed; require re-place
+        document.getElementById('planPreviewImg').src = paddedUrl;
+        document.getElementById('planPreview').style.display = '';
+        document.getElementById('planDropZone').style.display = 'none';
+        refreshStartBtn();
+        _setupRoomsToken++;
+        _setupRooms = [];
+        renderSetupRooms();
+      });
     });
   };
   reader.readAsDataURL(f);
