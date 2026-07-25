@@ -2637,6 +2637,26 @@ function resizeImage(dataUrl, maxDim, cb) {
   img.src = dataUrl;
 }
 
+// Add a uniform white gutter around a plan image. `pct` is fraction per side (0.10 = 10%).
+function addPlanGutter(dataUrl, w, h, pct, cb) {
+  const img = new Image();
+  img.onload = () => {
+    const padX = Math.round(w * pct);
+    const padY = Math.round(h * pct);
+    const nw = w + padX * 2;
+    const nh = h + padY * 2;
+    const c = document.createElement('canvas');
+    c.width = nw; c.height = nh;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, nw, nh);
+    ctx.drawImage(img, padX, padY, w, h);
+    cb(c.toDataURL('image/jpeg', 0.85), nw, nh);
+  };
+  img.onerror = () => cb(dataUrl, w, h);
+  img.src = dataUrl;
+}
+
 // ---------- GPS → Address ----------
 // ---------- Address autocomplete (Nominatim search) ----------
 let _lastFix = null; // {lat, lon} from GPS — saved with the project
