@@ -3691,8 +3691,23 @@ function openPinSheet() {
   if (!p) return;
   _sheetOpenedAt = performance.now();
   const isExternal = project && project.mode === 'external';
+  // Plan mode: auto-detect room from OCR labels the first time this pin is opened,
+  // using the same fixed pinRoom() rules (skips generic labels, ambiguity-guarded).
+  // Never overwrite a location the user has already set/picked.
+  if (!isExternal && !p.location && project && project.rooms && project.rooms.length) {
+    try {
+      const orientOffset = _orientationOffset(project);
+      const labels = buildRoomLabels(project, orientOffset);
+      const guess = pinRoom(project, p, labels);
+      if (guess) {
+        p.location = guess;
+        p.category = p.category || 'Auto';
+        saveProject();
+      }
+    } catch (e) { /* non-fatal — leave chip empty */ }
+  }
   document.getElementById('pinTitle').textContent =
-    'Pin #' + p.num + (isExternal && p.location ? ' — ' + p.location : '');
+    'Pin #' + p.num + (p.location ? ' — ' + p.location : '');
   document.getElementById('pinDesc').value = p.description || '';
   // External mode: show counter + photo strip (upload only), hide int/ext toggle. Internal mode: full strip + toggle.
   document.getElementById('extCountRow').style.display = isExternal ? '' : 'none';
