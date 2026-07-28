@@ -5715,12 +5715,12 @@ async function exportProjectPdfWithLog() {
       // Plan image with pins (repeats on every page)
       pdf.addImage(planDataUrl, 'PNG', planDrawX, planDrawY, planDrawW, planDrawH, undefined, 'FAST');
 
-      // North arrow / compass — small, in top-right corner of the plan area
+      // North arrow / compass — fixed to the plan box, aligned with the table header top
       const rotDeg = (project.north && typeof project.north.rotation === 'number') ? project.north.rotation : 0;
       const compR = Math.min(planDrawW, planDrawH) * 0.045;
       const compPad = compR + 0.08;
-      const compCx = planDrawX + planDrawW - compPad;
-      const compCy = planDrawY + compPad;
+      const compCx = planBoxX + planBoxW - compPad;
+      const compCy = tableY + compPad;
       // background disc
       pdf.setFillColor(255,255,255);
       pdf.setDrawColor(60);
