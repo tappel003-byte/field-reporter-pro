@@ -5715,6 +5715,37 @@ async function exportProjectPdfWithLog() {
       // Plan image with pins (repeats on every page)
       pdf.addImage(planDataUrl, 'PNG', planDrawX, planDrawY, planDrawW, planDrawH, undefined, 'FAST');
 
+      // North arrow / compass — small, in top-right corner of the plan area
+      const rotDeg = (project.north && typeof project.north.rotation === 'number') ? project.north.rotation : 0;
+      const compR = Math.min(planDrawW, planDrawH) * 0.045;
+      const compPad = compR + 0.08;
+      const compCx = planDrawX + planDrawW - compPad;
+      const compCy = planDrawY + compPad;
+      // background disc
+      pdf.setFillColor(255,255,255);
+      pdf.setDrawColor(60);
+      pdf.setLineWidth(0.012);
+      pdf.circle(compCx, compCy, compR, 'FD');
+      // arrow (rotated): tip points to "north" after rotation
+      const rad = rotDeg * Math.PI / 180;
+      const cos = Math.cos(rad), sin = Math.sin(rad);
+      const rot = (dx, dy) => [compCx + dx*cos - dy*sin, compCy + dx*sin + dy*cos];
+      // triangle: tip up (-r*0.75), base corners
+      const tip = rot(0, -compR*0.78);
+      const bl  = rot(-compR*0.38, compR*0.35);
+      const br  = rot(compR*0.38, compR*0.35);
+      pdf.setFillColor(30,30,30);
+      pdf.setDrawColor(30,30,30);
+      pdf.setLineWidth(0.008);
+      pdf.triangle(tip[0], tip[1], bl[0], bl[1], br[0], br[1], 'F');
+      // "N" label just outside the tip, rotated with the arrow
+      const nLabel = rot(0, -compR - 0.09);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(9);
+      pdf.setTextColor(30);
+      pdf.text('N', nLabel[0], nLabel[1] + 0.03, { align: 'center' });
+
+
       // Table outer border
       pdf.setLineWidth(0.012);
       pdf.setDrawColor(40);
