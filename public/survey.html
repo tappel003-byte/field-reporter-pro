@@ -5620,8 +5620,13 @@ async function exportProjectZip() {
     }
 
 
-
-
+    // pinlog.pdf — always include a freshly-built copy reflecting current state
+    if (pinlogPdf) {
+      try {
+        const pdfBlob = pinlogPdf.output('blob');
+        root.file('pinlog.pdf', pdfBlob);
+      } catch (e) { console.error('Could not attach pinlog.pdf to ZIP', e); }
+    }
 
     const blob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(blob);
