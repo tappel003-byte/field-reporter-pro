@@ -5625,6 +5625,7 @@ function sanitizeFilename(s) {
 
 async function exportProjectPdfWithLog() {
   if (!project) return;
+  const previewWin = window.open('', '_blank'); // open immediately, synchronously, before any await
   const btn = event && event.target;
   const orig = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.textContent = 'Building PDF…'; }
@@ -5798,14 +5799,18 @@ async function exportProjectPdfWithLog() {
 
     const blob = pdf.output('blob');
     const url = URL.createObjectURL(blob);
-    const win = window.open(url, '_blank');
-    if (!win) {
-      alert('Preview blocked by the browser. Allow pop-ups for this site to preview the PDF.');
+    if (previewWin) {
+      previewWin.location.href = url;
+    } else {
+      // pop-up still got blocked somehow (e.g. blank tab itself blocked) — fall back to direct download
+      alert('Preview blocked by the browser. Allow pop-ups for this site to preview the PDF, or the file will download instead.');
+      pdf.save(sanitizeFilename(project.address) + '-pinlog.pdf');
     }
     setTimeout(() => URL.revokeObjectURL(url), 60000);
-    toast('PDF opened in new tab');
+    toast(previewWin ? 'PDF opened in new tab' : 'PDF downloaded');
 
   } catch (err) {
+    if (previewWin) { try { previewWin.close(); } catch(_){} }
     console.error(err);
     alert('Could not build the PDF: ' + err.message);
   } finally {
