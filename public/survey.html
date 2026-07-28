@@ -4225,9 +4225,17 @@ function openPinPicker() {
     const stackChip = others.length
       ? ' <span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;background:#facc15;color:#1f2937;font-size:11px;font-weight:700;vertical-align:middle">stacked with #'+others.map(q=>q.num).join(', #')+'</span>'
       : '';
+    // Interior pin (plan mode) — show a room chip on the right as a read-only QA hint
+    let roomChip = '';
+    if (project.mode === 'internal' && p.category !== 'exterior') {
+      const loc = (p.location || '').trim();
+      roomChip = loc
+        ? '<span style="margin-left:auto;padding:2px 8px;border-radius:10px;background:#e5e7eb;color:#1f2937;font-size:11px;font-weight:600;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(loc)+'</span>'
+        : '<span style="margin-left:auto;padding:2px 8px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:700;border:1px dashed #f59e0b">No room</span>';
+    }
     btn.innerHTML = '<span class="pli-num">'+p.num+'</span>' +
-      '<span class="pli-body"><div class="pli-title">Pin #'+p.num+(project.mode==='external'&&p.location?' — '+escapeHtml(p.location):'')+stackChip+'</div>' +
-      '<div class="'+subClass+'">'+escapeHtml(sub)+'</div></span>';
+      '<span class="pli-body" style="display:flex;align-items:center;gap:8px;flex:1;min-width:0"><span style="min-width:0;flex:1"><div class="pli-title">Pin #'+p.num+(project.mode==='external'&&p.location?' — '+escapeHtml(p.location):'')+stackChip+'</div>' +
+      '<div class="'+subClass+'">'+escapeHtml(sub)+'</div></span>'+roomChip+'</span>';
     btn.onclick = () => {
       document.getElementById('pinPickerSheet').classList.remove('open');
       selectPin(p.id);
