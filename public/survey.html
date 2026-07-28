@@ -3939,8 +3939,10 @@ function renderLocationChip() {
   const p = currentPin();
   const row = document.querySelector('.loc-row');
   const isExternal = project && project.mode === 'external';
-  if (row) row.style.display = isExternal ? '' : 'none';
-  if (!isExternal) return;
+  const isInternal = project && project.mode === 'internal';
+  const show = isExternal || isInternal;
+  if (row) row.style.display = show ? '' : 'none';
+  if (!show) return;
   const chip = document.getElementById('pinLocChip');
   const clear = document.getElementById('pinLocClear');
   if (!p) return;
