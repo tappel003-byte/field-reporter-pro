@@ -884,6 +884,12 @@
     <div class="sheet-sub" style="margin-top:6px">
       Single-page PDF of the map only — best for printing at 11×17.
     </div>
+    <button class="ghost" style="margin-top:14px;width:100%" onclick="exportProjectPdfWithLog()">
+      📄 Download PDF (Plan + Pin Log)
+    </button>
+    <div class="sheet-sub" style="margin-top:6px">
+      11×17 landscape — plan on left, pin log table on right. Repeats across pages as needed.
+    </div>
   </div>
 </div>
 
@@ -3691,8 +3697,23 @@ function openPinSheet() {
   if (!p) return;
   _sheetOpenedAt = performance.now();
   const isExternal = project && project.mode === 'external';
+  // Plan mode: auto-detect room from OCR labels the first time this pin is opened,
+  // using the same fixed pinRoom() rules (skips generic labels, ambiguity-guarded).
+  // Never overwrite a location the user has already set/picked.
+  if (!isExternal && !p.location && project && project.rooms && project.rooms.length) {
+    try {
+      const orientOffset = _orientationOffset(project);
+      const labels = buildRoomLabels(project, orientOffset);
+      const guess = pinRoom(project, p, labels);
+      if (guess) {
+        p.location = guess;
+        p.category = p.category || 'Auto';
+        saveProject();
+      }
+    } catch (e) { /* non-fatal — leave chip empty */ }
+  }
   document.getElementById('pinTitle').textContent =
-    'Pin #' + p.num + (isExternal && p.location ? ' — ' + p.location : '');
+    'Pin #' + p.num + (p.location ? ' — ' + p.location : '');
   document.getElementById('pinDesc').value = p.description || '';
   // External mode: show counter + photo strip (upload only), hide int/ext toggle. Internal mode: full strip + toggle.
   document.getElementById('extCountRow').style.display = isExternal ? '' : 'none';
@@ -3741,19 +3762,43 @@ function pinCardinal(proj, p, offset) {
   const bearing = (alpha + offset) % 360;
   return _DIRS[Math.round(bearing / 45) % 8];
 }
+// Generic OCR/placeholder labels we should never commit a pin to.
+const _GENERIC_ROOM_WORDS = new Set([
+  'room','rooms','area','areas','notes','note','label','labels',
+  'space','spaces','zone','zones','section','sections','plan','plans',
+  'floor','floors','level','levels','unit','units','tbd','n/a','na'
+]);
+function _isGenericRoomLabel(name) {
+  const s = (name || '').trim().toLowerCase();
+  if (!s) return true;
+  // strip trailing numbering like "Room 2" / "Area-3" so the core word is judged
+  const core = s.replace(/[\s\-#_.:]*\d+$/, '').trim();
+  if (!core) return true;
+  return _GENERIC_ROOM_WORDS.has(core);
+}
 function pinRoom(proj, p, labels) {
   const rooms = proj && proj.rooms;
   if (!rooms || !rooms.length) return '';
   const pw = proj.plan.width, ph = proj.plan.height;
   const px = p.x / pw, py = p.y / ph;
-  let bestI = -1, bestD = Infinity;
+  const scored = [];
   for (let i = 0; i < rooms.length; i++) {
     const r = rooms[i];
-    const d = Math.hypot(r.x - px, r.y - py);
-    if (d < bestD) { bestD = d; bestI = i; }
+    if (_isGenericRoomLabel(r.name)) continue;
+    scored.push({ i, d: Math.hypot(r.x - px, r.y - py) });
   }
-  if (bestI < 0) return '';
-  return (labels && labels[bestI]) || rooms[bestI].name;
+  if (!scored.length) return '';
+  scored.sort((a, b) => a.d - b.d);
+  const best = scored[0];
+  // Absolute guard: closest label is very far from pin — don't guess.
+  if (best.d > 0.28) return '';
+  // Ambiguity guard: require a clear winner over the runner-up.
+  if (scored.length > 1) {
+    const next = scored[1];
+    // If both are meaningfully close, require best to be clearly nearer.
+    if (best.d > 0.02 && next.d < best.d * 1.25) return '';
+  }
+  return (labels && labels[best.i]) || rooms[best.i].name;
 }
 // Disambiguate duplicate room names for the export only (plan/UI keep raw names).
 // Two "Bedroom" rooms become "South Bedroom" / "North Bedroom" using each room's
@@ -3915,8 +3960,10 @@ function renderLocationChip() {
   const p = currentPin();
   const row = document.querySelector('.loc-row');
   const isExternal = project && project.mode === 'external';
-  if (row) row.style.display = isExternal ? '' : 'none';
-  if (!isExternal) return;
+  const isInternal = project && project.mode === 'internal';
+  const show = isExternal || isInternal;
+  if (row) row.style.display = show ? '' : 'none';
+  if (!show) return;
   const chip = document.getElementById('pinLocChip');
   const clear = document.getElementById('pinLocClear');
   if (!p) return;
@@ -3936,6 +3983,46 @@ function openLocationPicker() {
   _sheetOpenedAt = performance.now();
   const list = document.getElementById('locPickerList');
   list.innerHTML = '';
+  const isExternal = project && project.mode === 'external';
+  // Plan mode: scoped picker of just the rooms identified on this plan.
+  if (!isExternal) {
+    const orientOffset = _orientationOffset(project);
+    const labels = buildRoomLabels(project, orientOffset);
+    const rooms = ((project && project.rooms) || [])
+      .map((r, i) => labels[i] || r.name)
+      .filter(name => name && !_isGenericRoomLabel(name));
+    if (!rooms.length) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'padding:18px 14px;color:var(--muted);font-size:14px;line-height:1.4';
+      empty.textContent = 'No rooms defined on this plan yet. Add rooms in the plan setup screen, or use Custom below.';
+      list.appendChild(empty);
+    } else {
+      const seen = new Set();
+      rooms.forEach(name => {
+        if (seen.has(name)) return;
+        seen.add(name);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'loc-room' + (p.location === name ? ' selected' : '');
+        btn.textContent = name;
+        btn.onclick = () => setPinLocation(name, 'Plan');
+        list.appendChild(btn);
+      });
+    }
+    const custom = document.createElement('button');
+    custom.type = 'button';
+    custom.className = 'loc-room';
+    custom.textContent = 'Custom…';
+    custom.onclick = () => {
+      const val = (prompt('Custom location label:', p.location || '') || '').trim();
+      if (!val) return;
+      setPinLocation(val, 'Custom');
+    };
+    list.appendChild(custom);
+    document.getElementById('scrim').classList.add('active');
+    document.getElementById('locPickerSheet').classList.add('open');
+    return;
+  }
   const openCat = p.category || _lastOpenCategory || ROOM_CATALOG[0].name;
   ROOM_CATALOG.forEach(cat => {
     const wrap = document.createElement('div');
@@ -5579,6 +5666,168 @@ async function exportProjectPdf() {
     alert('Could not build the PDF: ' + err.message);
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = orig || '📄 Download Map as PDF'; }
+  }
+}
+
+async function exportProjectPdfWithLog() {
+  if (!project) return;
+  const btn = event && event.target;
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Building PDF…'; }
+  try {
+    const pngBlob = await composeMapImage('png-blob');
+    const dataUrl = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.onerror = rej;
+      r.readAsDataURL(pngBlob);
+    });
+    const W = project.plan.width, H = project.plan.height;
+    const { jsPDF } = window.jspdf;
+    // 11x17 tabloid landscape: 17 wide x 11 tall
+    const pdf = new jsPDF({ unit: 'in', format: [11, 17], orientation: 'landscape' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const margin = 0.4;
+    const gutter = 0.3;
+    // Left ~55% for plan, right ~45% for table
+    const splitX = pageW * 0.55;
+    const planBoxX = margin;
+    const planBoxY = margin;
+    const planBoxW = splitX - margin - gutter / 2;
+    const planBoxH = pageH - margin * 2;
+    const planScale = Math.min(planBoxW / W, planBoxH / H);
+    const planDrawW = W * planScale, planDrawH = H * planScale;
+    const planX = planBoxX + (planBoxW - planDrawW) / 2;
+    const planY = planBoxY + (planBoxH - planDrawH) / 2;
+
+    const tableX = splitX + gutter / 2;
+    const tableY = margin;
+    const tableW = pageW - tableX - margin;
+    const tableH = pageH - margin * 2;
+
+    const cols = [
+      { label: 'Photo',    w: 0.12 },
+      { label: '#',        w: 0.09 },
+      { label: 'Location', w: 0.30 },
+      { label: 'Notes',    w: 0.49 },
+    ];
+    const colWs = cols.map(c => c.w * tableW);
+    const colX = [];
+    { let x = tableX; for (let i = 0; i < cols.length; i++) { colX.push(x); x += colWs[i]; } }
+
+    const headerH = 0.34;
+    const rowH = 0.48;
+    const rowsPerPage = Math.max(1, Math.floor((tableH - headerH) / rowH));
+
+    const pins = (project.pins || []).slice().sort((a, b) => (a.num || 0) - (b.num || 0));
+    const orientOffset = _orientationOffset(project);
+    const roomLabels = buildRoomLabels(project, orientOffset);
+    const totalPages = Math.max(1, Math.ceil(pins.length / rowsPerPage));
+
+    const drawPage = (pageIdx) => {
+      // Plan image (repeated on each page)
+      pdf.addImage(dataUrl, 'PNG', planX, planY, planDrawW, planDrawH, undefined, 'FAST');
+
+      // Table header
+      pdf.setDrawColor(60);
+      pdf.setLineWidth(0.01);
+      pdf.setFillColor(238, 238, 238);
+      pdf.rect(tableX, tableY, tableW, headerH, 'F');
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10);
+      pdf.setTextColor(0, 0, 0);
+      cols.forEach((c, i) => {
+        const cx = c.label === '#' || c.label === 'Photo'
+          ? colX[i] + colWs[i] / 2
+          : colX[i] + 0.08;
+        const align = (c.label === '#' || c.label === 'Photo') ? 'center' : 'left';
+        pdf.text(c.label, cx, tableY + headerH - 0.11, { align });
+      });
+
+      // Rows
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9);
+      const start = pageIdx * rowsPerPage;
+      const end = Math.min(pins.length, start + rowsPerPage);
+      const gridBottom = tableY + headerH + rowsPerPage * rowH;
+
+      for (let ri = 0; ri < rowsPerPage; ri++) {
+        const y = tableY + headerH + ri * rowH;
+        const idx = start + ri;
+        if (idx >= end) continue;
+        const p = pins[idx];
+        const roomAuto = pinRoom(project, p, roomLabels);
+        const loc = (p.location && p.location.trim()) || roomAuto || '';
+        const notes = (p.description || '').trim();
+        const photoCount = (p.photos || []).length;
+
+        // Photo column: count
+        pdf.setTextColor(30, 30, 30);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(10);
+        pdf.text(photoCount ? String(photoCount) : '—',
+          colX[0] + colWs[0] / 2, y + rowH / 2 + 0.05, { align: 'center' });
+
+        // # column: numbered circle
+        const cxCircle = colX[1] + colWs[1] / 2;
+        const cyCircle = y + rowH / 2;
+        const rCircle = Math.min(colWs[1], rowH) * 0.34;
+        pdf.setFillColor(193, 74, 43);
+        pdf.circle(cxCircle, cyCircle, rCircle, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(rCircle > 0.14 ? 10 : 8);
+        pdf.text(String(p.num || (idx + 1)), cxCircle, cyCircle + 0.05, { align: 'center' });
+
+        // Location column
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(9);
+        pdf.setTextColor(0, 0, 0);
+        const locLines = pdf.splitTextToSize(loc, colWs[2] - 0.16);
+        pdf.text(locLines.slice(0, 2), colX[2] + 0.08, y + 0.20);
+
+        // Notes column
+        const noteLines = pdf.splitTextToSize(notes, colWs[3] - 0.16);
+        pdf.text(noteLines.slice(0, 3), colX[3] + 0.08, y + 0.20);
+      }
+
+      // Grid: horizontal lines
+      pdf.setDrawColor(180);
+      pdf.setLineWidth(0.008);
+      pdf.line(tableX, tableY, tableX + tableW, tableY);
+      pdf.line(tableX, tableY + headerH, tableX + tableW, tableY + headerH);
+      for (let ri = 1; ri <= rowsPerPage; ri++) {
+        const y = tableY + headerH + ri * rowH;
+        pdf.line(tableX, y, tableX + tableW, y);
+      }
+      // Grid: vertical column dividers
+      let vx = tableX;
+      pdf.line(vx, tableY, vx, gridBottom);
+      for (let i = 0; i < cols.length; i++) {
+        vx += colWs[i];
+        pdf.line(vx, tableY, vx, gridBottom);
+      }
+
+      // Footer
+      pdf.setFontSize(9);
+      pdf.setTextColor(120, 120, 120);
+      pdf.text(`Page ${pageIdx + 1} of ${totalPages}`,
+        pageW - margin, pageH - 0.15, { align: 'right' });
+      pdf.setTextColor(0, 0, 0);
+    };
+
+    for (let pg = 0; pg < totalPages; pg++) {
+      if (pg > 0) pdf.addPage([11, 17], 'landscape');
+      drawPage(pg);
+    }
+    pdf.save(sanitizeFilename(project.address) + '-pinlog.pdf');
+    toast('PDF downloaded');
+  } catch (err) {
+    console.error(err);
+    alert('Could not build the PDF: ' + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig || '📄 Download PDF (Plan + Pin Log)'; }
   }
 }
 function escapeHtml(s) {
