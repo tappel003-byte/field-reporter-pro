@@ -5441,10 +5441,31 @@ async function composeMapImage(format) {
 
 async function exportProjectZip() {
   if (!project) return;
+  // Ask up-front (synchronously) whether to preview the PDF first. If yes, open
+  // a blank tab NOW so Safari doesn't block the pop-up after later awaits.
+  const wantPreview = confirm('Preview the PDF before zipping?');
+  const previewWin = wantPreview ? window.open('', '_blank') : null;
   const btn = event && event.target;
   const orig = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.textContent = 'Bundling…'; }
   try {
+    // Build the PDF first so we can both preview it (if requested) and include it in the ZIP.
+    let pinlogPdf = null;
+    try {
+      pinlogPdf = await buildPinLogPdf();
+    } catch (pdfErr) {
+      console.error('PDF build failed, continuing with ZIP without pinlog.pdf', pdfErr);
+      if (previewWin) { try { previewWin.close(); } catch(_){} }
+    }
+    if (pinlogPdf && previewWin) {
+      try {
+        const previewBlob = pinlogPdf.output('blob');
+        const previewUrl = URL.createObjectURL(previewBlob);
+        previewWin.location.href = previewUrl;
+        setTimeout(() => URL.revokeObjectURL(previewUrl), 60000);
+      } catch (_) { try { previewWin.close(); } catch(__){} }
+    }
+
     const zip = new JSZip();
     const pins = (project.pins || []).slice().sort((a,b) => a.num - b.num);
     const isInternal = project.mode === 'internal';
