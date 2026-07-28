@@ -3741,19 +3741,43 @@ function pinCardinal(proj, p, offset) {
   const bearing = (alpha + offset) % 360;
   return _DIRS[Math.round(bearing / 45) % 8];
 }
+// Generic OCR/placeholder labels we should never commit a pin to.
+const _GENERIC_ROOM_WORDS = new Set([
+  'room','rooms','area','areas','notes','note','label','labels',
+  'space','spaces','zone','zones','section','sections','plan','plans',
+  'floor','floors','level','levels','unit','units','tbd','n/a','na'
+]);
+function _isGenericRoomLabel(name) {
+  const s = (name || '').trim().toLowerCase();
+  if (!s) return true;
+  // strip trailing numbering like "Room 2" / "Area-3" so the core word is judged
+  const core = s.replace(/[\s\-#_.:]*\d+$/, '').trim();
+  if (!core) return true;
+  return _GENERIC_ROOM_WORDS.has(core);
+}
 function pinRoom(proj, p, labels) {
   const rooms = proj && proj.rooms;
   if (!rooms || !rooms.length) return '';
   const pw = proj.plan.width, ph = proj.plan.height;
   const px = p.x / pw, py = p.y / ph;
-  let bestI = -1, bestD = Infinity;
+  const scored = [];
   for (let i = 0; i < rooms.length; i++) {
     const r = rooms[i];
-    const d = Math.hypot(r.x - px, r.y - py);
-    if (d < bestD) { bestD = d; bestI = i; }
+    if (_isGenericRoomLabel(r.name)) continue;
+    scored.push({ i, d: Math.hypot(r.x - px, r.y - py) });
   }
-  if (bestI < 0) return '';
-  return (labels && labels[bestI]) || rooms[bestI].name;
+  if (!scored.length) return '';
+  scored.sort((a, b) => a.d - b.d);
+  const best = scored[0];
+  // Absolute guard: closest label is very far from pin — don't guess.
+  if (best.d > 0.28) return '';
+  // Ambiguity guard: require a clear winner over the runner-up.
+  if (scored.length > 1) {
+    const next = scored[1];
+    // If both are meaningfully close, require best to be clearly nearer.
+    if (best.d > 0.02 && next.d < best.d * 1.25) return '';
+  }
+  return (labels && labels[best.i]) || rooms[best.i].name;
 }
 // Disambiguate duplicate room names for the export only (plan/UI keep raw names).
 // Two "Bedroom" rooms become "South Bedroom" / "North Bedroom" using each room's
