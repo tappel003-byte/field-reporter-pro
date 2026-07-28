@@ -3962,6 +3962,46 @@ function openLocationPicker() {
   _sheetOpenedAt = performance.now();
   const list = document.getElementById('locPickerList');
   list.innerHTML = '';
+  const isExternal = project && project.mode === 'external';
+  // Plan mode: scoped picker of just the rooms identified on this plan.
+  if (!isExternal) {
+    const orientOffset = _orientationOffset(project);
+    const labels = buildRoomLabels(project, orientOffset);
+    const rooms = ((project && project.rooms) || [])
+      .map((r, i) => labels[i] || r.name)
+      .filter(name => name && !_isGenericRoomLabel(name));
+    if (!rooms.length) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'padding:18px 14px;color:var(--muted);font-size:14px;line-height:1.4';
+      empty.textContent = 'No rooms defined on this plan yet. Add rooms in the plan setup screen, or use Custom below.';
+      list.appendChild(empty);
+    } else {
+      const seen = new Set();
+      rooms.forEach(name => {
+        if (seen.has(name)) return;
+        seen.add(name);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'loc-room' + (p.location === name ? ' selected' : '');
+        btn.textContent = name;
+        btn.onclick = () => setPinLocation(name, 'Plan');
+        list.appendChild(btn);
+      });
+    }
+    const custom = document.createElement('button');
+    custom.type = 'button';
+    custom.className = 'loc-room';
+    custom.textContent = 'Custom…';
+    custom.onclick = () => {
+      const val = (prompt('Custom location label:', p.location || '') || '').trim();
+      if (!val) return;
+      setPinLocation(val, 'Custom');
+    };
+    list.appendChild(custom);
+    document.getElementById('scrim').classList.add('active');
+    document.getElementById('locPickerSheet').classList.add('open');
+    return;
+  }
   const openCat = p.category || _lastOpenCategory || ROOM_CATALOG[0].name;
   ROOM_CATALOG.forEach(cat => {
     const wrap = document.createElement('div');
