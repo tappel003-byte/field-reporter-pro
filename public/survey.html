@@ -4225,9 +4225,17 @@ function openPinPicker() {
     const stackChip = others.length
       ? ' <span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;background:#facc15;color:#1f2937;font-size:11px;font-weight:700;vertical-align:middle">stacked with #'+others.map(q=>q.num).join(', #')+'</span>'
       : '';
+    // Interior pin (plan mode) — show a room chip on the right as a read-only QA hint
+    let roomChip = '';
+    if (project.mode === 'internal' && !p.isExterior) {
+      const loc = (p.location || '').trim();
+      roomChip = loc
+        ? '<span style="margin-left:auto;padding:2px 8px;border-radius:10px;background:#e5e7eb;color:#1f2937;font-size:11px;font-weight:600;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(loc)+'</span>'
+        : '<span style="margin-left:auto;padding:2px 8px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:700;border:1px dashed #f59e0b">No room</span>';
+    }
     btn.innerHTML = '<span class="pli-num">'+p.num+'</span>' +
-      '<span class="pli-body"><div class="pli-title">Pin #'+p.num+(project.mode==='external'&&p.location?' — '+escapeHtml(p.location):'')+stackChip+'</div>' +
-      '<div class="'+subClass+'">'+escapeHtml(sub)+'</div></span>';
+      '<span class="pli-body" style="display:flex;align-items:center;gap:8px;flex:1;min-width:0"><span style="min-width:0;flex:1"><div class="pli-title">Pin #'+p.num+(project.mode==='external'&&p.location?' — '+escapeHtml(p.location):'')+stackChip+'</div>' +
+      '<div class="'+subClass+'">'+escapeHtml(sub)+'</div></span>'+roomChip+'</span>';
     btn.onclick = () => {
       document.getElementById('pinPickerSheet').classList.remove('open');
       selectPin(p.id);
@@ -5706,6 +5714,37 @@ async function exportProjectPdfWithLog() {
     const drawPage = (pageIdx) => {
       // Plan image with pins (repeats on every page)
       pdf.addImage(planDataUrl, 'PNG', planDrawX, planDrawY, planDrawW, planDrawH, undefined, 'FAST');
+
+      // North arrow / compass — small, in top-right corner of the plan area
+      const rotDeg = (project.north && typeof project.north.rotation === 'number') ? project.north.rotation : 0;
+      const compR = Math.min(planDrawW, planDrawH) * 0.045;
+      const compPad = compR + 0.08;
+      const compCx = planDrawX + planDrawW - compPad;
+      const compCy = planDrawY + compPad;
+      // background disc
+      pdf.setFillColor(255,255,255);
+      pdf.setDrawColor(60);
+      pdf.setLineWidth(0.012);
+      pdf.circle(compCx, compCy, compR, 'FD');
+      // arrow (rotated): tip points to "north" after rotation
+      const rad = rotDeg * Math.PI / 180;
+      const cos = Math.cos(rad), sin = Math.sin(rad);
+      const rot = (dx, dy) => [compCx + dx*cos - dy*sin, compCy + dx*sin + dy*cos];
+      // triangle: tip up (-r*0.75), base corners
+      const tip = rot(0, -compR*0.78);
+      const bl  = rot(-compR*0.38, compR*0.35);
+      const br  = rot(compR*0.38, compR*0.35);
+      pdf.setFillColor(30,30,30);
+      pdf.setDrawColor(30,30,30);
+      pdf.setLineWidth(0.008);
+      pdf.triangle(tip[0], tip[1], bl[0], bl[1], br[0], br[1], 'F');
+      // "N" label just outside the tip, rotated with the arrow
+      const nLabel = rot(0, -compR - 0.09);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(9);
+      pdf.setTextColor(30);
+      pdf.text('N', nLabel[0], nLabel[1] + 0.03, { align: 'center' });
+
 
       // Table outer border
       pdf.setLineWidth(0.012);
