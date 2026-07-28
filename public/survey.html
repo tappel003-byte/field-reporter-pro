@@ -878,12 +878,6 @@
       <span id="exportQcNote" style="display:none"><br>• <code>quick-capture/</code> — untethered walk-around photos + CSV with timestamp &amp; GPS</span>
       <span id="exportVmNote" style="display:none"><br>• <code>voice-memos/</code> — recorded audio memos (webm/m4a) + CSV with timestamp, GPS, duration</span>
     </div>
-    <button class="ghost" style="margin-top:14px;width:100%" onclick="exportProjectPdf()">
-      📄 Download Map as PDF
-    </button>
-    <div class="sheet-sub" style="margin-top:6px">
-      Single-page PDF of the map only — best for printing at 11×17.
-    </div>
     <button class="ghost" style="margin-top:14px;width:100%" onclick="exportProjectPdfWithLog()">
       📄 Download PDF (Plan + Pin Log)
     </button>
@@ -1153,6 +1147,7 @@ function updateAppHeight() {
   document.documentElement.style.setProperty('--app-bottom-offset', `${Math.round(bottomOffset)}px`);
 }
 function goHome() {
+  closeSheets();
   if (project) { saveProject(); }
   project = null;
   ui.selectedPinId = null;
@@ -5627,47 +5622,6 @@ function sanitizeFilename(s) {
   return (s||'survey').replace(/[^a-z0-9_\-]+/gi,'_').replace(/_+/g,'_').replace(/^_|_$/g,'').slice(0,60) || 'survey';
 }
 
-async function exportProjectPdf() {
-  if (!project) return;
-  const btn = event && event.target;
-  const orig = btn ? btn.innerHTML : '';
-  if (btn) { btn.disabled = true; btn.textContent = 'Building PDF…'; }
-  try {
-    const pngBlob = await composeMapImage('png-blob');
-    const dataUrl = await new Promise((res, rej) => {
-      const r = new FileReader();
-      r.onload = () => res(r.result);
-      r.onerror = rej;
-      r.readAsDataURL(pngBlob);
-    });
-    const W = project.plan.width, H = project.plan.height;
-    const landscape = W >= H;
-    const { jsPDF } = window.jspdf;
-    // 11x17 tabloid in inches
-    const pdf = new jsPDF({
-      unit: 'in',
-      format: [11, 17],
-      orientation: landscape ? 'landscape' : 'portrait'
-    });
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-    const margin = 0.15;
-    const maxW = pageW - margin*2;
-    const maxH = pageH - margin*2;
-    const scale = Math.min(maxW / W, maxH / H);
-    const drawW = W * scale, drawH = H * scale;
-    const x = (pageW - drawW) / 2;
-    const y = (pageH - drawH) / 2;
-    pdf.addImage(dataUrl, 'PNG', x, y, drawW, drawH, undefined, 'FAST');
-    pdf.save(sanitizeFilename(project.address) + '.pdf');
-    toast('PDF downloaded');
-  } catch (err) {
-    console.error(err);
-    alert('Could not build the PDF: ' + err.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = orig || '📄 Download Map as PDF'; }
-  }
-}
 
 async function exportProjectPdfWithLog() {
   if (!project) return;
@@ -5801,10 +5755,11 @@ async function exportProjectPdfWithLog() {
         const cy = y + rowH/2;
         pdf.setDrawColor(60);
         pdf.setLineWidth(0.010);
-        pdf.circle(cx, cy, 0.11, 'S');
-        pdf.setFontSize(8);
-        pdf.text(String(row.pinNum), cx, cy + 0.035, { align: 'center' });
+        pdf.circle(cx, cy, 0.1375, 'S');
+        pdf.setFontSize(10);
+        pdf.text(String(row.pinNum), cx, cy + 0.044, { align: 'center' });
         pdf.setFontSize(9);
+
         // Location (truncate with ellipsis to fit)
         const locMax = colLoc - 0.12;
         let locTxt = row.location;
@@ -5841,8 +5796,15 @@ async function exportProjectPdfWithLog() {
       drawPage(p);
     }
 
-    pdf.save(sanitizeFilename(project.address) + '-pinlog.pdf');
-    toast('PDF downloaded');
+    const blob = pdf.output('blob');
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    if (!win) {
+      alert('Preview blocked by the browser. Allow pop-ups for this site to preview the PDF.');
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    toast('PDF opened in new tab');
+
   } catch (err) {
     console.error(err);
     alert('Could not build the PDF: ' + err.message);
