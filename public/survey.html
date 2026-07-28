@@ -5842,8 +5842,15 @@ async function exportProjectPdfWithLog() {
       drawPage(p);
     }
 
-    pdf.save(sanitizeFilename(project.address) + '-pinlog.pdf');
-    toast('PDF downloaded');
+    const blob = pdf.output('blob');
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    if (!win) {
+      alert('Preview blocked by the browser. Allow pop-ups for this site to preview the PDF.');
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    toast('PDF opened in new tab');
+
   } catch (err) {
     console.error(err);
     alert('Could not build the PDF: ' + err.message);
