@@ -5801,10 +5801,11 @@ async function exportProjectPdfWithLog() {
         const cy = y + rowH/2;
         pdf.setDrawColor(60);
         pdf.setLineWidth(0.010);
-        pdf.circle(cx, cy, 0.11, 'S');
-        pdf.setFontSize(8);
-        pdf.text(String(row.pinNum), cx, cy + 0.035, { align: 'center' });
+        pdf.circle(cx, cy, 0.1375, 'S');
+        pdf.setFontSize(10);
+        pdf.text(String(row.pinNum), cx, cy + 0.044, { align: 'center' });
         pdf.setFontSize(9);
+
         // Location (truncate with ellipsis to fit)
         const locMax = colLoc - 0.12;
         let locTxt = row.location;
