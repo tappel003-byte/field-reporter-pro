@@ -5668,6 +5668,168 @@ async function exportProjectPdf() {
     if (btn) { btn.disabled = false; btn.innerHTML = orig || '📄 Download Map as PDF'; }
   }
 }
+
+async function exportProjectPdfWithLog() {
+  if (!project) return;
+  const btn = event && event.target;
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Building PDF…'; }
+  try {
+    const pngBlob = await composeMapImage('png-blob');
+    const dataUrl = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.onerror = rej;
+      r.readAsDataURL(pngBlob);
+    });
+    const W = project.plan.width, H = project.plan.height;
+    const { jsPDF } = window.jspdf;
+    // 11x17 tabloid landscape: 17 wide x 11 tall
+    const pdf = new jsPDF({ unit: 'in', format: [11, 17], orientation: 'landscape' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const margin = 0.4;
+    const gutter = 0.3;
+    // Left ~55% for plan, right ~45% for table
+    const splitX = pageW * 0.55;
+    const planBoxX = margin;
+    const planBoxY = margin;
+    const planBoxW = splitX - margin - gutter / 2;
+    const planBoxH = pageH - margin * 2;
+    const planScale = Math.min(planBoxW / W, planBoxH / H);
+    const planDrawW = W * planScale, planDrawH = H * planScale;
+    const planX = planBoxX + (planBoxW - planDrawW) / 2;
+    const planY = planBoxY + (planBoxH - planDrawH) / 2;
+
+    const tableX = splitX + gutter / 2;
+    const tableY = margin;
+    const tableW = pageW - tableX - margin;
+    const tableH = pageH - margin * 2;
+
+    const cols = [
+      { label: 'Photo',    w: 0.12 },
+      { label: '#',        w: 0.09 },
+      { label: 'Location', w: 0.30 },
+      { label: 'Notes',    w: 0.49 },
+    ];
+    const colWs = cols.map(c => c.w * tableW);
+    const colX = [];
+    { let x = tableX; for (let i = 0; i < cols.length; i++) { colX.push(x); x += colWs[i]; } }
+
+    const headerH = 0.34;
+    const rowH = 0.48;
+    const rowsPerPage = Math.max(1, Math.floor((tableH - headerH) / rowH));
+
+    const pins = (project.pins || []).slice().sort((a, b) => (a.num || 0) - (b.num || 0));
+    const orientOffset = _orientationOffset(project);
+    const roomLabels = buildRoomLabels(project, orientOffset);
+    const totalPages = Math.max(1, Math.ceil(pins.length / rowsPerPage));
+
+    const drawPage = (pageIdx) => {
+      // Plan image (repeated on each page)
+      pdf.addImage(dataUrl, 'PNG', planX, planY, planDrawW, planDrawH, undefined, 'FAST');
+
+      // Table header
+      pdf.setDrawColor(60);
+      pdf.setLineWidth(0.01);
+      pdf.setFillColor(238, 238, 238);
+      pdf.rect(tableX, tableY, tableW, headerH, 'F');
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10);
+      pdf.setTextColor(0, 0, 0);
+      cols.forEach((c, i) => {
+        const cx = c.label === '#' || c.label === 'Photo'
+          ? colX[i] + colWs[i] / 2
+          : colX[i] + 0.08;
+        const align = (c.label === '#' || c.label === 'Photo') ? 'center' : 'left';
+        pdf.text(c.label, cx, tableY + headerH - 0.11, { align });
+      });
+
+      // Rows
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9);
+      const start = pageIdx * rowsPerPage;
+      const end = Math.min(pins.length, start + rowsPerPage);
+      const gridBottom = tableY + headerH + rowsPerPage * rowH;
+
+      for (let ri = 0; ri < rowsPerPage; ri++) {
+        const y = tableY + headerH + ri * rowH;
+        const idx = start + ri;
+        if (idx >= end) continue;
+        const p = pins[idx];
+        const roomAuto = pinRoom(project, p, roomLabels);
+        const loc = (p.location && p.location.trim()) || roomAuto || '';
+        const notes = (p.description || '').trim();
+        const photoCount = (p.photos || []).length;
+
+        // Photo column: count
+        pdf.setTextColor(30, 30, 30);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(10);
+        pdf.text(photoCount ? String(photoCount) : '—',
+          colX[0] + colWs[0] / 2, y + rowH / 2 + 0.05, { align: 'center' });
+
+        // # column: numbered circle
+        const cxCircle = colX[1] + colWs[1] / 2;
+        const cyCircle = y + rowH / 2;
+        const rCircle = Math.min(colWs[1], rowH) * 0.34;
+        pdf.setFillColor(193, 74, 43);
+        pdf.circle(cxCircle, cyCircle, rCircle, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(rCircle > 0.14 ? 10 : 8);
+        pdf.text(String(p.num || (idx + 1)), cxCircle, cyCircle + 0.05, { align: 'center' });
+
+        // Location column
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(9);
+        pdf.setTextColor(0, 0, 0);
+        const locLines = pdf.splitTextToSize(loc, colWs[2] - 0.16);
+        pdf.text(locLines.slice(0, 2), colX[2] + 0.08, y + 0.20);
+
+        // Notes column
+        const noteLines = pdf.splitTextToSize(notes, colWs[3] - 0.16);
+        pdf.text(noteLines.slice(0, 3), colX[3] + 0.08, y + 0.20);
+      }
+
+      // Grid: horizontal lines
+      pdf.setDrawColor(180);
+      pdf.setLineWidth(0.008);
+      pdf.line(tableX, tableY, tableX + tableW, tableY);
+      pdf.line(tableX, tableY + headerH, tableX + tableW, tableY + headerH);
+      for (let ri = 1; ri <= rowsPerPage; ri++) {
+        const y = tableY + headerH + ri * rowH;
+        pdf.line(tableX, y, tableX + tableW, y);
+      }
+      // Grid: vertical column dividers
+      let vx = tableX;
+      pdf.line(vx, tableY, vx, gridBottom);
+      for (let i = 0; i < cols.length; i++) {
+        vx += colWs[i];
+        pdf.line(vx, tableY, vx, gridBottom);
+      }
+
+      // Footer
+      pdf.setFontSize(9);
+      pdf.setTextColor(120, 120, 120);
+      pdf.text(`Page ${pageIdx + 1} of ${totalPages}`,
+        pageW - margin, pageH - 0.15, { align: 'right' });
+      pdf.setTextColor(0, 0, 0);
+    };
+
+    for (let pg = 0; pg < totalPages; pg++) {
+      if (pg > 0) pdf.addPage([11, 17], 'landscape');
+      drawPage(pg);
+    }
+    pdf.save(sanitizeFilename(project.address) + '-pinlog.pdf');
+    toast('PDF downloaded');
+  } catch (err) {
+    console.error(err);
+    alert('Could not build the PDF: ' + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig || '📄 Download PDF (Plan + Pin Log)'; }
+  }
+}
 function escapeHtml(s) {
   return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
