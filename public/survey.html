@@ -4030,6 +4030,7 @@ function openLocationPicker() {
         list.appendChild(btn);
       });
     }
+    _renderSavedCustomLocations(list, p);
     const custom = document.createElement('button');
     custom.type = 'button';
     custom.className = 'loc-room';
@@ -4037,6 +4038,7 @@ function openLocationPicker() {
     custom.onclick = () => {
       const val = (prompt('Custom location label:', p.location || '') || '').trim();
       if (!val) return;
+      _addProjectCustomLocation(val);
       setPinLocation(val, 'Custom');
     };
     list.appendChild(custom);
