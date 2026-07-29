@@ -879,7 +879,7 @@
       <span id="exportVmNote" style="display:none"><br>• <code>voice-memos/</code> — recorded audio memos (webm/m4a) + CSV with timestamp, GPS, duration</span>
     </div>
     <button class="ghost" style="margin-top:14px;width:100%" onclick="exportProjectPdfWithLog()">
-      📄 Download PDF (Plan + Pin Log)
+      📄 Preview PDF (Plan + Pin Log)
     </button>
     <div class="sheet-sub" style="margin-top:6px">
       11×17 landscape — plan on left, pin log table on right. Repeats across pages as needed.
@@ -5878,7 +5878,7 @@ async function exportProjectPdfWithLog() {
     console.error(err);
     alert('Could not build the PDF: ' + err.message);
   } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = orig || '📄 Download PDF (Plan + Pin Log)'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = orig || '📄 Preview PDF (Plan + Pin Log)'; }
   }
 }
 
