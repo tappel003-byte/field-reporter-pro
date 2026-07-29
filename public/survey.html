@@ -3976,6 +3976,25 @@ function renderLocationChip() {
     clear.style.display = 'none';
   }
 }
+function _addProjectCustomLocation(val) {
+  if (!project || !val) return;
+  if (!Array.isArray(project.customLocations)) project.customLocations = [];
+  const exists = project.customLocations.some(x => String(x).toLowerCase() === val.toLowerCase());
+  if (!exists) project.customLocations.push(val);
+  saveProject();
+}
+function _renderSavedCustomLocations(list, p) {
+  const saved = (project && Array.isArray(project.customLocations)) ? project.customLocations : [];
+  saved.forEach(name => {
+    if (!name) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'loc-room' + (p.location === name ? ' selected' : '');
+    btn.textContent = name;
+    btn.onclick = () => setPinLocation(name, 'Custom');
+    list.appendChild(btn);
+  });
+}
 function openLocationPicker() {
   const p = currentPin();
   closeSheets();
@@ -4011,6 +4030,7 @@ function openLocationPicker() {
         list.appendChild(btn);
       });
     }
+    _renderSavedCustomLocations(list, p);
     const custom = document.createElement('button');
     custom.type = 'button';
     custom.className = 'loc-room';
@@ -4018,6 +4038,7 @@ function openLocationPicker() {
     custom.onclick = () => {
       const val = (prompt('Custom location label:', p.location || '') || '').trim();
       if (!val) return;
+      _addProjectCustomLocation(val);
       setPinLocation(val, 'Custom');
     };
     list.appendChild(custom);
@@ -4026,6 +4047,25 @@ function openLocationPicker() {
     return;
   }
   const openCat = p.category || _lastOpenCategory || ROOM_CATALOG[0].name;
+  if (project && Array.isArray(project.customLocations) && project.customLocations.length) {
+    const savedWrap = document.createElement('div');
+    savedWrap.className = 'loc-cat open';
+    const savedHead = document.createElement('button');
+    savedHead.type = 'button';
+    savedHead.className = 'loc-cat-head';
+    savedHead.innerHTML = '<span>Saved custom</span><span class="caret">›</span>';
+    savedHead.onclick = () => {
+      const wasOpen = savedWrap.classList.contains('open');
+      list.querySelectorAll('.loc-cat.open').forEach(el => el.classList.remove('open'));
+      if (!wasOpen) savedWrap.classList.add('open');
+    };
+    const savedBody = document.createElement('div');
+    savedBody.className = 'loc-cat-body';
+    _renderSavedCustomLocations(savedBody, p);
+    savedWrap.appendChild(savedHead);
+    savedWrap.appendChild(savedBody);
+    list.appendChild(savedWrap);
+  }
   ROOM_CATALOG.forEach(cat => {
     const wrap = document.createElement('div');
     wrap.className = 'loc-cat' + (cat.name === openCat ? ' open' : '');
@@ -4049,6 +4089,7 @@ function openLocationPicker() {
         if (room === 'Custom…') {
           const custom = (prompt('Custom location label:', p.location || '') || '').trim();
           if (!custom) return;
+          _addProjectCustomLocation(custom);
           setPinLocation(custom, 'Custom');
         } else {
           setPinLocation(room, cat.name);
