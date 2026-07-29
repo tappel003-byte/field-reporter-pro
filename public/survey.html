@@ -3688,6 +3688,7 @@ function stackSizeAt(p) {
 
 // ---------- Pin sheet ----------
 function openPinSheet() {
+  closeSheets();
   const p = currentPin();
   if (!p) return;
   _sheetOpenedAt = performance.now();
@@ -3973,6 +3974,7 @@ function renderLocationChip() {
   }
 }
 function openLocationPicker() {
+  closeSheets();
   const p = currentPin();
   if (!p) return;
   _sheetOpenedAt = performance.now();
@@ -4200,6 +4202,7 @@ function closeSheets(ev) {
 
 // ---------- Pin picker (slide-up list) ----------
 function openPinPicker() {
+  closeSheets();
   if (!project || !(project.pins||[]).length) return;
   _sheetOpenedAt = performance.now();
   const list = document.getElementById('pinList');
@@ -5323,6 +5326,7 @@ function setupNorthWidget() {
 
 // ---------- Export ----------
 function openExport() {
+  closeSheets();
   closeMenu();
   if (!project) return;
   if (!project.pins || !project.pins.length) {
@@ -5443,7 +5447,7 @@ async function exportProjectZip() {
   if (!project) return;
   // Ask up-front (synchronously) whether to preview the PDF first. If yes, open
   // a blank tab NOW so Safari doesn't block the pop-up after later awaits.
-  const wantPreview = confirm('Preview the PDF before zipping?');
+  const wantPreview = confirm('Tap OK to preview the PDF first, or Cancel to just zip now.');
   const previewWin = wantPreview ? window.open('', '_blank') : null;
   const btn = event && event.target;
   const orig = btn ? btn.innerHTML : '';
