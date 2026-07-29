@@ -3976,6 +3976,25 @@ function renderLocationChip() {
     clear.style.display = 'none';
   }
 }
+function _addProjectCustomLocation(val) {
+  if (!project || !val) return;
+  if (!Array.isArray(project.customLocations)) project.customLocations = [];
+  const exists = project.customLocations.some(x => String(x).toLowerCase() === val.toLowerCase());
+  if (!exists) project.customLocations.push(val);
+  saveProject();
+}
+function _renderSavedCustomLocations(list, p) {
+  const saved = (project && Array.isArray(project.customLocations)) ? project.customLocations : [];
+  saved.forEach(name => {
+    if (!name) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'loc-room' + (p.location === name ? ' selected' : '');
+    btn.textContent = name;
+    btn.onclick = () => setPinLocation(name, 'Custom');
+    list.appendChild(btn);
+  });
+}
 function openLocationPicker() {
   const p = currentPin();
   closeSheets();
