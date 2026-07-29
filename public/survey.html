@@ -3688,9 +3688,11 @@ function stackSizeAt(p) {
 
 // ---------- Pin sheet ----------
 function openPinSheet() {
-  closeSheets();
   const p = currentPin();
+  closeSheets();
   if (!p) return;
+  ui.selectedPinId = p.id;
+  renderPins();
   _sheetOpenedAt = performance.now();
   const isExternal = project && project.mode === 'external';
   // Plan mode: auto-detect room from OCR labels the first time this pin is opened,
@@ -3974,9 +3976,11 @@ function renderLocationChip() {
   }
 }
 function openLocationPicker() {
-  closeSheets();
   const p = currentPin();
+  closeSheets();
   if (!p) return;
+  ui.selectedPinId = p.id;
+  renderPins();
   _sheetOpenedAt = performance.now();
   const list = document.getElementById('locPickerList');
   list.innerHTML = '';
