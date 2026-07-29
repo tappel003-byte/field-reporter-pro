@@ -5521,7 +5521,7 @@ async function exportProjectZip() {
         const photoCount = (p.photos || []).length;
         const range = photoRangeFor(p);
         const dir = pinCardinal(project, p, orientOffset);
-        const room = pinRoom(project, p, roomLabels);
+        const room = p.location || pinRoom(project, p, roomLabels);
         csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range), csvField(room), csvField(dir), norm(p.x, planW), norm(p.y, planH)].join(','));
       } else {
         const extCount = p.extPhotoCount || 0;
@@ -5718,7 +5718,7 @@ async function buildPinLogPdf() {
     else if (n > 1) photo = p.num + '–' + (p.num + n - 1);
     const orientOffset = _orientationOffset(project);
     const roomLabels = buildRoomLabels(project, orientOffset);
-    const loc = pinRoom(project, p, roomLabels) || p.location || '';
+    const loc = p.location || pinRoom(project, p, roomLabels) || '';
     return {
       pinNum: p.num,
       photo,
