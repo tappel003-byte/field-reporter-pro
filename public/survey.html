@@ -1109,29 +1109,51 @@ async function storePhotoDataUrl(dataUrl) {
   return id;
 }
 
-async function migratePhotosToIdb() {
-  if (!store.projects) return;
-  let changed = false;
-  for (const proj of store.projects) {
-    for (const pin of (proj.pins || [])) {
-      if (!pin.photos) continue;
-      for (let i = 0; i < pin.photos.length; i++) {
-        const v = pin.photos[i];
-        if (isDataUrl(v)) {
-          try {
-            const id = await storePhotoDataUrl(v);
-            pin.photos[i] = id;
-            changed = true;
-          } catch (e) { console.warn('photo migrate failed', e); }
+let _migrating = false, _migrateRetryTimer = null;
+// Moves any inline base64 photo dataURLs out of the localStorage blob into IndexedDB.
+// Runs on load, and again (emergency) whenever a save fails. Retries on failure.
+async function migratePhotosToIdb(fromSaveFailure) {
+  if (!store.projects || _migrating) return;
+  _migrating = true;
+  let changed = false, failed = false;
+  try {
+    const buckets = [].concat(store.projects || [], store.trash || []);
+    for (const proj of buckets) {
+      for (const pin of (proj.pins || [])) {
+        if (!pin.photos) continue;
+        for (let i = 0; i < pin.photos.length; i++) {
+          const v = pin.photos[i];
+          if (isDataUrl(v)) {
+            try {
+              const id = await storePhotoDataUrl(v);
+              pin.photos[i] = id;
+              changed = true;
+            } catch (e) { failed = true; console.warn('photo migrate failed', e); }
+          }
         }
       }
     }
+  } finally {
+    _migrating = false;
   }
   if (changed) {
-    save();
+    // Avoid save() recursion when this run was triggered by a failed save.
+    if (fromSaveFailure) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+        _saveFailed = false;
+        hideSaveFailureBanner();
+        toast('Freed space by moving photos — changes saved.');
+      } catch (e) { console.error('retry save after migration failed', e); }
+    } else {
+      save();
+    }
     // Re-render whatever's on screen so thumbs reload from IDB
     if (typeof renderPhotoStrip === 'function') renderPhotoStrip();
     if (typeof renderHome === 'function' && document.getElementById('homeScreen')?.style.display !== 'none') renderHome();
+  }
+  if (failed && !_migrateRetryTimer) {
+    _migrateRetryTimer = setTimeout(() => { _migrateRetryTimer = null; migratePhotosToIdb(); }, 15000);
   }
 }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
