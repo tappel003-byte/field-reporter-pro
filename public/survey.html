@@ -4282,7 +4282,10 @@ function onPinPhotoFile(e) {
           p.photos.push(id);
         } catch (err) {
           console.error('photo save failed', err);
-          toast('Could not save photo — storage may be full.');
+          // Keep the photo rather than losing it, but get it out of localStorage ASAP.
+          p.photos.push(dataUrl);
+          toast('Photo saved temporarily — freeing space…');
+          setTimeout(() => migratePhotosToIdb(), 1000);
         }
         if (--remaining === 0) {
           recomputeNumbering();
