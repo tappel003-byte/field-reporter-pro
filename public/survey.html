@@ -439,6 +439,7 @@
     width:32px;height:32px;border-radius:50%;cursor:pointer;flex-shrink:0;
     display:flex;align-items:center;justify-content:center}
   .loc-clear:active{background:var(--line)}
+  .loc-debug{font-size:11px;color:var(--muted);padding:2px 0 8px 4px;font-style:italic}
 
   .loc-cat{border-top:1px solid var(--line)}
   .loc-cat:first-child{border-top:none}
@@ -812,6 +813,7 @@
     </button>
     <button class="loc-clear" id="pinLocClear" type="button" onclick="clearPinLocation()" style="display:none" aria-label="Clear location">✕</button>
   </div>
+  <div id="pinLocDebug" class="loc-debug">source: none</div>
   <div class="ext-count-row" id="extCountRow" style="display:none">
     <div class="ext-count-label">
       External camera photos for this pin
@@ -3965,6 +3967,7 @@ function renderLocationChip() {
   if (!show) return;
   const chip = document.getElementById('pinLocChip');
   const clear = document.getElementById('pinLocClear');
+  const debug = document.getElementById('pinLocDebug');
   if (!p) return;
   if (p.location) {
     chip.classList.remove('empty');
@@ -3975,6 +3978,7 @@ function renderLocationChip() {
     chip.querySelector('.loc-text').textContent = 'Set location';
     clear.style.display = 'none';
   }
+  if (debug) debug.textContent = 'source: ' + (p.category || 'none');
 }
 function _addProjectCustomLocation(val) {
   if (!project || !val) return;
