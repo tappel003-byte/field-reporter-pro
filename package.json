@@ -93,5 +93,13 @@
     "workbox-precaching": "^7.4.1",
     "workbox-routing": "^7.4.1",
     "workbox-strategies": "^7.4.1"
+  },
+  "overrides": {
+    "seroval": "^1.6.0",
+    "seroval-plugins": "^1.6.0"
+  },
+  "resolutions": {
+    "seroval": "^1.6.0",
+    "seroval-plugins": "^1.6.0"
   }
 }
