@@ -812,6 +812,7 @@
     </button>
     <button class="loc-clear" id="pinLocClear" type="button" onclick="clearPinLocation()" style="display:none" aria-label="Clear location">✕</button>
   </div>
+  <div id="pinLocDebug" class="loc-debug">source: none</div>
   <div class="ext-count-row" id="extCountRow" style="display:none">
     <div class="ext-count-label">
       External camera photos for this pin
@@ -3965,6 +3966,7 @@ function renderLocationChip() {
   if (!show) return;
   const chip = document.getElementById('pinLocChip');
   const clear = document.getElementById('pinLocClear');
+  const debug = document.getElementById('pinLocDebug');
   if (!p) return;
   if (p.location) {
     chip.classList.remove('empty');
@@ -3975,6 +3977,7 @@ function renderLocationChip() {
     chip.querySelector('.loc-text').textContent = 'Set location';
     clear.style.display = 'none';
   }
+  if (debug) debug.textContent = 'source: ' + (p.category || 'none');
 }
 function _addProjectCustomLocation(val) {
   if (!project || !val) return;
