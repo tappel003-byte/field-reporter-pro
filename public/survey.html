@@ -5492,7 +5492,7 @@ async function composeMapImage(format) {
       // No padding: map.png matches plan.png pixel-for-pixel so the X,Y
       // values in pins.csv (normalized to plan.png) overlay correctly on
       // map.png as well. Edge pins may clip slightly — that's expected.
-      const R = Math.max(W, H) * 0.007;
+      const R = Math.max(W, H) * 0.0105;
       const c = document.createElement('canvas');
       c.width = W; c.height = H;
       const ctx = c.getContext('2d');
