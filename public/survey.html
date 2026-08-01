@@ -3299,32 +3299,6 @@ let _rotateNorth = null;
 let _dragPin = null;
 let _suppressClickUntil = 0;
 
-// ---------- TEMP DEBUG ----------
-const _dbgLog = [];
-function _dbg(msg) {
-  const t = (Date.now() % 1000000);
-  _dbgLog.push(`[${t}] ${msg}`);
-  if (_dbgLog.length > 50) _dbgLog.shift();
-  const panel = document.getElementById('dbgPanel');
-  if (panel) panel.textContent = _dbgLog.join('\n');
-}
-function _dbgSheetState() {
-  const es = document.getElementById('exportSheet')?.classList.contains('open');
-  const ps = document.getElementById('pinSheet')?.classList.contains('open');
-  const pps = document.getElementById('pinPickerSheet')?.classList.contains('open');
-  return `export=${es} pin=${ps} picker=${pps}`;
-}
-document.addEventListener('DOMContentLoaded', () => {
-  const panel = document.createElement('div');
-  panel.id = 'dbgPanel';
-  panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:35vh;overflow-y:auto;background:rgba(0,0,0,.85);color:#0f0;font:9px monospace;padding:6px;z-index:99999;white-space:pre-wrap;pointer-events:none;';
-  document.body.appendChild(panel);
-});
-document.addEventListener('visibilitychange', () => _dbg('visibilitychange -> ' + document.visibilityState));
-window.addEventListener('pagehide', () => _dbg('pagehide'));
-window.addEventListener('pageshow', () => _dbg('pageshow'));
-// ---------- END TEMP DEBUG ----------
-
 stageEl.addEventListener('pointerdown', onPointerDown);
 stageEl.addEventListener('pointermove', onPointerMove);
 stageEl.addEventListener('pointerup', onPointerUp);
@@ -3338,7 +3312,6 @@ stageEl.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 function onPointerDown(e) {
-  _dbg('pointerdown ' + _dbgSheetState());
   if (!project) return;
   closeMenu();
   // Ignore taps that originate on UI controls layered over the stage
@@ -3610,7 +3583,6 @@ function onPointerMove(e) {
   }
 }
 function onPointerUp(e) {
-  _dbg('pointerup _maybeTap=' + !!_maybeTap + ' ' + _dbgSheetState());
   _pointers.delete(e.pointerId);
   if (_pointers.size < 2) _pinchInitial = null;
 
@@ -3699,7 +3671,6 @@ function onPointerUp(e) {
   ui.panning = null;
 }
 function onStageClickFallback(e) {
-  _dbg('click-fallback ' + _dbgSheetState());
   if (!project || ui.tool !== 'pin') return;
   if (Date.now() < _suppressClickUntil) { e.stopPropagation(); return; }
   if (e.target && e.target.closest &&
@@ -5802,9 +5773,7 @@ async function exportProjectZip() {
     const a = document.createElement('a');
     a.href = url;
     a.download = folderName + '.zip';
-    _dbg('zip-download-triggering ' + _dbgSheetState());
     document.body.appendChild(a); a.click(); a.remove();
-    _dbg('zip-download-triggered');
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     project.lastExportedAt = Date.now();
     save();
