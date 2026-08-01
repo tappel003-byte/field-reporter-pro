@@ -3338,6 +3338,7 @@ stageEl.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 function onPointerDown(e) {
+  _dbg('pointerdown ' + _dbgSheetState());
   if (!project) return;
   closeMenu();
   // Ignore taps that originate on UI controls layered over the stage
@@ -3609,6 +3610,7 @@ function onPointerMove(e) {
   }
 }
 function onPointerUp(e) {
+  _dbg('pointerup _maybeTap=' + !!_maybeTap + ' ' + _dbgSheetState());
   _pointers.delete(e.pointerId);
   if (_pointers.size < 2) _pinchInitial = null;
 
@@ -3697,6 +3699,7 @@ function onPointerUp(e) {
   ui.panning = null;
 }
 function onStageClickFallback(e) {
+  _dbg('click-fallback ' + _dbgSheetState());
   if (!project || ui.tool !== 'pin') return;
   if (Date.now() < _suppressClickUntil) { e.stopPropagation(); return; }
   if (e.target && e.target.closest &&
@@ -5799,7 +5802,9 @@ async function exportProjectZip() {
     const a = document.createElement('a');
     a.href = url;
     a.download = folderName + '.zip';
+    _dbg('zip-download-triggering ' + _dbgSheetState());
     document.body.appendChild(a); a.click(); a.remove();
+    _dbg('zip-download-triggered');
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     project.lastExportedAt = Date.now();
     save();
