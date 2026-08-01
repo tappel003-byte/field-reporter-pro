@@ -3660,7 +3660,8 @@ function onPointerUp(e) {
     if (tap.longPressTimer) { clearTimeout(tap.longPressTimer); tap.longPressTimer = null; }
     if (document.getElementById('pinSheet').classList.contains('open') ||
         document.getElementById('pinPickerSheet').classList.contains('open') ||
-        document.getElementById('exportSheet').classList.contains('open')) {
+        document.getElementById('exportSheet').classList.contains('open') ||
+        Date.now() < _suppressClickUntil) {
       return;
     }
     if (commitTapAction(tap)) {
@@ -5773,6 +5774,8 @@ async function exportProjectZip() {
     const a = document.createElement('a');
     a.href = url;
     a.download = folderName + '.zip';
+    _suppressClickUntil = Date.now() + 1200;
+    _maybeTap = null;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     project.lastExportedAt = Date.now();
