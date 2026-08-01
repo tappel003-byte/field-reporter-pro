@@ -803,7 +803,11 @@
       <div class="sheet-title" id="pinTitle">Pin #1</div>
       <div class="sheet-sub">Tap photo or description · auto-saves</div>
     </div>
-    <button class="ghost" ontouchstart="event.preventDefault(); closeSheets();" onpointerdown="if(event.pointerType!=='touch'){closeSheets();}" onclick="closeSheets()">Done</button>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="ghost" onclick="prevPin()" aria-label="Previous pin">‹</button>
+      <button class="ghost" onclick="nextPin()" aria-label="Next pin">›</button>
+      <button class="ghost" ontouchstart="event.preventDefault(); closeSheets();" onpointerdown="if(event.pointerType!=='touch'){closeSheets();}" onclick="closeSheets()">Done</button>
+    </div>
   </div>
   <div class="loc-row">
     <span class="loc-label">📍 Location</span>
@@ -3793,6 +3797,11 @@ function openPinSheet() {
   ui.selectedPinId = p.id;
   renderPins();
   _sheetOpenedAt = performance.now();
+  renderPinSheetContent(p);
+  document.getElementById('scrim').classList.add('active');
+  document.getElementById('pinSheet').classList.add('open');
+}
+function renderPinSheetContent(p) {
   const isExternal = project && project.mode === 'external';
   // Plan mode: auto-detect room from OCR labels the first time this pin is opened,
   // using the same fixed pinRoom() rules (skips generic labels, ambiguity-guarded).
@@ -3819,8 +3828,31 @@ function openPinSheet() {
   renderLocationChip();
   if (isExternal) { renderExtCount(); renderPhotoStrip(); }
   else { renderPhotoStrip(); renderIntExtToggle(); }
-  document.getElementById('scrim').classList.add('active');
-  document.getElementById('pinSheet').classList.add('open');
+}
+function _pinNavList() {
+  return (project.pins || []).slice().sort((a,b) => (a.num||0) - (b.num||0));
+}
+function nextPin() {
+  if (!project) return;
+  const list = _pinNavList();
+  if (!list.length) return;
+  const i = list.findIndex(p => p.id === ui.selectedPinId);
+  const next = list[(i + 1 + list.length) % list.length];
+  ui.selectedPinId = next.id;
+  renderPins();
+  centerOnPin(next);
+  renderPinSheetContent(next);
+}
+function prevPin() {
+  if (!project) return;
+  const list = _pinNavList();
+  if (!list.length) return;
+  const i = list.findIndex(p => p.id === ui.selectedPinId);
+  const prev = list[(i - 1 + list.length) % list.length];
+  ui.selectedPinId = prev.id;
+  renderPins();
+  centerOnPin(prev);
+  renderPinSheetContent(prev);
 }
 
 // Compass math: given front door facing direction + pin 1 position,
