@@ -730,7 +730,7 @@
     <button onclick="clearDrawings()">✎ Clear all drawings</button>
     
     <div class="sep"></div>
-    <button class="danger" onclick="confirmDeleteProject()">🗑 Delete this project</button>
+    <button class="danger" onclick="confirmDeleteProject()">🗑 Move to trash</button>
   </div>
 
   <div class="stage" id="stage">
@@ -1360,6 +1360,15 @@ function restoreProject(id) {
 function deleteProjectForever(id) {
   const proj = (store.trash||[]).find(p => p.id === id);
   if (!proj) return;
+  const status = exportStatus(proj);
+  if (status.state !== 'ok') {
+    const reason = status.state === 'none' ? 'has never been exported' : 'has unsaved changes since it was last exported';
+    if (confirm('"' + (proj.address || 'This project') + '" ' + reason + '.\n\nTap OK to restore it so you can export it, or Cancel to continue deleting forever without exporting.')) {
+      restoreProject(id);
+      toast('Restored — export it, then trash it again when ready.');
+      return;
+    }
+  }
   if (!confirm('Permanently delete "' + (proj.address || 'this project') + '"?\n\nThis cannot be undone.')) return;
   for (const pin of (proj.pins||[])) {
     for (const entry of (pin.photos||[])) {
@@ -3087,10 +3096,19 @@ document.addEventListener('fullscreenchange', () => {
 function confirmDeleteProject() {
   closeMenu();
   if (!project) return;
-  if (!confirm('Delete "' + project.address + '"? This cannot be undone.')) return;
+  if (!confirm('Move "' + project.address + '" to trash?\n\nIt will be deleted forever after 30 days. You can restore it before then.')) return;
+  project.deletedAt = Date.now();
+  store.trash = store.trash || [];
+  store.trash.push(project);
   store.projects = (store.projects||[]).filter(p => p.id !== project.id);
+  project = null;
+  ui.selectedPinId = null;
+  ui.undo = [];
+  ui.redo = [];
   save();
-  goHome();
+  renderHome();
+  showScreen('screenHome');
+  toast('Moved to trash');
 }
 function clearDrawings() {
   closeMenu();
