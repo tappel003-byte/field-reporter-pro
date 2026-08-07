@@ -2441,7 +2441,7 @@ function openRoomVerify() {
   _rvRenderBadges();
   _rvFdMode = false;
   const fdBtn = document.getElementById('rvFdBtn');
-  if (fdBtn) fdBtn.classList.remove('active');
+  if (fdBtn) { fdBtn.classList.remove('active'); _rvAttachFdDrag(fdBtn, _rvToggleFdMode); }
   const t = document.getElementById('rvTitle');
   if (t) t.textContent = 'Rooms — pinch zoom, drag move, tap plan to add';
   ov.classList.add('open');
@@ -6637,7 +6637,7 @@ pvSetupGestures();
       <img id="rvImg" alt="Floor plan" />
     </div>
   </div>
-  <button class="rv-btn" id="rvFdBtn" onclick="_rvToggleFdMode()" aria-label="Place front door" title="Place FD marker">FD</button>
+  <button class="rv-btn" id="rvFdBtn" aria-label="Place front door" title="Place FD marker · drag onto plan">FD</button>
 </div>
 
 <!-- Room name picker -->
