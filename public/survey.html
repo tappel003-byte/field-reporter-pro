@@ -3486,7 +3486,9 @@ function refreshSubtitle() {
   const pics = pins.reduce((a,p) => a + (isExternal ? (p.extPhotoCount||0) : (p.photos||[]).length), 0);
   const pinLabel = n + ' pin' + (n===1?'':'s');
   const picLabel = pics + ' pic' + (pics===1?'':'s');
-  document.getElementById('wSub').textContent = project.mode + ' · ' + pinLabel + ' · ' + picLabel;
+  const _af = activeFloor(project);
+  const _floorLabel = (project.floors && project.floors.length > 1 && _af) ? (_af.name || 'Floor') + ' · ' : '';
+  document.getElementById('wSub').textContent = _floorLabel + project.mode + ' · ' + pinLabel + ' · ' + picLabel;
   const btn = document.getElementById('pinPickerBtn');
   const cnt = document.getElementById('pinPickerCount');
   if (btn && cnt) {
