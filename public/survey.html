@@ -956,15 +956,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  if (isIOS) {
-    const el = document.getElementById('pinPhotoFile');
-    if (el) el.removeAttribute('capture');
-  }
-});
-</script>
 
 <script>
 // =====================================================================
