@@ -620,7 +620,7 @@
     <button id="startBtnTop" class="head-start-btn" disabled onclick="commitNewProject()">Start</button>
   </div>
   <div class="setup-body">
-    <div class="field" id="addressField">
+    <div class="field">
       <label>Address</label>
       <input type="text" id="fAddress" placeholder="Street, City, State — or tap a button below" autocomplete="off"
         style="width:100%" oninput="validateSetup()" />
@@ -636,15 +636,6 @@
       </div>
       <div class="hint" id="gpsHint" style="display:none"></div>
     </div>
-
-    <div class="field" id="floorNameField" style="display:none">
-      <label>Floor name</label>
-      <input type="text" id="fFloorName" placeholder="Basement, First Floor, Second Floor…" autocomplete="off"
-        style="width:100%" oninput="refreshStartBtn()" />
-      <div class="hint">Pin numbers restart at 1 on each floor. Photos export into a folder named after the floor.</div>
-    </div>
-
-
 
     <div class="field">
       <label>Floor plan</label>
@@ -722,7 +713,6 @@
       <b id="wTitle"></b>
       <small id="wSub"></small>
     </div>
-    <button class="icon-btn" id="wFloors" onclick="openFloorSheet()" title="Floors">🏢</button>
     <button class="icon-btn" id="wSave" onclick="manualSave()" title="Save">💾</button>
     <button class="icon-btn" id="wUndo" onclick="undo()" title="Undo">↶</button>
     <button class="icon-btn" id="wRedo" onclick="redo()" title="Redo">↷</button>
@@ -735,11 +725,9 @@
     <button onclick="openExport()">📤 Export</button>
     <button onclick="editSetup()">⚙️ Edit setup</button>
     <div class="sep"></div>
-    <button onclick="openFloorSheet()">🏢 Floors</button>
     <button onclick="confirmQuickCapture()">📸 Quick Capture</button>
     <button onclick="toggleVoiceMemo()">🎙️ Voice memo</button>
     <div class="sep"></div>
-
     <button onclick="clearDrawings()">✎ Clear all drawings</button>
     
     <div class="sep"></div>
@@ -866,22 +854,7 @@
   <div id="locPickerList"></div>
 </div>
 
-<!-- ============ FLOORS SHEET ============ -->
-<div class="sheet" id="floorSheet">
-  <div class="grab"></div>
-  <div class="sheet-head">
-    <div>
-      <div class="sheet-title">Floors</div>
-      <div class="sheet-sub">Tap a floor to switch · pin numbers restart per floor</div>
-    </div>
-    <button class="ghost" onclick="closeSheets()">Done</button>
-  </div>
-  <div id="floorList" style="padding:4px 0"></div>
-  <button class="primary-btn" style="margin-top:10px" onclick="startAddFloor()">➕ Add floor</button>
-</div>
-
 <!-- ============ EXPORT SHEET ============ -->
-
 <div class="sheet" id="exportSheet">
   <div class="grab"></div>
   <div class="sheet-head">
@@ -1011,101 +984,6 @@ let ui = {
   lastIsExterior: false,           // sticky toggle for internal-mode pins
 };
 
-// ---------- Floors ----------
-// A project holds one or more floors. The ACTIVE floor's data is mirrored onto
-// project.plan / pins / drawings / rooms / frontDoor / north / nextNum so all
-// existing code keeps working unchanged. Those mirror keys are stripped at
-// save() time so the plan image isn't stored twice.
-const FLOOR_MIRROR_KEYS = ['plan','pins','drawings','rooms','frontDoor','frontDoorFacing','north','nextNum','startNum'];
-function activeFloor(p) {
-  p = p || project;
-  if (!p || !Array.isArray(p.floors) || !p.floors.length) return null;
-  return p.floors.find(f => f.id === p.activeFloorId) || p.floors[0];
-}
-function hydrateFloor(p) {
-  p = p || project;
-  const f = activeFloor(p);
-  if (!f) return;
-  if (!Array.isArray(f.pins)) f.pins = [];
-  if (!Array.isArray(f.drawings)) f.drawings = [];
-  p.plan = f.plan || null;
-  p.pins = f.pins;
-  p.drawings = f.drawings;
-  p.rooms = Array.isArray(f.rooms) ? f.rooms : [];
-  p.frontDoor = f.frontDoor || null;
-  p.frontDoorFacing = f.frontDoorFacing || '';
-  p.north = f.north || { rotation: 0 };
-  p.nextNum = f.nextNum || 1;
-  p.startNum = f.startNum || 1;
-}
-function syncFloor(p) {
-  p = p || project;
-  const f = activeFloor(p);
-  if (!f) return;
-  f.plan = p.plan || f.plan || null;
-  f.pins = p.pins || [];
-  f.drawings = p.drawings || [];
-  f.rooms = p.rooms || [];
-  f.frontDoor = p.frontDoor || null;
-  f.frontDoorFacing = p.frontDoorFacing || '';
-  f.north = p.north || { rotation: 0 };
-  f.nextNum = p.nextNum || 1;
-  f.startNum = p.startNum || 1;
-}
-function ensureFloors(p) {
-  if (!p) return p;
-  if (!Array.isArray(p.floors) || !p.floors.length) {
-    p.floors = [{
-      id: uid(),
-      name: 'Floor 1',
-      plan: p.plan || null,
-      pins: Array.isArray(p.pins) ? p.pins : [],
-      drawings: Array.isArray(p.drawings) ? p.drawings : [],
-      rooms: Array.isArray(p.rooms) ? p.rooms : [],
-      frontDoor: p.frontDoor || null,
-      frontDoorFacing: p.frontDoorFacing || '',
-      north: p.north || { rotation: 0 },
-      nextNum: p.nextNum || 1,
-      startNum: p.startNum || 1,
-    }];
-    p.activeFloorId = p.floors[0].id;
-  }
-  if (!p.activeFloorId || !p.floors.some(f => f.id === p.activeFloorId)) p.activeFloorId = p.floors[0].id;
-  hydrateFloor(p);
-  return p;
-}
-function allPins(p) {
-  p = p || project;
-  if (!p) return [];
-  if (Array.isArray(p.floors) && p.floors.length) {
-    return p.floors.reduce((acc, f) => acc.concat(f.pins || []), []);
-  }
-  return p.pins || [];
-}
-// Temporarily make `f` the active floor while `fn` runs (used by exports).
-async function withFloor(f, fn) {
-  if (!project || !f) return fn();
-  const prev = project.activeFloorId;
-  syncFloor(project);
-  project.activeFloorId = f.id;
-  hydrateFloor(project);
-  try {
-    return await fn();
-  } finally {
-    syncFloor(project);
-    project.activeFloorId = prev;
-    hydrateFloor(project);
-  }
-}
-function _storeReplacer(key, value) {
-  if (value && typeof value === 'object' && Array.isArray(value.floors)) {
-    const copy = Object.assign({}, value);
-    FLOOR_MIRROR_KEYS.forEach(k => { delete copy[k]; });
-    return copy;
-  }
-  return value;
-}
-
 // ---------- Persistence ----------
 const BACKUP_KEYS = ['pgg_survey_v1.bak1','pgg_survey_v1.bak2','pgg_survey_v1.bak3'];
 let _loadCorrupted = false;
@@ -1120,8 +998,6 @@ function load() {
   }
   if (!store.projects) store.projects = [];
   if (!store.trash) store.trash = [];
-  (store.projects || []).forEach(ensureFloors);
-  (store.trash || []).forEach(ensureFloors);
   purgeOldTrash();
   // Migrate any inline photo dataURLs out of localStorage into IndexedDB
   migratePhotosToIdb();
@@ -1129,8 +1005,7 @@ function load() {
 let _saveFailed = false;
 function save() {
   try {
-    if (project) syncFloor(project);
-    const serialized = JSON.stringify(store, _storeReplacer);
+    const serialized = JSON.stringify(store);
     // Rolling backup: never overwrite a non-empty backup with an empty store.
     const hasContent = (store.projects && store.projects.length) || (store.trash && store.trash.length);
     if (hasContent) {
@@ -1243,9 +1118,6 @@ function restoreFromBackup() {
     store = JSON.parse(best.raw);
     if (!store.projects) store.projects = [];
     if (!store.trash) store.trash = [];
-    project = null;
-    (store.projects || []).forEach(ensureFloors);
-    (store.trash || []).forEach(ensureFloors);
     save();
     renderHome();
     toast('Restored ' + best.projects + ' project' + (best.projects===1?'':'s'));
@@ -1312,7 +1184,7 @@ async function migratePhotosToIdb(fromSaveFailure) {
   try {
     const buckets = [].concat(store.projects || [], store.trash || []);
     for (const proj of buckets) {
-      for (const pin of allPins(proj)) {
+      for (const pin of (proj.pins || [])) {
         if (!pin.photos) continue;
         for (let i = 0; i < pin.photos.length; i++) {
           const v = pin.photos[i];
@@ -1333,7 +1205,7 @@ async function migratePhotosToIdb(fromSaveFailure) {
     // Avoid save() recursion when this run was triggered by a failed save.
     if (fromSaveFailure) {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(store, _storeReplacer));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
         _saveFailed = false;
         hideSaveFailureBanner();
         toast('Freed space by moving photos — changes saved.');
@@ -1452,7 +1324,7 @@ function renderHome() {
     if (reminder) reminder.innerHTML = '';
   } else {
     list.innerHTML = projs.map(p => {
-      const pinCount = allPins(p).length;
+      const pinCount = (p.pins||[]).length;
       const status = exportStatus(p);
       const badgeClass = status.state === 'ok' ? 'ri-badge ok' : 'ri-badge warn';
       return `
@@ -1631,7 +1503,7 @@ function renderTrash() {
   const DAY = 24*60*60*1000;
   body.innerHTML = items.map(p => {
     const daysLeft = Math.max(0, Math.ceil(30 - (Date.now() - (p.deletedAt||0))/DAY));
-    const pinCount = allPins(p).length;
+    const pinCount = (p.pins||[]).length;
     return `
       <div class="trash-item">
         <div class="ti-body">
@@ -1646,7 +1518,6 @@ function renderTrash() {
 function openProject(id) {
   const p = (store.projects||[]).find(x => x.id === id);
   if (!p) return;
-  ensureFloors(p);
   project = p;
   enterWork();
 }
@@ -1657,23 +1528,12 @@ let _editingProjectId = null;
 let _setupPlan = null;   // { dataUrl, width, height }
 let _setupFrontDoor = null; // { x, y } normalized 0..1, or null
 let _rvFdMode = false;   // when true, next tap in room verify overlay places FD
-let _addingFloor = false;      // true while the setup screen is collecting a NEW floor
-let _editingFloorId = null;    // floor being edited via Edit setup
-function _setSetupFloorMode(on) {
-  const af = document.getElementById('addressField');
-  const fnf = document.getElementById('floorNameField');
-  if (af) af.style.display = on ? 'none' : '';
-  if (fnf) fnf.style.display = on ? '' : 'none';
-}
 function startNewProject(mode) {
   _setupMode = mode;
-  _addingFloor = false;
-  _editingFloorId = null;
   _setupPlan = null;
   _setupFrontDoor = null;
   _setupRooms = null;
   _setupRoomsToken++;
-  _setSetupFloorMode(false);
   document.getElementById('setupTitle').textContent = mode === 'internal' ? 'New Internal Survey' : 'New External Survey';
   document.getElementById('fAddress').value = '';
   document.getElementById('planPreview').style.display = 'none';
@@ -1686,7 +1546,6 @@ function startNewProject(mode) {
   showScreen('screenSetup');
   setTimeout(()=>document.getElementById('fAddress').focus(), 200);
 }
-
 document.getElementById('fAddress').addEventListener('input', refreshStartBtn);
 document.getElementById('fFrontDoor').addEventListener('change', () => {
   if (_editingProjectId && project && project.north) {
@@ -1709,8 +1568,7 @@ document.getElementById('fBuildingType').addEventListener('change', () => {
 function validateSetup() { refreshStartBtn(); }
 function refreshStartBtn() {
   const addr = document.getElementById('fAddress').value.trim();
-  const fname = ((document.getElementById('fFloorName')||{}).value || '').trim();
-  const disabled = _addingFloor ? !(fname && _setupPlan) : !(addr && _setupPlan);
+  const disabled = !(addr && _setupPlan);
   document.getElementById('startBtn').disabled = disabled;
   document.getElementById('startBtnTop').disabled = disabled;
 }
@@ -3174,10 +3032,7 @@ function useGpsCoordsOnly() {
 function editSetup() {
   if (!project) return;
   closeMenu();
-  ensureFloors(project);
-  _addingFloor = false;
   _editingProjectId = project.id;
-  _editingFloorId = project.activeFloorId;
   _setupMode = project.mode;
   _setupPlan = project.plan ? { dataUrl: project.plan.dataUrl, width: project.plan.width, height: project.plan.height } : null;
   _setupRooms = Array.isArray(project.rooms) ? project.rooms.slice() : null;
@@ -3185,13 +3040,6 @@ function editSetup() {
 
   document.getElementById('setupTitle').textContent = 'Edit Setup';
   document.getElementById('fAddress').value = project.address || '';
-  // Both address and floor name are editable when editing an existing floor.
-  _setSetupFloorMode(false);
-  const fnf = document.getElementById('floorNameField');
-  if (fnf) fnf.style.display = '';
-  const fn = document.getElementById('fFloorName');
-  const af = activeFloor(project);
-  if (fn) fn.value = (af && af.name) || 'Floor 1';
 
   const fd = document.getElementById('fFrontDoor');
   if (fd) fd.value = project.frontDoorFacing || '';
@@ -3219,53 +3067,12 @@ function editSetup() {
   showScreen('screenSetup');
 }
 
-// ---------- Add a floor ----------
-function startAddFloor() {
-  if (!project) return;
-  closeSheets();
-  closeMenu();
-  ensureFloors(project);
-  _addingFloor = true;
-  _editingProjectId = null;
-  _editingFloorId = null;
-  _setupMode = project.mode;
-  _setupPlan = null;
-  _setupFrontDoor = null;
-  _setupRooms = null;
-  _setupRoomsToken++;
-  _setSetupFloorMode(true);
-  document.getElementById('setupTitle').textContent = 'Add Floor';
-  document.getElementById('fFloorName').value = suggestFloorName();
-  document.getElementById('planPreview').style.display = 'none';
-  document.getElementById('planDropZone').style.display = '';
-  document.getElementById('fPlanFile').value = '';
-  const rf = document.getElementById('roomsField'); if (rf) rf.style.display = 'none';
-  const rc = document.getElementById('roomsChips'); if (rc) rc.innerHTML = '';
-  const fd = document.getElementById('fFrontDoor'); if (fd) fd.value = project.frontDoorFacing || '';
-  const bt = document.getElementById('fBuildingType'); if (bt) bt.value = project.buildingType || 'residential';
-  document.getElementById('startBtn').textContent = 'Add Floor';
-  document.getElementById('startBtnTop').textContent = 'Add';
-  refreshStartBtn();
-  showScreen('screenSetup');
-}
-function suggestFloorName() {
-  const used = (project.floors || []).map(f => (f.name||'').toLowerCase());
-  const ladder = ['Basement','First Floor','Second Floor','Third Floor','Fourth Floor'];
-  for (const name of ladder) {
-    if (!used.includes(name.toLowerCase())) return name;
-  }
-  return 'Floor ' + ((project.floors || []).length + 1);
-}
-
 function setupBack() {
-  if (_editingProjectId || _addingFloor) {
+  if (_editingProjectId) {
     _editingProjectId = null;
-    _editingFloorId = null;
-    _addingFloor = false;
     _setupPlan = null;
     _setupRooms = null;
     _setupFrontDoor = null;
-    _setSetupFloorMode(false);
     document.getElementById('startBtn').textContent = 'Start Survey';
     document.getElementById('startBtnTop').textContent = 'Start';
     showScreen('screenWork');
@@ -3276,53 +3083,17 @@ function setupBack() {
 
 function commitNewProject() {
   const addr = document.getElementById('fAddress').value.trim();
-  const floorName = ((document.getElementById('fFloorName')||{}).value || '').trim();
   let startNum = 1;
+  if (!addr || !_setupPlan) return;
 
   const fd = (document.getElementById('fFrontDoor')||{}).value || '';
   const bt = (document.getElementById('fBuildingType')||{}).value || 'residential';
   const northRot = frontDoorToNorthRotation(fd);
 
-  // --- Adding a new floor to the open project ---
-  if (_addingFloor) {
-    if (!project || !floorName || !_setupPlan) return;
-    syncFloor(project);
-    const floor = {
-      id: uid(),
-      name: floorName,
-      plan: { dataUrl: _setupPlan.dataUrl, width: _setupPlan.width, height: _setupPlan.height },
-      pins: [],
-      drawings: [],
-      rooms: Array.isArray(_setupRooms) ? _setupRooms.slice() : [],
-      frontDoor: _setupFrontDoor ? { x: _setupFrontDoor.x, y: _setupFrontDoor.y } : null,
-      frontDoorFacing: fd,
-      north: { x: _setupPlan.width * 0.92, y: _setupPlan.height * 0.08, rotation: northRot },
-      nextNum: 1,
-      startNum: 1,
-    };
-    project.floors.push(floor);
-    project.activeFloorId = floor.id;
-    hydrateFloor(project);
-    project.updatedAt = Date.now();
-    _addingFloor = false;
-    _setupPlan = null;
-    _setupRooms = null;
-    _setupFrontDoor = null;
-    _setSetupFloorMode(false);
-    save();
-    document.getElementById('startBtn').textContent = 'Start Survey';
-    document.getElementById('startBtnTop').textContent = 'Start';
-    enterWork();
-    toast('Added ' + floorName);
-    return;
-  }
-
-  if (!addr || !_setupPlan) return;
 
   if (_editingProjectId) {
     const p = (store.projects || []).find(x => x.id === _editingProjectId);
     if (!p) { _editingProjectId = null; return; }
-    ensureFloors(p);
     p.address = addr;
     p.plan = { dataUrl: _setupPlan.dataUrl, width: _setupPlan.width, height: _setupPlan.height };
     p.frontDoorFacing = fd;
@@ -3331,15 +3102,10 @@ function commitNewProject() {
     p.buildingType = bt;
     if (!p.north) p.north = { x: p.plan.width * 0.92, y: p.plan.height * 0.08, rotation: 0 };
     p.north.rotation = northRot;
-    const editedFloor = (p.floors || []).find(f => f.id === (_editingFloorId || p.activeFloorId));
-    if (editedFloor && floorName) editedFloor.name = floorName;
-    syncFloor(p);
     p.updatedAt = Date.now();
     _editingProjectId = null;
-    _editingFloorId = null;
     project = p;
     save();
-    const fnf = document.getElementById('floorNameField'); if (fnf) fnf.style.display = 'none';
     document.getElementById('startBtn').textContent = 'Start Survey';
     document.getElementById('startBtnTop').textContent = 'Start';
     enterWork();
@@ -3347,113 +3113,28 @@ function commitNewProject() {
   }
 
   const now = Date.now();
-  const firstFloor = {
-    id: uid(),
-    name: 'Floor 1',
-    plan: { dataUrl: _setupPlan.dataUrl, width: _setupPlan.width, height: _setupPlan.height },
-    pins: [],
-    drawings: [],
-    rooms: Array.isArray(_setupRooms) ? _setupRooms.slice() : [],
-    frontDoor: _setupFrontDoor ? { x: _setupFrontDoor.x, y: _setupFrontDoor.y } : null,
-    frontDoorFacing: fd,
-    north: { x: _setupPlan.width * 0.92, y: _setupPlan.height * 0.08, rotation: northRot },
-    nextNum: 1,
-    startNum: 1,
-  };
   project = {
     id: uid(),
     mode: _setupMode,
     address: addr,
+    plan: { dataUrl: _setupPlan.dataUrl, width: _setupPlan.width, height: _setupPlan.height },
+    startNum: 1,
+    nextNum: 1,
+    pins: [],
+    drawings: [],
+    frontDoorFacing: fd,
+    frontDoor: _setupFrontDoor ? { x: _setupFrontDoor.x, y: _setupFrontDoor.y } : null,
+    rooms: Array.isArray(_setupRooms) ? _setupRooms.slice() : [],
     buildingType: bt,
-    floors: [firstFloor],
-    activeFloorId: firstFloor.id,
+    north: { x: _setupPlan.width * 0.92, y: _setupPlan.height * 0.08, rotation: northRot },
     createdAt: now,
     updatedAt: now,
   };
-  hydrateFloor(project);
   store.projects = store.projects || [];
   store.projects.push(project);
   save();
   enterWork();
 }
-
-// ---------- Floors sheet ----------
-function openFloorSheet() {
-  if (!project) return;
-  closeMenu();
-  closeSheets();
-  ensureFloors(project);
-  syncFloor(project);
-  _sheetOpenedAt = performance.now();
-  renderFloorList();
-  document.getElementById('floorSheet').classList.add('open');
-  document.getElementById('scrim').classList.add('active');
-}
-function renderFloorList() {
-  const list = document.getElementById('floorList');
-  if (!list || !project) return;
-  list.innerHTML = '';
-  (project.floors || []).forEach((f, idx) => {
-    const isActive = f.id === project.activeFloorId;
-    const pinCount = (f.pins || []).length;
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px';
-    const main = document.createElement('button');
-    main.type = 'button';
-    main.className = 'pin-list-item';
-    main.style.cssText = 'flex:1;text-align:left;' + (isActive ? 'outline:2px solid var(--accent);' : '');
-    main.innerHTML = `
-      <div class="pli-num">${idx + 1}</div>
-      <div class="pli-body">
-        <div class="pli-title">${escapeHtml(f.name || ('Floor ' + (idx+1)))}${isActive ? ' · current' : ''}</div>
-        <div class="pli-sub ${pinCount ? '' : 'empty'}">${pinCount} pin${pinCount===1?'':'s'}</div>
-      </div>`;
-    main.onclick = () => switchFloor(f.id);
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'ghost';
-    del.textContent = '🗑';
-    del.title = 'Delete floor';
-    del.onclick = (e) => { e.stopPropagation(); deleteFloor(f.id); };
-    row.appendChild(main);
-    if ((project.floors || []).length > 1) row.appendChild(del);
-    list.appendChild(row);
-  });
-}
-function switchFloor(id) {
-  if (!project) return;
-  if (id === project.activeFloorId) { closeSheets(); return; }
-  const f = (project.floors || []).find(x => x.id === id);
-  if (!f) return;
-  syncFloor(project);
-  project.activeFloorId = id;
-  hydrateFloor(project);
-  project.updatedAt = Date.now();
-  save();
-  closeSheets();
-  enterWork();
-  toast('Switched to ' + (f.name || 'floor'));
-}
-function deleteFloor(id) {
-  if (!project || (project.floors || []).length <= 1) return;
-  const f = project.floors.find(x => x.id === id);
-  if (!f) return;
-  const n = (f.pins || []).length;
-  const msg = n
-    ? 'Delete "' + (f.name || 'floor') + '"? It has ' + n + ' pin' + (n===1?'':'s') + ' and their photos. This cannot be undone.'
-    : 'Delete "' + (f.name || 'floor') + '"?';
-  if (!confirm(msg)) return;
-  syncFloor(project);
-  project.floors = project.floors.filter(x => x.id !== id);
-  if (project.activeFloorId === id) project.activeFloorId = project.floors[0].id;
-  hydrateFloor(project);
-  project.updatedAt = Date.now();
-  save();
-  renderFloorList();
-  refreshSubtitle();
-  renderAll();
-}
-
 
 // ---------- WORK ----------
 function enterWork() {
@@ -3486,9 +3167,7 @@ function refreshSubtitle() {
   const pics = pins.reduce((a,p) => a + (isExternal ? (p.extPhotoCount||0) : (p.photos||[]).length), 0);
   const pinLabel = n + ' pin' + (n===1?'':'s');
   const picLabel = pics + ' pic' + (pics===1?'':'s');
-  const _af = activeFloor(project);
-  const _floorLabel = (project.floors && project.floors.length > 1 && _af) ? (_af.name || 'Floor') + ' · ' : '';
-  document.getElementById('wSub').textContent = _floorLabel + project.mode + ' · ' + pinLabel + ' · ' + picLabel;
+  document.getElementById('wSub').textContent = project.mode + ' · ' + pinLabel + ' · ' + picLabel;
   const btn = document.getElementById('pinPickerBtn');
   const cnt = document.getElementById('pinPickerCount');
   if (btn && cnt) {
@@ -4159,7 +3838,6 @@ function onPointerUp(e) {
     if (document.getElementById('pinSheet').classList.contains('open') ||
         document.getElementById('pinPickerSheet').classList.contains('open') ||
         document.getElementById('exportSheet').classList.contains('open') ||
-        (document.getElementById('floorSheet')||{classList:{contains:()=>false}}).classList.contains('open') ||
         Date.now() < _suppressClickUntil) {
       return;
     }
@@ -4179,8 +3857,7 @@ function onStageClickFallback(e) {
   }
   if (document.getElementById('pinSheet').classList.contains('open') ||
       document.getElementById('pinPickerSheet').classList.contains('open') ||
-      document.getElementById('exportSheet').classList.contains('open') ||
-      (document.getElementById('floorSheet')||{classList:{contains:()=>false}}).classList.contains('open')) {
+      document.getElementById('exportSheet').classList.contains('open')) {
     return;
   }
   const imgPt = clientToImage(e.clientX, e.clientY);
@@ -4872,8 +4549,6 @@ function closeSheets(ev) {
   document.getElementById('exportSheet').classList.remove('open');
   document.getElementById('pinPickerSheet').classList.remove('open');
   document.getElementById('locPickerSheet').classList.remove('open');
-  const _fs = document.getElementById('floorSheet');
-  if (_fs) _fs.classList.remove('open');
   document.getElementById('scrim').classList.remove('active');
   ui.selectedPinId = null;
   renderPins();
@@ -6138,127 +5813,114 @@ async function exportProjectZip() {
 
 
     const zip = new JSZip();
+    const pins = (project.pins || []).slice().sort((a,b) => a.num - b.num);
     const isInternal = project.mode === 'internal';
     const folderName = sanitizeFilename(project.address);
     const root = zip.folder(folderName);
 
-    ensureFloors(project);
-    syncFloor(project);
-    const floors = project.floors || [];
-    const multiFloor = floors.length > 1;
+    // map.png
+    const pngBlob = await composeMapImage('png-blob');
+    root.file('map.png', pngBlob);
 
-    for (const floor of floors) {
-      await withFloor(floor, async () => {
-        const dest = multiFloor ? root.folder(sanitizeFilename(floor.name || 'floor')) : root;
-        const pins = (project.pins || []).slice().sort((a,b) => a.num - b.num);
-      // map.png
-      const pngBlob = await composeMapImage('png-blob');
-      dest.file('map.png', pngBlob);
-
-      // plan.png — clean plan, no pins/drawings, native dimensions
-      if (isInternal) {
-        const planBlob = await new Promise((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => {
-            const c = document.createElement('canvas');
-            c.width = project.plan.width; c.height = project.plan.height;
-            const ctx = c.getContext('2d');
-            ctx.drawImage(img, 0, 0, c.width, c.height);
-            c.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
-          };
-          img.onerror = reject;
-          img.src = project.plan.dataUrl;
-        });
-        dest.file('plan.png', planBlob);
-      }
-
-      // Photo numbering: each pin's num is also its starting photo number.
-      // Build per-pin range strings + figure out the total for filename padding.
-      let totalPhotos = 0;
-      const photoRangeFor = (p) => {
-        const n = (p.photos || []).length;
-        if (!n) return '';
-        const start = p.num;
-        const end = p.num + n - 1;
-        if (end > totalPhotos) totalPhotos = end;
-        return n === 1 ? String(start) : (start + ' to ' + end);
-      };
-      // First pass to fill totalPhotos (so pad width is right for the CSV too — though only filenames use pad).
-      if (isInternal) pins.forEach(p => photoRangeFor(p));
-      const padW = String(Math.max(totalPhotos, 1)).length >= 3 ? 3 : 2;
-      const pad = (n) => String(n).padStart(padW, '0');
-
-      // pins.csv
-      const orientOffset = _orientationOffset(project);
-      const roomLabels = buildRoomLabels(project, orientOffset);
-      const firstPinNum = pins.length ? pins[0].num : null;
-      const _fcol = multiFloor ? 'Floor,' : '';
-      const _fval = multiFloor ? csvField(floor.name || '') + ',' : '';
-      const csvLines = [isInternal
-        ? _fcol + 'Pin,Type,Description,Photo Count,Photo Numbers,Room,Direction,X,Y'
-        : _fcol + 'Pin,Location,Category,Description,External Photos,Uploaded Photos'];
-      const planW = project.plan.width, planH = project.plan.height;
-      const norm = (v, dim) => (typeof v === 'number' && isFinite(v) && dim) ? (Math.round((v / dim) * 1e5) / 1e5).toString() : '';
-      pins.forEach(p => {
-        const desc = (p.description || '').trim();
-        const type = p.isExterior ? 'Exterior' : 'Interior';
-        if (isInternal) {
-          const photoCount = (p.photos || []).length;
-          const range = photoRangeFor(p);
-          const dir = pinCardinal(project, p, orientOffset);
-          const room = p.location || pinRoom(project, p, roomLabels);
-          csvLines.push(_fval + [p.num, type, csvField(desc), photoCount, csvField(range), csvField(room), csvField(dir), norm(p.x, planW), norm(p.y, planH)].join(','));
-        } else {
-          const extCount = p.extPhotoCount || 0;
-          const upCount = (p.photos || []).length;
-          csvLines.push(_fval + [p.num, csvField(p.location||''), csvField(p.category||''), csvField(desc), extCount, upCount].join(','));
-        }
+    // plan.png — clean plan, no pins/drawings, native dimensions
+    if (isInternal) {
+      const planBlob = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas');
+          c.width = project.plan.width; c.height = project.plan.height;
+          const ctx = c.getContext('2d');
+          ctx.drawImage(img, 0, 0, c.width, c.height);
+          c.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
+        };
+        img.onerror = reject;
+        img.src = project.plan.dataUrl;
       });
-      dest.file('pins.csv', csvLines.join('\r\n'));
+      root.file('plan.png', planBlob);
+    }
 
-      // photos/  — global numbering: filename = photo-{pin.num + offset}.{ext}
+    // Photo numbering: each pin's num is also its starting photo number.
+    // Build per-pin range strings + figure out the total for filename padding.
+    let totalPhotos = 0;
+    const photoRangeFor = (p) => {
+      const n = (p.photos || []).length;
+      if (!n) return '';
+      const start = p.num;
+      const end = p.num + n - 1;
+      if (end > totalPhotos) totalPhotos = end;
+      return n === 1 ? String(start) : (start + ' to ' + end);
+    };
+    // First pass to fill totalPhotos (so pad width is right for the CSV too — though only filenames use pad).
+    if (isInternal) pins.forEach(p => photoRangeFor(p));
+    const padW = String(Math.max(totalPhotos, 1)).length >= 3 ? 3 : 2;
+    const pad = (n) => String(n).padStart(padW, '0');
+
+    // pins.csv
+    const orientOffset = _orientationOffset(project);
+    const roomLabels = buildRoomLabels(project, orientOffset);
+    const firstPinNum = pins.length ? pins[0].num : null;
+    const csvLines = [isInternal
+      ? 'Pin,Type,Description,Photo Count,Photo Numbers,Room,Direction,X,Y'
+      : 'Pin,Location,Category,Description,External Photos,Uploaded Photos'];
+    const planW = project.plan.width, planH = project.plan.height;
+    const norm = (v, dim) => (typeof v === 'number' && isFinite(v) && dim) ? (Math.round((v / dim) * 1e5) / 1e5).toString() : '';
+    pins.forEach(p => {
+      const desc = (p.description || '').trim();
+      const type = p.isExterior ? 'Exterior' : 'Interior';
       if (isInternal) {
-        const photosFolder = dest.folder('photos');
-        for (const p of pins) {
-          const photos = p.photos || [];
-          for (let i = 0; i < photos.length; i++) {
-            const entry = photos[i];
-            let dataUrl = await resolvePhoto(entry);
+        const photoCount = (p.photos || []).length;
+        const range = photoRangeFor(p);
+        const dir = pinCardinal(project, p, orientOffset);
+        const room = p.location || pinRoom(project, p, roomLabels);
+        csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range), csvField(room), csvField(dir), norm(p.x, planW), norm(p.y, planH)].join(','));
+      } else {
+        const extCount = p.extPhotoCount || 0;
+        const upCount = (p.photos || []).length;
+        csvLines.push([p.num, csvField(p.location||''), csvField(p.category||''), csvField(desc), extCount, upCount].join(','));
+      }
+    });
+    root.file('pins.csv', csvLines.join('\r\n'));
+
+    // photos/  — global numbering: filename = photo-{pin.num + offset}.{ext}
+    if (isInternal) {
+      const photosFolder = root.folder('photos');
+      for (const p of pins) {
+        const photos = p.photos || [];
+        for (let i = 0; i < photos.length; i++) {
+          const entry = photos[i];
+          let dataUrl = await resolvePhoto(entry);
+          if (!dataUrl) continue;
+          const strokes = (p.photoStrokes && isPhotoId(entry)) ? (p.photoStrokes[entry] || []) : [];
+          if (strokes.length) {
+            try { dataUrl = await compositePhotoWithStrokes(dataUrl, strokes); }
+            catch (e) { console.warn('annotate composite failed', e); }
+          }
+          const m = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+          if (!m) continue;
+          const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+          const photoNum = p.num + i;
+          const name = 'photo-' + pad(photoNum) + '.' + ext;
+          photosFolder.file(name, m[2], { base64: true });
+        }
+      }
+    } else {
+      // External mode: bundle any photos the user uploaded from their library.
+      const upPins = pins.filter(p => (p.photos || []).length);
+      if (upPins.length) {
+        const upFolder = root.folder('photos');
+        for (const p of upPins) {
+          for (let i = 0; i < p.photos.length; i++) {
+            const entry = p.photos[i];
+            const dataUrl = await resolvePhoto(entry);
             if (!dataUrl) continue;
-            const strokes = (p.photoStrokes && isPhotoId(entry)) ? (p.photoStrokes[entry] || []) : [];
-            if (strokes.length) {
-              try { dataUrl = await compositePhotoWithStrokes(dataUrl, strokes); }
-              catch (e) { console.warn('annotate composite failed', e); }
-            }
             const m = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
             if (!m) continue;
             const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
-            const photoNum = p.num + i;
-            const name = 'photo-' + pad(photoNum) + '.' + ext;
-            photosFolder.file(name, m[2], { base64: true });
-          }
-        }
-      } else {
-        // External mode: bundle any photos the user uploaded from their library.
-        const upPins = pins.filter(p => (p.photos || []).length);
-        if (upPins.length) {
-          const upFolder = dest.folder('photos');
-          for (const p of upPins) {
-            for (let i = 0; i < p.photos.length; i++) {
-              const entry = p.photos[i];
-              const dataUrl = await resolvePhoto(entry);
-              if (!dataUrl) continue;
-              const m = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
-              if (!m) continue;
-              const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
-              const name = 'pin-' + p.num + '-' + String(i+1).padStart(2,'0') + '.' + ext;
-              upFolder.file(name, m[2], { base64: true });
-            }
+            const name = 'pin-' + p.num + '-' + String(i+1).padStart(2,'0') + '.' + ext;
+            upFolder.file(name, m[2], { base64: true });
           }
         }
       }
-
-      });
     }
 
     // quick-capture/  — untethered burst photos (Quick Capture)
@@ -6346,20 +6008,6 @@ function sanitizeFilename(s) {
 
 async function buildPinLogPdf() {
   if (!project) throw new Error('No project loaded');
-  ensureFloors(project);
-  syncFloor(project);
-  const _floors = project.floors || [];
-  let _pdf = null;
-  for (const f of _floors) {
-    await withFloor(f, async () => {
-      _pdf = await _appendFloorPdfPages(_pdf, _floors.length > 1 ? (f.name || '') : '');
-    });
-  }
-  return _pdf;
-}
-
-async function _appendFloorPdfPages(existingPdf, floorLabel) {
-  if (!project) throw new Error('No project loaded');
 
   // Composed plan with numbered pins overlay
   const pngBlob = await composeMapImage('png-blob');
@@ -6373,7 +6021,7 @@ async function _appendFloorPdfPages(existingPdf, floorLabel) {
 
   // 11x17 tabloid, landscape: plan on left, pin log table on right
   const { jsPDF } = window.jspdf;
-  const pdf = existingPdf || new jsPDF({ unit: 'in', format: [11, 17], orientation: 'landscape' });
+  const pdf = new jsPDF({ unit: 'in', format: [11, 17], orientation: 'landscape' });
   const pageW = pdf.internal.pageSize.getWidth();   // 17
   const pageH = pdf.internal.pageSize.getHeight();  // 11
   const margin = 0.35;
@@ -6549,22 +6197,13 @@ async function _appendFloorPdfPages(existingPdf, floorLabel) {
     pdf.setFontSize(8);
     pdf.setTextColor(120);
     pdf.text(
-      (project.address || '') + (floorLabel ? '  ·  ' + floorLabel : '') +
-      '  ·  Page ' + (pageIdx + 1) + ' of ' + totalPages,
+      (project.address || '') + '  ·  Page ' + (pageIdx + 1) + ' of ' + totalPages,
       pageW - margin, pageH - 0.12, { align: 'right' }
     );
-
-    // Floor name banner (multi-floor exports only)
-    if (floorLabel) {
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(11);
-      pdf.setTextColor(40);
-      pdf.text(floorLabel, margin, pageH - 0.12);
-    }
   };
 
   for (let p = 0; p < totalPages; p++) {
-    if (existingPdf || p > 0) pdf.addPage([11, 17], 'landscape');
+    if (p > 0) pdf.addPage([11, 17], 'landscape');
     drawPage(p);
   }
 
