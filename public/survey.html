@@ -1282,7 +1282,7 @@ async function migratePhotosToIdb(fromSaveFailure) {
   try {
     const buckets = [].concat(store.projects || [], store.trash || []);
     for (const proj of buckets) {
-      for (const pin of (proj.pins || [])) {
+      for (const pin of allPins(proj)) {
         if (!pin.photos) continue;
         for (let i = 0; i < pin.photos.length; i++) {
           const v = pin.photos[i];
