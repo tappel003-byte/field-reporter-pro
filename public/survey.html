@@ -1303,7 +1303,7 @@ async function migratePhotosToIdb(fromSaveFailure) {
     // Avoid save() recursion when this run was triggered by a failed save.
     if (fromSaveFailure) {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(store, _storeReplacer));
         _saveFailed = false;
         hideSaveFailureBanner();
         toast('Freed space by moving photos — changes saved.');
