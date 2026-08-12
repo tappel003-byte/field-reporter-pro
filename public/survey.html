@@ -4678,6 +4678,8 @@ function closeSheets(ev) {
   document.getElementById('exportSheet').classList.remove('open');
   document.getElementById('pinPickerSheet').classList.remove('open');
   document.getElementById('locPickerSheet').classList.remove('open');
+  const _fs = document.getElementById('floorSheet');
+  if (_fs) _fs.classList.remove('open');
   document.getElementById('scrim').classList.remove('active');
   ui.selectedPinId = null;
   renderPins();
