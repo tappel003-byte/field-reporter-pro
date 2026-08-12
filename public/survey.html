@@ -3967,6 +3967,7 @@ function onPointerUp(e) {
     if (document.getElementById('pinSheet').classList.contains('open') ||
         document.getElementById('pinPickerSheet').classList.contains('open') ||
         document.getElementById('exportSheet').classList.contains('open') ||
+        (document.getElementById('floorSheet')||{classList:{contains:()=>false}}).classList.contains('open') ||
         Date.now() < _suppressClickUntil) {
       return;
     }
@@ -3986,7 +3987,8 @@ function onStageClickFallback(e) {
   }
   if (document.getElementById('pinSheet').classList.contains('open') ||
       document.getElementById('pinPickerSheet').classList.contains('open') ||
-      document.getElementById('exportSheet').classList.contains('open')) {
+      document.getElementById('exportSheet').classList.contains('open') ||
+      (document.getElementById('floorSheet')||{classList:{contains:()=>false}}).classList.contains('open')) {
     return;
   }
   const imgPt = clientToImage(e.clientX, e.clientY);
