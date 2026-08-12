@@ -1619,6 +1619,7 @@ function renderTrash() {
 function openProject(id) {
   const p = (store.projects||[]).find(x => x.id === id);
   if (!p) return;
+  ensureFloors(p);
   project = p;
   enterWork();
 }
