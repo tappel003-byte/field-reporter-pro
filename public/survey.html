@@ -984,6 +984,101 @@ let ui = {
   lastIsExterior: false,           // sticky toggle for internal-mode pins
 };
 
+// ---------- Floors ----------
+// A project holds one or more floors. The ACTIVE floor's data is mirrored onto
+// project.plan / pins / drawings / rooms / frontDoor / north / nextNum so all
+// existing code keeps working unchanged. Those mirror keys are stripped at
+// save() time so the plan image isn't stored twice.
+const FLOOR_MIRROR_KEYS = ['plan','pins','drawings','rooms','frontDoor','frontDoorFacing','north','nextNum','startNum'];
+function activeFloor(p) {
+  p = p || project;
+  if (!p || !Array.isArray(p.floors) || !p.floors.length) return null;
+  return p.floors.find(f => f.id === p.activeFloorId) || p.floors[0];
+}
+function hydrateFloor(p) {
+  p = p || project;
+  const f = activeFloor(p);
+  if (!f) return;
+  if (!Array.isArray(f.pins)) f.pins = [];
+  if (!Array.isArray(f.drawings)) f.drawings = [];
+  p.plan = f.plan || null;
+  p.pins = f.pins;
+  p.drawings = f.drawings;
+  p.rooms = Array.isArray(f.rooms) ? f.rooms : [];
+  p.frontDoor = f.frontDoor || null;
+  p.frontDoorFacing = f.frontDoorFacing || '';
+  p.north = f.north || { rotation: 0 };
+  p.nextNum = f.nextNum || 1;
+  p.startNum = f.startNum || 1;
+}
+function syncFloor(p) {
+  p = p || project;
+  const f = activeFloor(p);
+  if (!f) return;
+  f.plan = p.plan || f.plan || null;
+  f.pins = p.pins || [];
+  f.drawings = p.drawings || [];
+  f.rooms = p.rooms || [];
+  f.frontDoor = p.frontDoor || null;
+  f.frontDoorFacing = p.frontDoorFacing || '';
+  f.north = p.north || { rotation: 0 };
+  f.nextNum = p.nextNum || 1;
+  f.startNum = p.startNum || 1;
+}
+function ensureFloors(p) {
+  if (!p) return p;
+  if (!Array.isArray(p.floors) || !p.floors.length) {
+    p.floors = [{
+      id: uid(),
+      name: 'Floor 1',
+      plan: p.plan || null,
+      pins: Array.isArray(p.pins) ? p.pins : [],
+      drawings: Array.isArray(p.drawings) ? p.drawings : [],
+      rooms: Array.isArray(p.rooms) ? p.rooms : [],
+      frontDoor: p.frontDoor || null,
+      frontDoorFacing: p.frontDoorFacing || '',
+      north: p.north || { rotation: 0 },
+      nextNum: p.nextNum || 1,
+      startNum: p.startNum || 1,
+    }];
+    p.activeFloorId = p.floors[0].id;
+  }
+  if (!p.activeFloorId || !p.floors.some(f => f.id === p.activeFloorId)) p.activeFloorId = p.floors[0].id;
+  hydrateFloor(p);
+  return p;
+}
+function allPins(p) {
+  p = p || project;
+  if (!p) return [];
+  if (Array.isArray(p.floors) && p.floors.length) {
+    return p.floors.reduce((acc, f) => acc.concat(f.pins || []), []);
+  }
+  return p.pins || [];
+}
+// Temporarily make `f` the active floor while `fn` runs (used by exports).
+async function withFloor(f, fn) {
+  if (!project || !f) return fn();
+  const prev = project.activeFloorId;
+  syncFloor(project);
+  project.activeFloorId = f.id;
+  hydrateFloor(project);
+  try {
+    return await fn();
+  } finally {
+    syncFloor(project);
+    project.activeFloorId = prev;
+    hydrateFloor(project);
+  }
+}
+function _storeReplacer(key, value) {
+  if (value && typeof value === 'object' && Array.isArray(value.floors)) {
+    const copy = Object.assign({}, value);
+    FLOOR_MIRROR_KEYS.forEach(k => { delete copy[k]; });
+    return copy;
+  }
+  return value;
+}
+
 // ---------- Persistence ----------
 const BACKUP_KEYS = ['pgg_survey_v1.bak1','pgg_survey_v1.bak2','pgg_survey_v1.bak3'];
 let _loadCorrupted = false;
@@ -998,6 +1093,8 @@ function load() {
   }
   if (!store.projects) store.projects = [];
   if (!store.trash) store.trash = [];
+  (store.projects || []).forEach(ensureFloors);
+  (store.trash || []).forEach(ensureFloors);
   purgeOldTrash();
   // Migrate any inline photo dataURLs out of localStorage into IndexedDB
   migratePhotosToIdb();
@@ -1005,7 +1102,8 @@ function load() {
 let _saveFailed = false;
 function save() {
   try {
-    const serialized = JSON.stringify(store);
+    if (project) syncFloor(project);
+    const serialized = JSON.stringify(store, _storeReplacer);
     // Rolling backup: never overwrite a non-empty backup with an empty store.
     const hasContent = (store.projects && store.projects.length) || (store.trash && store.trash.length);
     if (hasContent) {
