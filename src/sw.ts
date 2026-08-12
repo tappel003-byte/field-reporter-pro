@@ -97,8 +97,33 @@ self.addEventListener("install", (event) => {
   event.waitUntil(cacheOfflineShell().then(() => self.skipWaiting()));
 });
 
+// One-release cache reset: wipe stale HTML/shell caches once so installed
+// home-screen copies pick up the current survey.html, then resume normally.
+const RESET_CACHE = "sw-reset-fr-v2";
+
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    (async () => {
+      try {
+        const already = await caches.has(RESET_CACHE);
+        if (!already) {
+          const names = await caches.keys();
+          await Promise.allSettled(
+            names
+              .filter((n) => n === "html-navigations" || n === OFFLINE_CACHE)
+              .map((n) => caches.delete(n)),
+          );
+          await caches.open(RESET_CACHE);
+          await cacheOfflineShell();
+        }
+      } catch {}
+      await self.clients.claim();
+      try {
+        const clients = await self.clients.matchAll({ type: "window" });
+        await Promise.allSettled(clients.map((c) => c.navigate(c.url)));
+      } catch {}
+    })(),
+  );
 });
 
 // Legacy: still honor an explicit SKIP_WAITING message if anything sends one.
