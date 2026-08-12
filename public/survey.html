@@ -6192,9 +6192,11 @@ async function exportProjectZip() {
       const orientOffset = _orientationOffset(project);
       const roomLabels = buildRoomLabels(project, orientOffset);
       const firstPinNum = pins.length ? pins[0].num : null;
+      const _fcol = multiFloor ? 'Floor,' : '';
+      const _fval = multiFloor ? csvField(floor.name || '') + ',' : '';
       const csvLines = [isInternal
-        ? 'Pin,Type,Description,Photo Count,Photo Numbers,Room,Direction,X,Y'
-        : 'Pin,Location,Category,Description,External Photos,Uploaded Photos'];
+        ? _fcol + 'Pin,Type,Description,Photo Count,Photo Numbers,Room,Direction,X,Y'
+        : _fcol + 'Pin,Location,Category,Description,External Photos,Uploaded Photos'];
       const planW = project.plan.width, planH = project.plan.height;
       const norm = (v, dim) => (typeof v === 'number' && isFinite(v) && dim) ? (Math.round((v / dim) * 1e5) / 1e5).toString() : '';
       pins.forEach(p => {
@@ -6205,11 +6207,11 @@ async function exportProjectZip() {
           const range = photoRangeFor(p);
           const dir = pinCardinal(project, p, orientOffset);
           const room = p.location || pinRoom(project, p, roomLabels);
-          csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range), csvField(room), csvField(dir), norm(p.x, planW), norm(p.y, planH)].join(','));
+          csvLines.push(_fval + [p.num, type, csvField(desc), photoCount, csvField(range), csvField(room), csvField(dir), norm(p.x, planW), norm(p.y, planH)].join(','));
         } else {
           const extCount = p.extPhotoCount || 0;
           const upCount = (p.photos || []).length;
-          csvLines.push([p.num, csvField(p.location||''), csvField(p.category||''), csvField(desc), extCount, upCount].join(','));
+          csvLines.push(_fval + [p.num, csvField(p.location||''), csvField(p.category||''), csvField(desc), extCount, upCount].join(','));
         }
       });
       dest.file('pins.csv', csvLines.join('\r\n'));
