@@ -620,7 +620,7 @@
     <button id="startBtnTop" class="head-start-btn" disabled onclick="commitNewProject()">Start</button>
   </div>
   <div class="setup-body">
-    <div class="field">
+    <div class="field" id="addressField">
       <label>Address</label>
       <input type="text" id="fAddress" placeholder="Street, City, State — or tap a button below" autocomplete="off"
         style="width:100%" oninput="validateSetup()" />
@@ -636,6 +636,15 @@
       </div>
       <div class="hint" id="gpsHint" style="display:none"></div>
     </div>
+
+    <div class="field" id="floorNameField" style="display:none">
+      <label>Floor name</label>
+      <input type="text" id="fFloorName" placeholder="Basement, First Floor, Second Floor…" autocomplete="off"
+        style="width:100%" oninput="refreshStartBtn()" />
+      <div class="hint">Pin numbers restart at 1 on each floor. Photos export into a folder named after the floor.</div>
+    </div>
+
+
 
     <div class="field">
       <label>Floor plan</label>
