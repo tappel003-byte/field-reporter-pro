@@ -6138,114 +6138,125 @@ async function exportProjectZip() {
 
 
     const zip = new JSZip();
-    const pins = (project.pins || []).slice().sort((a,b) => a.num - b.num);
     const isInternal = project.mode === 'internal';
     const folderName = sanitizeFilename(project.address);
     const root = zip.folder(folderName);
 
-    // map.png
-    const pngBlob = await composeMapImage('png-blob');
-    root.file('map.png', pngBlob);
+    ensureFloors(project);
+    syncFloor(project);
+    const floors = project.floors || [];
+    const multiFloor = floors.length > 1;
 
-    // plan.png — clean plan, no pins/drawings, native dimensions
-    if (isInternal) {
-      const planBlob = await new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-          const c = document.createElement('canvas');
-          c.width = project.plan.width; c.height = project.plan.height;
-          const ctx = c.getContext('2d');
-          ctx.drawImage(img, 0, 0, c.width, c.height);
-          c.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
-        };
-        img.onerror = reject;
-        img.src = project.plan.dataUrl;
-      });
-      root.file('plan.png', planBlob);
-    }
+    for (const floor of floors) {
+      await withFloor(floor, async () => {
+        const dest = multiFloor ? root.folder(sanitizeFilename(floor.name || 'floor')) : root;
+        const pins = (project.pins || []).slice().sort((a,b) => a.num - b.num);
+      // map.png
+      const pngBlob = await composeMapImage('png-blob');
+      dest.file('map.png', pngBlob);
 
-    // Photo numbering: each pin's num is also its starting photo number.
-    // Build per-pin range strings + figure out the total for filename padding.
-    let totalPhotos = 0;
-    const photoRangeFor = (p) => {
-      const n = (p.photos || []).length;
-      if (!n) return '';
-      const start = p.num;
-      const end = p.num + n - 1;
-      if (end > totalPhotos) totalPhotos = end;
-      return n === 1 ? String(start) : (start + ' to ' + end);
-    };
-    // First pass to fill totalPhotos (so pad width is right for the CSV too — though only filenames use pad).
-    if (isInternal) pins.forEach(p => photoRangeFor(p));
-    const padW = String(Math.max(totalPhotos, 1)).length >= 3 ? 3 : 2;
-    const pad = (n) => String(n).padStart(padW, '0');
-
-    // pins.csv
-    const orientOffset = _orientationOffset(project);
-    const roomLabels = buildRoomLabels(project, orientOffset);
-    const firstPinNum = pins.length ? pins[0].num : null;
-    const csvLines = [isInternal
-      ? 'Pin,Type,Description,Photo Count,Photo Numbers,Room,Direction,X,Y'
-      : 'Pin,Location,Category,Description,External Photos,Uploaded Photos'];
-    const planW = project.plan.width, planH = project.plan.height;
-    const norm = (v, dim) => (typeof v === 'number' && isFinite(v) && dim) ? (Math.round((v / dim) * 1e5) / 1e5).toString() : '';
-    pins.forEach(p => {
-      const desc = (p.description || '').trim();
-      const type = p.isExterior ? 'Exterior' : 'Interior';
+      // plan.png — clean plan, no pins/drawings, native dimensions
       if (isInternal) {
-        const photoCount = (p.photos || []).length;
-        const range = photoRangeFor(p);
-        const dir = pinCardinal(project, p, orientOffset);
-        const room = p.location || pinRoom(project, p, roomLabels);
-        csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range), csvField(room), csvField(dir), norm(p.x, planW), norm(p.y, planH)].join(','));
-      } else {
-        const extCount = p.extPhotoCount || 0;
-        const upCount = (p.photos || []).length;
-        csvLines.push([p.num, csvField(p.location||''), csvField(p.category||''), csvField(desc), extCount, upCount].join(','));
+        const planBlob = await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            const c = document.createElement('canvas');
+            c.width = project.plan.width; c.height = project.plan.height;
+            const ctx = c.getContext('2d');
+            ctx.drawImage(img, 0, 0, c.width, c.height);
+            c.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
+          };
+          img.onerror = reject;
+          img.src = project.plan.dataUrl;
+        });
+        dest.file('plan.png', planBlob);
       }
-    });
-    root.file('pins.csv', csvLines.join('\r\n'));
 
-    // photos/  — global numbering: filename = photo-{pin.num + offset}.{ext}
-    if (isInternal) {
-      const photosFolder = root.folder('photos');
-      for (const p of pins) {
-        const photos = p.photos || [];
-        for (let i = 0; i < photos.length; i++) {
-          const entry = photos[i];
-          let dataUrl = await resolvePhoto(entry);
-          if (!dataUrl) continue;
-          const strokes = (p.photoStrokes && isPhotoId(entry)) ? (p.photoStrokes[entry] || []) : [];
-          if (strokes.length) {
-            try { dataUrl = await compositePhotoWithStrokes(dataUrl, strokes); }
-            catch (e) { console.warn('annotate composite failed', e); }
-          }
-          const m = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
-          if (!m) continue;
-          const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
-          const photoNum = p.num + i;
-          const name = 'photo-' + pad(photoNum) + '.' + ext;
-          photosFolder.file(name, m[2], { base64: true });
+      // Photo numbering: each pin's num is also its starting photo number.
+      // Build per-pin range strings + figure out the total for filename padding.
+      let totalPhotos = 0;
+      const photoRangeFor = (p) => {
+        const n = (p.photos || []).length;
+        if (!n) return '';
+        const start = p.num;
+        const end = p.num + n - 1;
+        if (end > totalPhotos) totalPhotos = end;
+        return n === 1 ? String(start) : (start + ' to ' + end);
+      };
+      // First pass to fill totalPhotos (so pad width is right for the CSV too — though only filenames use pad).
+      if (isInternal) pins.forEach(p => photoRangeFor(p));
+      const padW = String(Math.max(totalPhotos, 1)).length >= 3 ? 3 : 2;
+      const pad = (n) => String(n).padStart(padW, '0');
+
+      // pins.csv
+      const orientOffset = _orientationOffset(project);
+      const roomLabels = buildRoomLabels(project, orientOffset);
+      const firstPinNum = pins.length ? pins[0].num : null;
+      const csvLines = [isInternal
+        ? 'Pin,Type,Description,Photo Count,Photo Numbers,Room,Direction,X,Y'
+        : 'Pin,Location,Category,Description,External Photos,Uploaded Photos'];
+      const planW = project.plan.width, planH = project.plan.height;
+      const norm = (v, dim) => (typeof v === 'number' && isFinite(v) && dim) ? (Math.round((v / dim) * 1e5) / 1e5).toString() : '';
+      pins.forEach(p => {
+        const desc = (p.description || '').trim();
+        const type = p.isExterior ? 'Exterior' : 'Interior';
+        if (isInternal) {
+          const photoCount = (p.photos || []).length;
+          const range = photoRangeFor(p);
+          const dir = pinCardinal(project, p, orientOffset);
+          const room = p.location || pinRoom(project, p, roomLabels);
+          csvLines.push([p.num, type, csvField(desc), photoCount, csvField(range), csvField(room), csvField(dir), norm(p.x, planW), norm(p.y, planH)].join(','));
+        } else {
+          const extCount = p.extPhotoCount || 0;
+          const upCount = (p.photos || []).length;
+          csvLines.push([p.num, csvField(p.location||''), csvField(p.category||''), csvField(desc), extCount, upCount].join(','));
         }
-      }
-    } else {
-      // External mode: bundle any photos the user uploaded from their library.
-      const upPins = pins.filter(p => (p.photos || []).length);
-      if (upPins.length) {
-        const upFolder = root.folder('photos');
-        for (const p of upPins) {
-          for (let i = 0; i < p.photos.length; i++) {
-            const entry = p.photos[i];
-            const dataUrl = await resolvePhoto(entry);
+      });
+      dest.file('pins.csv', csvLines.join('\r\n'));
+
+      // photos/  — global numbering: filename = photo-{pin.num + offset}.{ext}
+      if (isInternal) {
+        const photosFolder = dest.folder('photos');
+        for (const p of pins) {
+          const photos = p.photos || [];
+          for (let i = 0; i < photos.length; i++) {
+            const entry = photos[i];
+            let dataUrl = await resolvePhoto(entry);
             if (!dataUrl) continue;
+            const strokes = (p.photoStrokes && isPhotoId(entry)) ? (p.photoStrokes[entry] || []) : [];
+            if (strokes.length) {
+              try { dataUrl = await compositePhotoWithStrokes(dataUrl, strokes); }
+              catch (e) { console.warn('annotate composite failed', e); }
+            }
             const m = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
             if (!m) continue;
             const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
-            const name = 'pin-' + p.num + '-' + String(i+1).padStart(2,'0') + '.' + ext;
-            upFolder.file(name, m[2], { base64: true });
+            const photoNum = p.num + i;
+            const name = 'photo-' + pad(photoNum) + '.' + ext;
+            photosFolder.file(name, m[2], { base64: true });
+          }
+        }
+      } else {
+        // External mode: bundle any photos the user uploaded from their library.
+        const upPins = pins.filter(p => (p.photos || []).length);
+        if (upPins.length) {
+          const upFolder = dest.folder('photos');
+          for (const p of upPins) {
+            for (let i = 0; i < p.photos.length; i++) {
+              const entry = p.photos[i];
+              const dataUrl = await resolvePhoto(entry);
+              if (!dataUrl) continue;
+              const m = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+              if (!m) continue;
+              const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+              const name = 'pin-' + p.num + '-' + String(i+1).padStart(2,'0') + '.' + ext;
+              upFolder.file(name, m[2], { base64: true });
+            }
           }
         }
       }
+
+      });
     }
 
     // quick-capture/  — untethered burst photos (Quick Capture)
