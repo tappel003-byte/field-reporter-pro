@@ -3174,7 +3174,10 @@ function useGpsCoordsOnly() {
 function editSetup() {
   if (!project) return;
   closeMenu();
+  ensureFloors(project);
+  _addingFloor = false;
   _editingProjectId = project.id;
+  _editingFloorId = project.activeFloorId;
   _setupMode = project.mode;
   _setupPlan = project.plan ? { dataUrl: project.plan.dataUrl, width: project.plan.width, height: project.plan.height } : null;
   _setupRooms = Array.isArray(project.rooms) ? project.rooms.slice() : null;
@@ -3182,6 +3185,13 @@ function editSetup() {
 
   document.getElementById('setupTitle').textContent = 'Edit Setup';
   document.getElementById('fAddress').value = project.address || '';
+  // Both address and floor name are editable when editing an existing floor.
+  _setSetupFloorMode(false);
+  const fnf = document.getElementById('floorNameField');
+  if (fnf) fnf.style.display = '';
+  const fn = document.getElementById('fFloorName');
+  const af = activeFloor(project);
+  if (fn) fn.value = (af && af.name) || 'Floor 1';
 
   const fd = document.getElementById('fFrontDoor');
   if (fd) fd.value = project.frontDoorFacing || '';
@@ -3209,12 +3219,53 @@ function editSetup() {
   showScreen('screenSetup');
 }
 
+// ---------- Add a floor ----------
+function startAddFloor() {
+  if (!project) return;
+  closeSheets();
+  closeMenu();
+  ensureFloors(project);
+  _addingFloor = true;
+  _editingProjectId = null;
+  _editingFloorId = null;
+  _setupMode = project.mode;
+  _setupPlan = null;
+  _setupFrontDoor = null;
+  _setupRooms = null;
+  _setupRoomsToken++;
+  _setSetupFloorMode(true);
+  document.getElementById('setupTitle').textContent = 'Add Floor';
+  document.getElementById('fFloorName').value = suggestFloorName();
+  document.getElementById('planPreview').style.display = 'none';
+  document.getElementById('planDropZone').style.display = '';
+  document.getElementById('fPlanFile').value = '';
+  const rf = document.getElementById('roomsField'); if (rf) rf.style.display = 'none';
+  const rc = document.getElementById('roomsChips'); if (rc) rc.innerHTML = '';
+  const fd = document.getElementById('fFrontDoor'); if (fd) fd.value = project.frontDoorFacing || '';
+  const bt = document.getElementById('fBuildingType'); if (bt) bt.value = project.buildingType || 'residential';
+  document.getElementById('startBtn').textContent = 'Add Floor';
+  document.getElementById('startBtnTop').textContent = 'Add';
+  refreshStartBtn();
+  showScreen('screenSetup');
+}
+function suggestFloorName() {
+  const used = (project.floors || []).map(f => (f.name||'').toLowerCase());
+  const ladder = ['Basement','First Floor','Second Floor','Third Floor','Fourth Floor'];
+  for (const name of ladder) {
+    if (!used.includes(name.toLowerCase())) return name;
+  }
+  return 'Floor ' + ((project.floors || []).length + 1);
+}
+
 function setupBack() {
-  if (_editingProjectId) {
+  if (_editingProjectId || _addingFloor) {
     _editingProjectId = null;
+    _editingFloorId = null;
+    _addingFloor = false;
     _setupPlan = null;
     _setupRooms = null;
     _setupFrontDoor = null;
+    _setSetupFloorMode(false);
     document.getElementById('startBtn').textContent = 'Start Survey';
     document.getElementById('startBtnTop').textContent = 'Start';
     showScreen('screenWork');
@@ -3225,17 +3276,53 @@ function setupBack() {
 
 function commitNewProject() {
   const addr = document.getElementById('fAddress').value.trim();
+  const floorName = ((document.getElementById('fFloorName')||{}).value || '').trim();
   let startNum = 1;
-  if (!addr || !_setupPlan) return;
 
   const fd = (document.getElementById('fFrontDoor')||{}).value || '';
   const bt = (document.getElementById('fBuildingType')||{}).value || 'residential';
   const northRot = frontDoorToNorthRotation(fd);
 
+  // --- Adding a new floor to the open project ---
+  if (_addingFloor) {
+    if (!project || !floorName || !_setupPlan) return;
+    syncFloor(project);
+    const floor = {
+      id: uid(),
+      name: floorName,
+      plan: { dataUrl: _setupPlan.dataUrl, width: _setupPlan.width, height: _setupPlan.height },
+      pins: [],
+      drawings: [],
+      rooms: Array.isArray(_setupRooms) ? _setupRooms.slice() : [],
+      frontDoor: _setupFrontDoor ? { x: _setupFrontDoor.x, y: _setupFrontDoor.y } : null,
+      frontDoorFacing: fd,
+      north: { x: _setupPlan.width * 0.92, y: _setupPlan.height * 0.08, rotation: northRot },
+      nextNum: 1,
+      startNum: 1,
+    };
+    project.floors.push(floor);
+    project.activeFloorId = floor.id;
+    hydrateFloor(project);
+    project.updatedAt = Date.now();
+    _addingFloor = false;
+    _setupPlan = null;
+    _setupRooms = null;
+    _setupFrontDoor = null;
+    _setSetupFloorMode(false);
+    save();
+    document.getElementById('startBtn').textContent = 'Start Survey';
+    document.getElementById('startBtnTop').textContent = 'Start';
+    enterWork();
+    toast('Added ' + floorName);
+    return;
+  }
+
+  if (!addr || !_setupPlan) return;
 
   if (_editingProjectId) {
     const p = (store.projects || []).find(x => x.id === _editingProjectId);
     if (!p) { _editingProjectId = null; return; }
+    ensureFloors(p);
     p.address = addr;
     p.plan = { dataUrl: _setupPlan.dataUrl, width: _setupPlan.width, height: _setupPlan.height };
     p.frontDoorFacing = fd;
@@ -3244,10 +3331,15 @@ function commitNewProject() {
     p.buildingType = bt;
     if (!p.north) p.north = { x: p.plan.width * 0.92, y: p.plan.height * 0.08, rotation: 0 };
     p.north.rotation = northRot;
+    const editedFloor = (p.floors || []).find(f => f.id === (_editingFloorId || p.activeFloorId));
+    if (editedFloor && floorName) editedFloor.name = floorName;
+    syncFloor(p);
     p.updatedAt = Date.now();
     _editingProjectId = null;
+    _editingFloorId = null;
     project = p;
     save();
+    const fnf = document.getElementById('floorNameField'); if (fnf) fnf.style.display = 'none';
     document.getElementById('startBtn').textContent = 'Start Survey';
     document.getElementById('startBtnTop').textContent = 'Start';
     enterWork();
@@ -3255,28 +3347,113 @@ function commitNewProject() {
   }
 
   const now = Date.now();
+  const firstFloor = {
+    id: uid(),
+    name: 'Floor 1',
+    plan: { dataUrl: _setupPlan.dataUrl, width: _setupPlan.width, height: _setupPlan.height },
+    pins: [],
+    drawings: [],
+    rooms: Array.isArray(_setupRooms) ? _setupRooms.slice() : [],
+    frontDoor: _setupFrontDoor ? { x: _setupFrontDoor.x, y: _setupFrontDoor.y } : null,
+    frontDoorFacing: fd,
+    north: { x: _setupPlan.width * 0.92, y: _setupPlan.height * 0.08, rotation: northRot },
+    nextNum: 1,
+    startNum: 1,
+  };
   project = {
     id: uid(),
     mode: _setupMode,
     address: addr,
-    plan: { dataUrl: _setupPlan.dataUrl, width: _setupPlan.width, height: _setupPlan.height },
-    startNum: 1,
-    nextNum: 1,
-    pins: [],
-    drawings: [],
-    frontDoorFacing: fd,
-    frontDoor: _setupFrontDoor ? { x: _setupFrontDoor.x, y: _setupFrontDoor.y } : null,
-    rooms: Array.isArray(_setupRooms) ? _setupRooms.slice() : [],
     buildingType: bt,
-    north: { x: _setupPlan.width * 0.92, y: _setupPlan.height * 0.08, rotation: northRot },
+    floors: [firstFloor],
+    activeFloorId: firstFloor.id,
     createdAt: now,
     updatedAt: now,
   };
+  hydrateFloor(project);
   store.projects = store.projects || [];
   store.projects.push(project);
   save();
   enterWork();
 }
+
+// ---------- Floors sheet ----------
+function openFloorSheet() {
+  if (!project) return;
+  closeMenu();
+  closeSheets();
+  ensureFloors(project);
+  syncFloor(project);
+  _sheetOpenedAt = performance.now();
+  renderFloorList();
+  document.getElementById('floorSheet').classList.add('open');
+  document.getElementById('scrim').classList.add('active');
+}
+function renderFloorList() {
+  const list = document.getElementById('floorList');
+  if (!list || !project) return;
+  list.innerHTML = '';
+  (project.floors || []).forEach((f, idx) => {
+    const isActive = f.id === project.activeFloorId;
+    const pinCount = (f.pins || []).length;
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px';
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'pin-list-item';
+    main.style.cssText = 'flex:1;text-align:left;' + (isActive ? 'outline:2px solid var(--accent);' : '');
+    main.innerHTML = `
+      <div class="pli-num">${idx + 1}</div>
+      <div class="pli-body">
+        <div class="pli-title">${escapeHtml(f.name || ('Floor ' + (idx+1)))}${isActive ? ' · current' : ''}</div>
+        <div class="pli-sub ${pinCount ? '' : 'empty'}">${pinCount} pin${pinCount===1?'':'s'}</div>
+      </div>`;
+    main.onclick = () => switchFloor(f.id);
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'ghost';
+    del.textContent = '🗑';
+    del.title = 'Delete floor';
+    del.onclick = (e) => { e.stopPropagation(); deleteFloor(f.id); };
+    row.appendChild(main);
+    if ((project.floors || []).length > 1) row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+function switchFloor(id) {
+  if (!project) return;
+  if (id === project.activeFloorId) { closeSheets(); return; }
+  const f = (project.floors || []).find(x => x.id === id);
+  if (!f) return;
+  syncFloor(project);
+  project.activeFloorId = id;
+  hydrateFloor(project);
+  project.updatedAt = Date.now();
+  save();
+  closeSheets();
+  enterWork();
+  toast('Switched to ' + (f.name || 'floor'));
+}
+function deleteFloor(id) {
+  if (!project || (project.floors || []).length <= 1) return;
+  const f = project.floors.find(x => x.id === id);
+  if (!f) return;
+  const n = (f.pins || []).length;
+  const msg = n
+    ? 'Delete "' + (f.name || 'floor') + '"? It has ' + n + ' pin' + (n===1?'':'s') + ' and their photos. This cannot be undone.'
+    : 'Delete "' + (f.name || 'floor') + '"?';
+  if (!confirm(msg)) return;
+  syncFloor(project);
+  project.floors = project.floors.filter(x => x.id !== id);
+  if (project.activeFloorId === id) project.activeFloorId = project.floors[0].id;
+  hydrateFloor(project);
+  project.updatedAt = Date.now();
+  save();
+  renderFloorList();
+  refreshSubtitle();
+  renderAll();
+}
+
 
 // ---------- WORK ----------
 function enterWork() {
