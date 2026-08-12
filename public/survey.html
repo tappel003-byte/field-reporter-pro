@@ -6346,6 +6346,20 @@ function sanitizeFilename(s) {
 
 async function buildPinLogPdf() {
   if (!project) throw new Error('No project loaded');
+  ensureFloors(project);
+  syncFloor(project);
+  const _floors = project.floors || [];
+  let _pdf = null;
+  for (const f of _floors) {
+    await withFloor(f, async () => {
+      _pdf = await _appendFloorPdfPages(_pdf, _floors.length > 1 ? (f.name || '') : '');
+    });
+  }
+  return _pdf;
+}
+
+async function _appendFloorPdfPages(existingPdf, floorLabel) {
+  if (!project) throw new Error('No project loaded');
 
   // Composed plan with numbered pins overlay
   const pngBlob = await composeMapImage('png-blob');
@@ -6359,7 +6373,7 @@ async function buildPinLogPdf() {
 
   // 11x17 tabloid, landscape: plan on left, pin log table on right
   const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF({ unit: 'in', format: [11, 17], orientation: 'landscape' });
+  const pdf = existingPdf || new jsPDF({ unit: 'in', format: [11, 17], orientation: 'landscape' });
   const pageW = pdf.internal.pageSize.getWidth();   // 17
   const pageH = pdf.internal.pageSize.getHeight();  // 11
   const margin = 0.35;
@@ -6535,13 +6549,22 @@ async function buildPinLogPdf() {
     pdf.setFontSize(8);
     pdf.setTextColor(120);
     pdf.text(
-      (project.address || '') + '  ·  Page ' + (pageIdx + 1) + ' of ' + totalPages,
+      (project.address || '') + (floorLabel ? '  ·  ' + floorLabel : '') +
+      '  ·  Page ' + (pageIdx + 1) + ' of ' + totalPages,
       pageW - margin, pageH - 0.12, { align: 'right' }
     );
+
+    // Floor name banner (multi-floor exports only)
+    if (floorLabel) {
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(11);
+      pdf.setTextColor(40);
+      pdf.text(floorLabel, margin, pageH - 0.12);
+    }
   };
 
   for (let p = 0; p < totalPages; p++) {
-    if (p > 0) pdf.addPage([11, 17], 'landscape');
+    if (existingPdf || p > 0) pdf.addPage([11, 17], 'landscape');
     drawPage(p);
   }
 
