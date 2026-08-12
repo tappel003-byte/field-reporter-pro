@@ -1709,7 +1709,8 @@ document.getElementById('fBuildingType').addEventListener('change', () => {
 function validateSetup() { refreshStartBtn(); }
 function refreshStartBtn() {
   const addr = document.getElementById('fAddress').value.trim();
-  const disabled = !(addr && _setupPlan);
+  const fname = ((document.getElementById('fFloorName')||{}).value || '').trim();
+  const disabled = _addingFloor ? !(fname && _setupPlan) : !(addr && _setupPlan);
   document.getElementById('startBtn').disabled = disabled;
   document.getElementById('startBtnTop').disabled = disabled;
 }
