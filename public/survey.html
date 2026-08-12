@@ -1216,6 +1216,9 @@ function restoreFromBackup() {
     store = JSON.parse(best.raw);
     if (!store.projects) store.projects = [];
     if (!store.trash) store.trash = [];
+    project = null;
+    (store.projects || []).forEach(ensureFloors);
+    (store.trash || []).forEach(ensureFloors);
     save();
     renderHome();
     toast('Restored ' + best.projects + ' project' + (best.projects===1?'':'s'));
