@@ -1,32 +1,32 @@
-# Fix: "Safari can't open the page because the network connection was lost"
+# Recover the app from its stuck offline worker
 
-## What happened
+## What happened, simply
 
-The screenshot is a Safari tab on `field-reporter-pro.lovable.app` (the root `/`, not `/survey.html`), showing Safari's own network-error page even though you had full signal.
+There are two copies of the app: the published website and a hidden offline copy stored by Safari. Reverting restored the website, but browsers do not remove an already-installed service worker when website code is reverted.
 
-That message appears when the page's service worker answers a navigation with a failed response instead of real content. The current worker does exactly that: when its network-first fetch doesn't complete, it looks for a cached copy of `/survey.html` or `/`, and if neither is in the cache it returns `Response.error()` — which Safari renders as "network connection was lost."
+The live published site currently serves the older `sw-reset-fr-v2` worker. It controls the entire site. Its navigation fallback returns `Response.error()` when neither `/survey.html` nor `/` is available in its cache. Safari presents that worker-generated failure as “the network connection was lost,” even when the phone has a full signal.
 
-Two things make that likely on iOS after the app has been backgrounded:
-- iOS suspends and later kills the service worker; the resumed navigation can fail its fetch even with a good connection.
-- Only `/survey.html` is guaranteed to be pre-cached as an offline shell. A navigation to bare `/` can miss the cache entirely and fall through to the error response.
+The recent forced-reload removal addressed the freezing behavior, but it could not remove the older worker already stored on the phone. Adding more fallback logic to that worker would be another patch on unstable browser-held state, so that is no longer the proposed approach.
 
-## The fix
+## Recovery release
 
-1. Never return a bare network error for a page navigation. Replace `Response.error()` with a small built-in offline page (plain HTML, no dependencies) that says the app couldn't load and offers a Retry button plus an "Open Survey" link. Your data is untouched either way — this only affects what you see instead of Safari's error screen.
-2. Cache both entry points as offline shells at install and activate: `/survey.html` and `/`, so a navigation to either always has something to serve.
-3. Make the root path resilient: if a navigation to `/` fails and no cached `/` exists, serve the cached `/survey.html` shell rather than failing.
-4. Raise the network-first timeout from 3s to about 8s for navigations, so a slow-but-working mobile connection resolves normally instead of dropping into the fallback path.
-5. Add a one-time cache-version bump so the corrected worker replaces the current one on installed and browser copies.
+1. Replace `/sw.js` for one published release with a small cleanup worker at the same URL. Returning phones will receive it automatically.
+2. Have that worker delete only this app’s Workbox/offline caches, take control, refresh open app pages once, and unregister itself even if cleanup partly fails.
+3. Remove the existing registration/update code during this recovery release so it cannot immediately install another worker.
+4. Keep the manifest and home-screen icon. This cleanup does not delete survey projects, photos, IndexedDB, or localStorage.
+5. Confirm the regular published website and `/survey.html` open normally after the worker has removed itself.
 
-## Technical notes
+## After recovery is confirmed
 
-All changes are in `src/sw.ts`:
-- `setCatchHandler`: add `caches.match` against the precache for `/` before falling back; final return becomes a generated `Response` with `Content-Type: text/html` and status 200 rather than `Response.error()`.
-- `cacheOfflineShell()`: fetch and store both `/survey.html` and `/` into `OFFLINE_CACHE`; bump `OFFLINE_CACHE` to `offline-shell-v2` and `RESET_CACHE` to `sw-reset-fr-v4`.
-- Navigation `NetworkFirst`: `networkTimeoutSeconds: 8`.
+Offline cold-start support will be rebuilt separately using the standard generated-worker setup, with registration disabled in previews and embedded frames. Separating cleanup from rebuilding avoids making the stuck state harder to diagnose.
 
-No changes to `public/survey.html`, project data, or storage.
+## What this means for you
+
+- The app is recoverable.
+- Your full signal was real; the message came from Safari’s stored worker, not the cellular connection.
+- Reverting did not fail—it restored the files, but browser-held offline state survives a revert.
+- During the cleanup release, the app requires a connection. Home-screen support remains, but offline opening returns only after the clean rebuild.
 
 ## Verification
 
-After publishing: close the tab and the installed app fully, reopen once while online (this lets the new worker install), then background the app for a while and return. The failure mode should be either the app loading normally or the in-app offline page with a Retry button — never Safari's network error.
+After publishing the recovery release: open the published app once while online, allow the cleanup refresh, fully close Safari/the home-screen app, and reopen it. Verify both a new survey and an existing job respond normally. Then test a second reopen to confirm the stale worker does not return.
