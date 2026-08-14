@@ -1407,6 +1407,7 @@ function renderHome() {
     }).join('');
   }
   // Dismissible reminder banner for projects not exported in 7+ days
+  try {
   if (reminder) {
     const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
     const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
@@ -1435,7 +1436,9 @@ function renderHome() {
       <button onclick="restoreFromBackup()" style="background:#8b5e34;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:600">Restore backup</button>
     </div>`;
   }
-  renderTrashFab();
+  } catch (e) { window.__surveyReportError?.('reminder banner', e); }
+  try { renderTrashFab(); } catch (e) { window.__surveyReportError?.('trash badge', e); }
+
 }
 function dismissExportReminder(e) {
   if (e && e.stopPropagation) e.stopPropagation();
