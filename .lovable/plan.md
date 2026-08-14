@@ -1,66 +1,29 @@
-# Multiple Floors in One Survey
+# Fix: home screen locks up
 
-Today a survey holds exactly one floor plan. This adds floors as sheets inside
-a single project, so a basement / 1st / 2nd floor house is one job, not three.
+## What I checked
 
-## How it works
+I loaded the app fresh in a clean browser here — the home screen renders and works, with no JavaScript errors. So the freeze is not in the page itself; it is triggered by something on your phone: either the saved survey data, or a stale cached copy of the app still installed on the home screen.
 
-- Setup stays the same for the first plan. It becomes "Floor 1" automatically.
-- In the work screen header, a floor selector shows the current floor
-  (e.g. "Basement"). Tapping it lists the floors plus "+ Add floor".
-- Adding a floor opens the same setup flow: upload plan image, name the floor,
-  set front door / rooms for that plan.
-- Each floor keeps its own plan image, pins, drawings, rooms, front-door
-  marker, and north rotation. Switching floors swaps the whole canvas.
-- Floors can be renamed, reordered, and deleted (delete asks for confirmation
-  and warns if the floor has pins).
+Two candidate causes, neither confirmed yet:
 
-## Pin and photo numbering
+1. A startup step (backup check, export-reminder banner, trash purge, project-list render) throws on your data. When that happens mid-startup, the rest of the setup never runs, so buttons look normal but nothing is wired up — exactly the "everything is dead" symptom.
+2. Leftover data shape from the multi-floor build that got reverted. Surveys saved during that session may have their pins and floor plan stored in a structure the current code no longer understands. Your screenshot shows all four surveys at "0 pins", which fits.
 
-Pin numbers restart at 1 on every floor, as chosen.
+Because I cannot read your phone's storage from here, step 1 of this plan is to make the app tell us what is failing instead of failing silently.
 
-To keep photo filenames unique across the export, each floor gets its own
-folder in the ZIP:
+## The plan
 
-```text
-basement/photo-01.jpg
-basement/photo-02.jpg
-first-floor/photo-01.jpg
-second-floor/photo-01.jpg
-```
+1. **Make the failure visible.** Add a global error catcher that shows a small red bar at the top of the home screen with the actual error message and line, instead of dying quietly. This stays in for one release so we get the real cause on your next open.
 
-`pins.csv` gains a `Floor` column as the first column, and rows are grouped by
-floor then pin number. Quick Capture and voice memos stay where they are
-today (project-level folders) since they are not tied to a plan.
+2. **Make startup crash-proof.** Wrap each independent startup task (backups, reminder banner, trash purge, update check, project list) in its own guard so one bad task can no longer take down every button on the screen. Also force-clear any stuck full-screen overlay whenever the home screen shows, in case an invisible sheet backdrop is swallowing taps.
 
-## Export
+3. **Recover multi-floor-era surveys.** On load, detect surveys saved in the floors-based shape and read their first floor's pins and plan back into the normal fields, so those four surveys open with their pins and floor plan intact instead of showing empty. Non-destructive: nothing is deleted, the old fields stay in place.
 
-The PDF becomes multi-page: for each floor, a plan page with its pins burned
-in followed by that floor's pin log. Floor name appears in the page header
-next to the address.
-
-ZIP export contains one PDF for the whole project, per-floor photo folders,
-and the combined `pins.csv`.
+4. **Confirm you are on the new build.** After the change, on your phone: fully close the app, reopen once while online, tap "Update app", then reopen. If the red error bar appears, send me a screenshot of it and I fix the exact cause.
 
 ## Technical notes
 
-- New `project.floors[]`, each entry `{ id, name, plan, pins, drawings, rooms,
-  frontDoor, frontDoorFacing, north, nextNum, startNum }`, plus
-  `project.activeFloorId`.
-- To avoid touching the ~200 existing `project.plan` / `project.pins` /
-  `project.drawings` references, floor switching hydrates the active floor onto
-  those same `project.*` fields and writes them back before switching away.
-  Existing rendering, pin, drawing, room and FD code keeps working unchanged.
-- Migration on load: any project without `floors` gets a single floor built
-  from its current `plan/pins/drawings/rooms/frontDoor/north/nextNum`, named
-  "Floor 1". No data loss, no user action.
-- Photo blobs in IndexedDB stay keyed by pin id, so per-floor numbering does
-  not change storage; only export path/filename generation changes.
-- Undo/redo snapshots become per-floor (snapshot the active floor only).
-- Backups/trash/soft-delete logic is untouched — it operates on the project.
-
-## Not included
-
-- Copying pins between floors
-- Cross-floor pin linking (e.g. "same crack, both levels")
-- A 3D or stacked-floor view
+- All changes are in `public/survey.html`.
+- Error catcher: `window.onerror` + `unhandledrejection` handlers registered before any other init code, rendering into a fixed banner element.
+- Startup hardening: individual `try/catch` around each init call in the boot sequence; `#scrim.active` and any `.sheet.open` cleared on home-screen render.
+- Legacy shim: at project load, if `project.floors` is an array and top-level `pins`/plan image are missing, hydrate from `floors[0]`. Read-only migration, written back only on next normal save.
