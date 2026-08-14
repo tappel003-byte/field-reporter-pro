@@ -19,6 +19,10 @@ export default defineConfig({
       VitePWA({
         registerType: "autoUpdate",
         injectRegister: null,
+        // Do NOT generate a manifest — public/manifest.webmanifest is the real one.
+        // Without this, the plugin emits a default manifest named after package.json
+        // and overwrites ours in the build output.
+        manifest: false,
         strategies: "injectManifest",
         srcDir: "src",
         filename: "sw.ts",
