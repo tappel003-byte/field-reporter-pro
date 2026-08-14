@@ -6712,11 +6712,13 @@ async function _vmOnStop(){
 
 
 // ---------- Boot ----------
-load();
-renderHome();
-showScreen('screenHome');
-_initRoomVerifyGestures();
-pvSetupGestures();
+// Each step is isolated: one failing step must never leave the UI unwired.
+try { load(); } catch (e) { window.__surveyReportError?.('load', e); }
+try { renderHome(); } catch (e) { window.__surveyReportError?.('renderHome', e); }
+try { showScreen('screenHome'); } catch (e) { window.__surveyReportError?.('showScreen', e); }
+try { _initRoomVerifyGestures(); } catch (e) { window.__surveyReportError?.('room gestures', e); }
+try { pvSetupGestures(); } catch (e) { window.__surveyReportError?.('photo gestures', e); }
+
 </script>
 
 <!-- Room Verify Overlay -->
