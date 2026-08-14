@@ -5,11 +5,46 @@
 //     error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... } }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { VitePWA } from "vite-plugin-pwa";
+import { resolve } from "node:path";
 
 // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
 // @cloudflare/vite-plugin builds from this — wrangler.jsonc main alone is insufficient.
 export default defineConfig({
   tanstackStart: {
     server: { entry: "server" },
+  },
+  vite: {
+    plugins: [
+      VitePWA({
+        registerType: "autoUpdate",
+        injectRegister: null,
+        strategies: "injectManifest",
+        srcDir: "src",
+        filename: "sw.ts",
+        devOptions: { enabled: false },
+        injectManifest: {
+          swDest: resolve(process.cwd(), "dist/sw.js"),
+          globPatterns: ["**/*.{js,css,ico,png,svg,webmanifest}"],
+          globIgnores: ["**/node_modules/**", "**/*.map", "sw.js", "workbox-*.js"],
+          manifestTransforms: [
+            async (entries) => {
+              const manifest = entries
+                .filter((e) => !e.url.startsWith("server/"))
+                .map((e) =>
+                  e.url.startsWith("client/")
+                    ? { ...e, url: e.url.slice("client/".length) }
+                    : e,
+                );
+              return { manifest, warnings: [] };
+            },
+          ],
+          additionalManifestEntries: [
+            { url: "/", revision: null },
+            { url: "/survey.html", revision: null },
+          ],
+        },
+      }),
+    ],
   },
 });
