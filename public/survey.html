@@ -1040,9 +1040,27 @@ function load() {
   }
   if (!store.projects) store.projects = [];
   if (!store.trash) store.trash = [];
-  purgeOldTrash();
+  try { flattenLegacyFloors(); } catch (e) { window.__surveyReportError?.('floor recovery', e); }
+  try { purgeOldTrash(); } catch (e) { window.__surveyReportError?.('purgeOldTrash', e); }
   // Migrate any inline photo dataURLs out of localStorage into IndexedDB
-  migratePhotosToIdb();
+  try { migratePhotosToIdb(); } catch (e) { window.__surveyReportError?.('photo migration', e); }
+}
+
+// Recovery shim: surveys saved by the (reverted) multi-floor build keep their
+// pins / strokes / plan image inside a floors[] array. Hydrate the first floor
+// back onto the top-level fields so those surveys aren't empty. Non-destructive.
+function flattenLegacyFloors() {
+  const fix = (p) => {
+    if (!p || !Array.isArray(p.floors) || !p.floors.length) return;
+    const f = p.floors[0] || {};
+    if ((!Array.isArray(p.pins) || !p.pins.length) && Array.isArray(f.pins)) p.pins = f.pins;
+    if ((!Array.isArray(p.strokes) || !p.strokes.length) && Array.isArray(f.strokes)) p.strokes = f.strokes;
+    ['plan','planImage','img','image','planW','planH','planKey','rooms','frontDoor','excluded','exclusions']
+      .forEach((k) => { if (p[k] == null && f[k] != null) p[k] = f[k]; });
+  };
+  (store.projects || []).forEach(fix);
+  (store.trash || []).forEach(fix);
+
 }
 let _saveFailed = false;
 function save() {
