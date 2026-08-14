@@ -956,8 +956,50 @@
 
 <div class="toast" id="toast"></div>
 
+<script>
+// ---- Startup error catcher (temporary diagnostic) --------------------
+// If anything throws during boot, the rest of the app never wires up and the
+// screen looks alive but responds to nothing. Surface it instead of dying.
+(function(){
+  function showErrBar(msg){
+    try{
+      var el = document.getElementById('bootErrBar');
+      if(!el){
+        el = document.createElement('div');
+        el.id = 'bootErrBar';
+        el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#b3261e;color:#fff;font:12px/1.4 -apple-system,system-ui,sans-serif;padding:8px 30px 8px 10px;white-space:pre-wrap;word-break:break-word;max-height:40vh;overflow:auto;';
+        var x = document.createElement('button');
+        x.textContent = '×';
+        x.setAttribute('aria-label','Dismiss');
+        x.style.cssText = 'position:absolute;top:2px;right:6px;background:transparent;border:0;color:#fff;font-size:20px;line-height:1;';
+        x.onclick = function(){ el.remove(); };
+        el.appendChild(x);
+        var t = document.createElement('div');
+        t.id = 'bootErrBarText';
+        el.appendChild(t);
+        (document.body || document.documentElement).appendChild(el);
+      }
+      var t2 = document.getElementById('bootErrBarText');
+      if (t2) t2.textContent = (t2.textContent ? t2.textContent + '\n' : '') + msg;
+    }catch(_){}
+  }
+  window.__surveyReportError = function(where, e){
+    var m = (e && (e.stack || e.message)) || String(e);
+    try { console.error(where, e); } catch(_){}
+    showErrBar('⚠️ ' + where + ': ' + m);
+  };
+  window.addEventListener('error', function(ev){
+    showErrBar('⚠️ ' + (ev.message || 'Error') + '\n' + (ev.filename||'') + ':' + (ev.lineno||'') + ':' + (ev.colno||''));
+  });
+  window.addEventListener('unhandledrejection', function(ev){
+    var r = ev && ev.reason;
+    showErrBar('⚠️ Unhandled: ' + ((r && (r.stack || r.message)) || String(r)));
+  });
+})();
+</script>
 
 <script>
+
 // =====================================================================
 // Distress Survey – Field Reporter
 // Pen-and-paper version
