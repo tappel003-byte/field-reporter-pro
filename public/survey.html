@@ -956,8 +956,50 @@
 
 <div class="toast" id="toast"></div>
 
+<script>
+// ---- Startup error catcher (temporary diagnostic) --------------------
+// If anything throws during boot, the rest of the app never wires up and the
+// screen looks alive but responds to nothing. Surface it instead of dying.
+(function(){
+  function showErrBar(msg){
+    try{
+      var el = document.getElementById('bootErrBar');
+      if(!el){
+        el = document.createElement('div');
+        el.id = 'bootErrBar';
+        el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#b3261e;color:#fff;font:12px/1.4 -apple-system,system-ui,sans-serif;padding:8px 30px 8px 10px;white-space:pre-wrap;word-break:break-word;max-height:40vh;overflow:auto;';
+        var x = document.createElement('button');
+        x.textContent = '×';
+        x.setAttribute('aria-label','Dismiss');
+        x.style.cssText = 'position:absolute;top:2px;right:6px;background:transparent;border:0;color:#fff;font-size:20px;line-height:1;';
+        x.onclick = function(){ el.remove(); };
+        el.appendChild(x);
+        var t = document.createElement('div');
+        t.id = 'bootErrBarText';
+        el.appendChild(t);
+        (document.body || document.documentElement).appendChild(el);
+      }
+      var t2 = document.getElementById('bootErrBarText');
+      if (t2) t2.textContent = (t2.textContent ? t2.textContent + '\n' : '') + msg;
+    }catch(_){}
+  }
+  window.__surveyReportError = function(where, e){
+    var m = (e && (e.stack || e.message)) || String(e);
+    try { console.error(where, e); } catch(_){}
+    showErrBar('⚠️ ' + where + ': ' + m);
+  };
+  window.addEventListener('error', function(ev){
+    showErrBar('⚠️ ' + (ev.message || 'Error') + '\n' + (ev.filename||'') + ':' + (ev.lineno||'') + ':' + (ev.colno||''));
+  });
+  window.addEventListener('unhandledrejection', function(ev){
+    var r = ev && ev.reason;
+    showErrBar('⚠️ Unhandled: ' + ((r && (r.stack || r.message)) || String(r)));
+  });
+})();
+</script>
 
 <script>
+
 // =====================================================================
 // Distress Survey – Field Reporter
 // Pen-and-paper version
@@ -998,9 +1040,27 @@ function load() {
   }
   if (!store.projects) store.projects = [];
   if (!store.trash) store.trash = [];
-  purgeOldTrash();
+  try { flattenLegacyFloors(); } catch (e) { window.__surveyReportError?.('floor recovery', e); }
+  try { purgeOldTrash(); } catch (e) { window.__surveyReportError?.('purgeOldTrash', e); }
   // Migrate any inline photo dataURLs out of localStorage into IndexedDB
-  migratePhotosToIdb();
+  try { migratePhotosToIdb(); } catch (e) { window.__surveyReportError?.('photo migration', e); }
+}
+
+// Recovery shim: surveys saved by the (reverted) multi-floor build keep their
+// pins / strokes / plan image inside a floors[] array. Hydrate the first floor
+// back onto the top-level fields so those surveys aren't empty. Non-destructive.
+function flattenLegacyFloors() {
+  const fix = (p) => {
+    if (!p || !Array.isArray(p.floors) || !p.floors.length) return;
+    const f = p.floors[0] || {};
+    if ((!Array.isArray(p.pins) || !p.pins.length) && Array.isArray(f.pins)) p.pins = f.pins;
+    if ((!Array.isArray(p.strokes) || !p.strokes.length) && Array.isArray(f.strokes)) p.strokes = f.strokes;
+    ['plan','planImage','img','image','planW','planH','planKey','rooms','frontDoor','excluded','exclusions']
+      .forEach((k) => { if (p[k] == null && f[k] != null) p[k] = f[k]; });
+  };
+  (store.projects || []).forEach(fix);
+  (store.trash || []).forEach(fix);
+
 }
 let _saveFailed = false;
 function save() {
@@ -1314,11 +1374,18 @@ function exportStatus(p) {
   return { state: 'ok', label: 'Exported ' + relTime(exported) };
 }
 function renderHome() {
+  // Never let a stuck overlay/sheet swallow taps on the home screen.
+  try {
+    document.getElementById('scrim')?.classList.remove('active');
+    document.querySelectorAll('.sheet.open').forEach((s) => s.classList.remove('open'));
+  } catch (_) {}
   const list = document.getElementById('recentList');
   const count = document.getElementById('recentCount');
   const reminder = document.getElementById('exportReminder');
   const projs = (store.projects || []).slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
-  count.textContent = projs.length ? projs.length + ' project' + (projs.length===1?'':'s') : '';
+  if (count) count.textContent = projs.length ? projs.length + ' project' + (projs.length===1?'':'s') : '';
+  if (!list) return;
+
   if (!projs.length) {
     list.innerHTML = '<div class="recent-empty">No surveys yet. Start one above.</div>';
     if (reminder) reminder.innerHTML = '';
@@ -1340,6 +1407,7 @@ function renderHome() {
     }).join('');
   }
   // Dismissible reminder banner for projects not exported in 7+ days
+  try {
   if (reminder) {
     const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
     const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
@@ -1368,7 +1436,9 @@ function renderHome() {
       <button onclick="restoreFromBackup()" style="background:#8b5e34;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:600">Restore backup</button>
     </div>`;
   }
-  renderTrashFab();
+  } catch (e) { window.__surveyReportError?.('reminder banner', e); }
+  try { renderTrashFab(); } catch (e) { window.__surveyReportError?.('trash badge', e); }
+
 }
 function dismissExportReminder(e) {
   if (e && e.stopPropagation) e.stopPropagation();
@@ -6645,11 +6715,13 @@ async function _vmOnStop(){
 
 
 // ---------- Boot ----------
-load();
-renderHome();
-showScreen('screenHome');
-_initRoomVerifyGestures();
-pvSetupGestures();
+// Each step is isolated: one failing step must never leave the UI unwired.
+try { load(); } catch (e) { window.__surveyReportError?.('load', e); }
+try { renderHome(); } catch (e) { window.__surveyReportError?.('renderHome', e); }
+try { showScreen('screenHome'); } catch (e) { window.__surveyReportError?.('showScreen', e); }
+try { _initRoomVerifyGestures(); } catch (e) { window.__surveyReportError?.('room gestures', e); }
+try { pvSetupGestures(); } catch (e) { window.__surveyReportError?.('photo gestures', e); }
+
 </script>
 
 <!-- Room Verify Overlay -->
