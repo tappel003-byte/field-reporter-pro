@@ -92,14 +92,16 @@ setCatchHandler(async ({ request }) => {
   return Response.error();
 });
 
-// Activate new versions promptly.
+// Install the worker promptly. Activation cleanup below deliberately does not
+// navigate open clients: forcing an iOS home-screen window to navigate while
+// the user is in setup or a project can leave that window non-interactive.
 self.addEventListener("install", (event) => {
   event.waitUntil(cacheOfflineShell().then(() => self.skipWaiting()));
 });
 
 // One-release cache reset: wipe stale HTML/shell caches once so installed
 // home-screen copies pick up the current survey.html, then resume normally.
-const RESET_CACHE = "sw-reset-fr-v2";
+const RESET_CACHE = "sw-reset-fr-v3";
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
@@ -118,10 +120,6 @@ self.addEventListener("activate", (event) => {
         }
       } catch {}
       await self.clients.claim();
-      try {
-        const clients = await self.clients.matchAll({ type: "window" });
-        await Promise.allSettled(clients.map((c) => c.navigate(c.url)));
-      } catch {}
     })(),
   );
 });
