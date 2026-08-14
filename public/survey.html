@@ -1374,11 +1374,18 @@ function exportStatus(p) {
   return { state: 'ok', label: 'Exported ' + relTime(exported) };
 }
 function renderHome() {
+  // Never let a stuck overlay/sheet swallow taps on the home screen.
+  try {
+    document.getElementById('scrim')?.classList.remove('active');
+    document.querySelectorAll('.sheet.open').forEach((s) => s.classList.remove('open'));
+  } catch (_) {}
   const list = document.getElementById('recentList');
   const count = document.getElementById('recentCount');
   const reminder = document.getElementById('exportReminder');
   const projs = (store.projects || []).slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
-  count.textContent = projs.length ? projs.length + ' project' + (projs.length===1?'':'s') : '';
+  if (count) count.textContent = projs.length ? projs.length + ' project' + (projs.length===1?'':'s') : '';
+  if (!list) return;
+
   if (!projs.length) {
     list.innerHTML = '<div class="recent-empty">No surveys yet. Start one above.</div>';
     if (reminder) reminder.innerHTML = '';
