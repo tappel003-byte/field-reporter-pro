@@ -45,10 +45,20 @@ setCatchHandler(async ({ request }) => {
       (await cache.match("/"));
     if (cached) return cached;
 
-    const [allCacheNames, htmlNavKeys] = await Promise.all([
-      caches.keys(),
-      cache.keys().then((keys) => keys.map((k) => k.url)),
-    ]);
+    const allCacheNames = await caches.keys();
+
+    for (const name of allCacheNames) {
+      const looksLikePrecache =
+        name.toLowerCase().includes("precache") || name.startsWith("workbox-");
+      if (!looksLikePrecache) continue;
+      const precache = await caches.open(name);
+      const precachedResponse =
+        (await precache.match("/survey.html")) ||
+        (await precache.match("/"));
+      if (precachedResponse) return precachedResponse;
+    }
+
+    const htmlNavKeys = await cache.keys().then((keys) => keys.map((k) => k.url));
 
     const precacheMatches: Array<{
       name: string;
