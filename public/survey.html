@@ -16,6 +16,54 @@
 
 <script>
 (() => {
+  try {
+    const show = (raw) => {
+      try {
+        let name = "Error";
+        let message = String(raw);
+        let stack = "";
+        if (raw && typeof raw === "object") {
+          if (raw instanceof Error) {
+            name = raw.name || name;
+            message = raw.message || message;
+            stack = raw.stack || "";
+          } else {
+            try {
+              message = JSON.stringify(raw);
+            } catch {}
+          }
+        }
+        const banner = document.createElement("div");
+        banner.style.cssText =
+          "position:fixed;left:0;right:0;top:0;z-index:2147483647;background:#b91c1c;color:#fff;padding:1rem;font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.4;max-height:50vh;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,0.3);";
+        banner.innerHTML =
+          "<strong style='display:block;margin-bottom:.5rem;'>App error — details below</strong><pre style='margin:0;white-space:pre-wrap;word-break:break-all;background:rgba(0,0,0,0.2);padding:.5rem;border-radius:.25rem;'>" +
+          ("Name: " + name + "\nMessage: " + message + (stack ? "\nStack:\n" + stack : ""))
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;") +
+          "</pre>";
+        const append = () => {
+          try {
+            document.body.appendChild(banner);
+          } catch {}
+        };
+        if (document.body) append();
+        else document.addEventListener("DOMContentLoaded", append, { once: true });
+      } catch {}
+    };
+    window.addEventListener("error", (e) => {
+      show(e.error || e);
+    });
+    window.addEventListener("unhandledrejection", (e) => {
+      show(e.reason);
+    });
+  } catch {}
+})();
+</script>
+
+<script>
+(() => {
   const SW_PATH = "/sw.js";
   const KILL_KEY = "lovable:sw:killed";
   const APP_CACHE_PATTERN = /^(workbox-|html-navigations$|app-shell-assets$|cdn-libs$|html-shell$)/;
