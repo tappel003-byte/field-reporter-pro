@@ -5937,6 +5937,7 @@ async function exportProjectZip() {
     root.file('pins.csv', csvLines.join('\r\n'));
 
     // photos/  — global numbering: filename = photo-{pin.num + offset}.{ext}
+    const pinPhotoNames = new Map();
     if (isInternal) {
       const photosFolder = root.folder('photos');
       for (const p of pins) {
@@ -5956,6 +5957,8 @@ async function exportProjectZip() {
           const photoNum = p.num + i;
           const name = 'photo-' + pad(photoNum) + '.' + ext;
           photosFolder.file(name, m[2], { base64: true });
+          if (!pinPhotoNames.has(p.id)) pinPhotoNames.set(p.id, []);
+          pinPhotoNames.get(p.id).push(name);
         }
       }
     } else {
@@ -5973,10 +5976,41 @@ async function exportProjectZip() {
             const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
             const name = 'pin-' + p.num + '-' + String(i+1).padStart(2,'0') + '.' + ext;
             upFolder.file(name, m[2], { base64: true });
+            if (!pinPhotoNames.has(p.id)) pinPhotoNames.set(p.id, []);
+            pinPhotoNames.get(p.id).push(name);
           }
         }
       }
     }
+
+    // pins.json — structured pin data with resolved photo filenames
+    const pinsJsonArray = pins.map(p => {
+      const photos = pinPhotoNames.get(p.id) || [];
+      if (isInternal) {
+        return {
+          id: p.id,
+          num: p.num,
+          type: p.isExterior ? 'Exterior' : 'Interior',
+          description: p.description || '',
+          room: p.location || pinRoom(project, p, roomLabels),
+          direction: pinCardinal(project, p, orientOffset),
+          x: norm(p.x, planW),
+          y: norm(p.y, planH),
+          photos
+        };
+      } else {
+        return {
+          id: p.id,
+          num: p.num,
+          location: p.location || '',
+          category: p.category || '',
+          description: p.description || '',
+          extPhotoCount: p.extPhotoCount || 0,
+          photos
+        };
+      }
+    });
+    root.file('pins.json', JSON.stringify(pinsJsonArray, null, 2));
 
     // quick-capture/  — untethered burst photos (Quick Capture)
     const qc = (project.quickCapture || []);
