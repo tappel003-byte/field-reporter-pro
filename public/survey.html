@@ -216,10 +216,6 @@
   .recent-item .ri-body{flex:1;min-width:0}
   .recent-item .ri-title{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .recent-item .ri-sub{font-size:11px;color:var(--muted);margin-top:2px}
-  .recent-item .ri-tag{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;
-    padding:2px 7px;border-radius:999px;letter-spacing:.05em;margin-right:6px;vertical-align:1px}
-  .ri-tag.internal{background:#e2efe6;color:#2e7d4f}
-  .ri-tag.external{background:#f3d8ce;color:var(--accent)}
   .ri-actions{display:flex;gap:4px}
   .ri-btn{background:transparent;border:none;color:var(--muted);font-size:18px;
     width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center}
@@ -1397,7 +1393,7 @@ function renderHome() {
       return `
         <div class="recent-item">
           <div class="ri-body" onclick="openProject('${p.id}')">
-            <div class="ri-title"><span class="ri-tag ${p.mode}">${p.mode}</span>${escapeHtml(p.address||'(no address)')}<span class="${badgeClass}">${status.label}</span></div>
+            <div class="ri-title">${escapeHtml(p.address||'(no address)')}<span class="${badgeClass}">${status.label}</span></div>
             <div class="ri-sub">${pinCount} pin${pinCount===1?'':'s'} · ${relTime(p.updatedAt)}</div>
           </div>
           <div class="ri-actions">
@@ -1574,7 +1570,7 @@ function renderTrash() {
     return `
       <div class="trash-item">
         <div class="ti-body">
-          <div class="ti-title"><span class="ri-tag ${p.mode}">${p.mode}</span>${escapeHtml(p.address||'(no address)')}</div>
+          <div class="ti-title">${escapeHtml(p.address||'(no address)')}</div>
           <div class="ti-sub">${pinCount} pin${pinCount===1?'':'s'} · deletes in ${daysLeft} day${daysLeft===1?'':'s'}</div>
         </div>
         <button class="ti-restore" onclick="restoreProject('${p.id}')">Restore</button>
@@ -1601,7 +1597,7 @@ function startNewProject(mode) {
   _setupFrontDoor = null;
   _setupRooms = null;
   _setupRoomsToken++;
-  document.getElementById('setupTitle').textContent = mode === 'internal' ? 'New Internal Survey' : 'New External Survey';
+  document.getElementById('setupTitle').textContent = 'New Survey';
   document.getElementById('fAddress').value = '';
   document.getElementById('planPreview').style.display = 'none';
   document.getElementById('planDropZone').style.display = '';
@@ -3234,7 +3230,7 @@ function refreshSubtitle() {
   const pics = pins.reduce((a,p) => a + (isExternal ? (p.extPhotoCount||0) : (p.photos||[]).length), 0);
   const pinLabel = n + ' pin' + (n===1?'':'s');
   const picLabel = pics + ' pic' + (pics===1?'':'s');
-  document.getElementById('wSub').textContent = project.mode + ' · ' + pinLabel + ' · ' + picLabel;
+  document.getElementById('wSub').textContent = pinLabel + ' · ' + picLabel;
   const btn = document.getElementById('pinPickerBtn');
   const cnt = document.getElementById('pinPickerCount');
   if (btn && cnt) {
