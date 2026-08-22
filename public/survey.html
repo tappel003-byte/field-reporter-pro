@@ -703,6 +703,7 @@
         <img id="planPreviewImg" alt="Floor plan preview" onclick="openRoomVerify()" />
       </div>
       <input type="file" id="fPlanFile" accept="image/*" style="display:none" onchange="onPlanFileChange(event)" />
+      <div class="hint" id="toolboxPlanHint" style="display:none"></div>
     </div>
 
     <div class="field">
@@ -1579,12 +1580,16 @@ let _editingProjectId = null;
 let _setupPlan = null;   // { dataUrl, width, height }
 let _setupFrontDoor = null; // { x, y } normalized 0..1, or null
 let _rvFdMode = false;   // when true, next tap in room verify overlay places FD
+const DOOR_CODES = { N:1, NE:1, E:1, SE:1, S:1, SW:1, W:1, NW:1 };
+const BUILDING_CODES = { residential:1, office:1, medical:1, vet:1, dental:1, warehouse:1, all:1 };
+let _toolboxHandoff = null;
 function startNewProject(mode) {
   _setupMode = mode;
   _setupPlan = null;
   _setupFrontDoor = null;
   _setupRooms = null;
   _setupRoomsToken++;
+  _toolboxHandoff = null;
   document.getElementById('setupTitle').textContent = 'New Survey';
   document.getElementById('fAddress').value = '';
   document.getElementById('planPreview').style.display = 'none';
@@ -1593,9 +1598,100 @@ function startNewProject(mode) {
   const rf = document.getElementById('roomsField'); if (rf) rf.style.display = 'none';
   const rc = document.getElementById('roomsChips'); if (rc) rc.innerHTML = '';
   const bt = document.getElementById('fBuildingType'); if (bt) bt.value = 'residential';
+  const fd = document.getElementById('fFrontDoor'); if (fd) fd.value = 'S';
+  const th = document.getElementById('toolboxPlanHint');
+  if (th) { th.style.display = 'none'; th.textContent = ''; }
   refreshStartBtn();
   showScreen('screenSetup');
   setTimeout(()=>document.getElementById('fAddress').focus(), 200);
+}
+function consumeToolboxQuery() {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  const from = params.get('from');
+  const address = params.get('address');
+  const client = params.get('client');
+  const phone = params.get('phone');
+  const projectName = params.get('project');
+  const door = params.get('door');
+  const building = params.get('building');
+  const roomsParam = params.get('rooms');
+  const planRoomsParam = params.get('planRooms');
+  const fdParam = params.get('fd');
+  const needsScale = params.get('needsScale') === '1';
+  const hit = from === 'toolbox' || address || client || door || building || roomsParam || planRoomsParam || fdParam || needsScale;
+  if (!hit) return false;
+  const url = new URL(window.location.href);
+  const sw = url.searchParams.get('sw');
+  url.search = '';
+  if (sw) url.searchParams.set('sw', sw);
+  window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+  startNewProject('internal');
+  applyToolboxPrefill({
+    address: address || '',
+    client: client || '',
+    phone: phone || '',
+    projectName: projectName || '',
+    door: door || '',
+    building: building || '',
+    roomsParam: roomsParam || '',
+    planRoomsParam: planRoomsParam || '',
+    fdParam: fdParam || '',
+    needsScale,
+  });
+  return true;
+}
+function applyToolboxPrefill(q) {
+  _toolboxHandoff = {
+    toolboxClient: q.client,
+    toolboxPhone: q.phone,
+    toolboxProject: q.projectName,
+  };
+  const addr = document.getElementById('fAddress');
+  if (addr && q.address) {
+    addr.value = q.address;
+    addr.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  const fdSel = document.getElementById('fFrontDoor');
+  if (fdSel && DOOR_CODES[q.door]) fdSel.value = q.door;
+  const bt = document.getElementById('fBuildingType');
+  if (bt && BUILDING_CODES[q.building]) bt.value = q.building;
+  let rooms = [];
+  if (q.planRoomsParam) {
+    try {
+      const parsed = JSON.parse(q.planRoomsParam);
+      if (Array.isArray(parsed)) {
+        rooms = parsed
+          .filter(r => r && typeof r.name === 'string')
+          .map(r => {
+            const out = { name: r.name };
+            if (typeof r.x === 'number' && typeof r.y === 'number') {
+              out.x = r.x;
+              out.y = r.y;
+            }
+            return out;
+          });
+      }
+    } catch (e) { /* ignore bad JSON */ }
+  }
+  if (!rooms.length && q.roomsParam) {
+    rooms = q.roomsParam.split('|').map(s => s.trim()).filter(Boolean).map(name => ({ name }));
+  }
+  _setupRooms = rooms.length ? rooms : null;
+  _setupFrontDoor = null;
+  if (q.fdParam) {
+    const parts = q.fdParam.split(',');
+    const x = parseFloat(parts[0]);
+    const y = parseFloat(parts[1]);
+    if (Number.isFinite(x) && Number.isFinite(y)) _setupFrontDoor = { x, y };
+  }
+  renderSetupRooms();
+  const hint = document.getElementById('toolboxPlanHint');
+  if (hint && (q.needsScale || (_setupRooms && _setupRooms.length))) {
+    hint.style.display = 'block';
+    hint.textContent = 'Upload this house’s plan. Room labels from Toolbox are ready.';
+  }
+  refreshStartBtn();
 }
 document.getElementById('fAddress').addEventListener('input', refreshStartBtn);
 document.getElementById('fFrontDoor').addEventListener('change', () => {
@@ -1643,7 +1739,9 @@ function onPlanFileChange(e) {
         document.getElementById('planDropZone').style.display = 'none';
         refreshStartBtn();
         _setupRoomsToken++;
-        _setupRooms = [];
+        // Keep Toolbox-prefilled room names/coords; wipe only for a fresh backdoor plan upload
+        if (!_toolboxHandoff) _setupRooms = [];
+        else if (!Array.isArray(_setupRooms)) _setupRooms = [];
         renderSetupRooms();
       });
     });
@@ -2530,6 +2628,7 @@ function _rvRenderBadges() {
   // Remove existing badges + FD marker
   Array.from(wrap.querySelectorAll('.rv-badge, .rv-fd')).forEach(b => b.remove());
   (_setupRooms || []).forEach((r, idx) => {
+    if (typeof r.x !== 'number' || typeof r.y !== 'number') return;
     const b = document.createElement('div');
     b.className = 'rv-badge';
     b.textContent = r.name;
@@ -3151,10 +3250,16 @@ function commitNewProject() {
     p.frontDoor = _setupFrontDoor ? { x: _setupFrontDoor.x, y: _setupFrontDoor.y } : null;
     p.rooms = Array.isArray(_setupRooms) ? _setupRooms.slice() : [];
     p.buildingType = bt;
+    if (_toolboxHandoff) {
+      if (_toolboxHandoff.toolboxClient) p.toolboxClient = _toolboxHandoff.toolboxClient;
+      if (_toolboxHandoff.toolboxPhone) p.toolboxPhone = _toolboxHandoff.toolboxPhone;
+      if (_toolboxHandoff.toolboxProject) p.toolboxProject = _toolboxHandoff.toolboxProject;
+    }
     if (!p.north) p.north = { x: p.plan.width * 0.92, y: p.plan.height * 0.08, rotation: 0 };
     p.north.rotation = northRot;
     p.updatedAt = Date.now();
     _editingProjectId = null;
+    _toolboxHandoff = null;
     project = p;
     save();
     document.getElementById('startBtn').textContent = 'Start Survey';
@@ -3181,6 +3286,12 @@ function commitNewProject() {
     createdAt: now,
     updatedAt: now,
   };
+  if (_toolboxHandoff) {
+    if (_toolboxHandoff.toolboxClient) project.toolboxClient = _toolboxHandoff.toolboxClient;
+    if (_toolboxHandoff.toolboxPhone) project.toolboxPhone = _toolboxHandoff.toolboxPhone;
+    if (_toolboxHandoff.toolboxProject) project.toolboxProject = _toolboxHandoff.toolboxProject;
+  }
+  _toolboxHandoff = null;
   store.projects = store.projects || [];
   store.projects.push(project);
   save();
@@ -6732,7 +6843,7 @@ async function _vmOnStop(){
 // ---------- Boot ----------
 load();
 renderHome();
-showScreen('screenHome');
+if (!consumeToolboxQuery()) showScreen('screenHome');
 _initRoomVerifyGestures();
 pvSetupGestures();
 </script>
