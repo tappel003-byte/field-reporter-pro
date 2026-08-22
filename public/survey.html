@@ -1571,6 +1571,10 @@ function openProject(id) {
   const p = (store.projects||[]).find(x => x.id === id);
   if (!p) return;
   project = p;
+  if (!(p.plan && p.plan.dataUrl)) {
+    editSetup();
+    return;
+  }
   enterWork();
 }
 
@@ -1605,6 +1609,30 @@ function startNewProject(mode) {
   showScreen('screenSetup');
   setTimeout(()=>document.getElementById('fAddress').focus(), 200);
 }
+function parseToolboxRooms(planRoomsParam, roomsParam) {
+  let rooms = [];
+  if (planRoomsParam) {
+    try {
+      const parsed = JSON.parse(planRoomsParam);
+      if (Array.isArray(parsed)) {
+        rooms = parsed
+          .filter(r => r && typeof r.name === 'string')
+          .map(r => {
+            const out = { name: r.name };
+            if (typeof r.x === 'number' && typeof r.y === 'number') {
+              out.x = r.x;
+              out.y = r.y;
+            }
+            return out;
+          });
+      }
+    } catch (e) { /* ignore bad JSON */ }
+  }
+  if (!rooms.length && roomsParam) {
+    rooms = roomsParam.split('|').map(s => s.trim()).filter(Boolean).map(name => ({ name }));
+  }
+  return rooms;
+}
 function consumeToolboxQuery() {
   if (typeof window === 'undefined') return false;
   const params = new URLSearchParams(window.location.search);
@@ -1621,77 +1649,60 @@ function consumeToolboxQuery() {
   const needsScale = params.get('needsScale') === '1';
   const hit = from === 'toolbox' || address || client || door || building || roomsParam || planRoomsParam || fdParam || needsScale;
   if (!hit) return false;
+
   const url = new URL(window.location.href);
   const sw = url.searchParams.get('sw');
   url.search = '';
   if (sw) url.searchParams.set('sw', sw);
   window.history.replaceState({}, '', url.pathname + url.search + url.hash);
-  startNewProject('internal');
-  applyToolboxPrefill({
-    address: address || '',
-    client: client || '',
-    phone: phone || '',
-    projectName: projectName || '',
-    door: door || '',
-    building: building || '',
-    roomsParam: roomsParam || '',
-    planRoomsParam: planRoomsParam || '',
-    fdParam: fdParam || '',
-    needsScale,
-  });
-  return true;
-}
-function applyToolboxPrefill(q) {
-  _toolboxHandoff = {
-    toolboxClient: q.client,
-    toolboxPhone: q.phone,
-    toolboxProject: q.projectName,
-  };
-  const addr = document.getElementById('fAddress');
-  if (addr && q.address) {
-    addr.value = q.address;
-    addr.dispatchEvent(new Event('input', { bubbles: true }));
+
+  const addrKey = (address || '').trim();
+  const existing = addrKey
+    ? (store.projects || []).find(p => (p.address || '').trim().toLowerCase() === addrKey.toLowerCase())
+    : null;
+  if (existing) {
+    renderHome();
+    showScreen('screenHome');
+    return true;
   }
-  const fdSel = document.getElementById('fFrontDoor');
-  if (fdSel && DOOR_CODES[q.door]) fdSel.value = q.door;
-  const bt = document.getElementById('fBuildingType');
-  if (bt && BUILDING_CODES[q.building]) bt.value = q.building;
-  let rooms = [];
-  if (q.planRoomsParam) {
-    try {
-      const parsed = JSON.parse(q.planRoomsParam);
-      if (Array.isArray(parsed)) {
-        rooms = parsed
-          .filter(r => r && typeof r.name === 'string')
-          .map(r => {
-            const out = { name: r.name };
-            if (typeof r.x === 'number' && typeof r.y === 'number') {
-              out.x = r.x;
-              out.y = r.y;
-            }
-            return out;
-          });
-      }
-    } catch (e) { /* ignore bad JSON */ }
-  }
-  if (!rooms.length && q.roomsParam) {
-    rooms = q.roomsParam.split('|').map(s => s.trim()).filter(Boolean).map(name => ({ name }));
-  }
-  _setupRooms = rooms.length ? rooms : null;
-  _setupFrontDoor = null;
-  if (q.fdParam) {
-    const parts = q.fdParam.split(',');
+
+  const rooms = parseToolboxRooms(planRoomsParam || '', roomsParam || '');
+  let frontDoor = null;
+  if (fdParam) {
+    const parts = fdParam.split(',');
     const x = parseFloat(parts[0]);
     const y = parseFloat(parts[1]);
-    if (Number.isFinite(x) && Number.isFinite(y)) _setupFrontDoor = { x, y };
+    if (Number.isFinite(x) && Number.isFinite(y)) frontDoor = { x, y };
   }
-  renderSetupRooms();
-  const hint = document.getElementById('toolboxPlanHint');
-  if (hint && (q.needsScale || (_setupRooms && _setupRooms.length))) {
-    hint.style.display = 'block';
-    hint.textContent = 'Upload this house’s plan. Room labels from Toolbox are ready.';
-  }
-  refreshStartBtn();
+  const fdFacing = DOOR_CODES[door] ? door : 'S';
+  const bt = BUILDING_CODES[building] ? building : 'residential';
+  const now = Date.now();
+  const p = {
+    id: uid(),
+    mode: 'internal',
+    address: addrKey,
+    plan: null,
+    startNum: 1,
+    nextNum: 1,
+    pins: [],
+    drawings: [],
+    frontDoorFacing: fdFacing,
+    frontDoor: frontDoor,
+    rooms: rooms,
+    buildingType: bt,
+    north: { rotation: frontDoorToNorthRotation(fdFacing) },
+    createdAt: now,
+    updatedAt: now,
+  };
+  if (client) p.toolboxClient = client;
+  if (phone) p.toolboxPhone = phone;
+  if (projectName) p.toolboxProject = projectName;
+  store.projects = store.projects || [];
+  store.projects.push(p);
+  save();
+  renderHome();
+  showScreen('screenHome');
+  return true;
 }
 document.getElementById('fAddress').addEventListener('input', refreshStartBtn);
 document.getElementById('fFrontDoor').addEventListener('change', () => {
@@ -1739,9 +1750,12 @@ function onPlanFileChange(e) {
         document.getElementById('planDropZone').style.display = 'none';
         refreshStartBtn();
         _setupRoomsToken++;
-        // Keep Toolbox-prefilled room names/coords; wipe only for a fresh backdoor plan upload
-        if (!_toolboxHandoff) _setupRooms = [];
-        else if (!Array.isArray(_setupRooms)) _setupRooms = [];
+        // Keep rooms when editing a Toolbox/planless job or mid-handoff; wipe for fresh New Survey
+        if (_editingProjectId || _toolboxHandoff) {
+          if (!Array.isArray(_setupRooms)) _setupRooms = [];
+        } else {
+          _setupRooms = [];
+        }
         renderSetupRooms();
       });
     });
@@ -3192,7 +3206,7 @@ function editSetup() {
   document.getElementById('fAddress').value = project.address || '';
 
   const fd = document.getElementById('fFrontDoor');
-  if (fd) fd.value = project.frontDoorFacing || '';
+  if (fd) fd.value = project.frontDoorFacing || 'S';
   const bt = document.getElementById('fBuildingType');
   if (bt) bt.value = project.buildingType || 'residential';
 
@@ -3210,6 +3224,17 @@ function editSetup() {
   if (rf) rf.style.display = (_setupRooms && _setupRooms.length) ? '' : 'none';
   renderSetupRooms();
 
+  const th = document.getElementById('toolboxPlanHint');
+  if (th) {
+    if (!_setupPlan && _setupRooms && _setupRooms.length) {
+      th.style.display = 'block';
+      th.textContent = 'Upload this house’s plan. Room labels from Toolbox are ready.';
+    } else {
+      th.style.display = 'none';
+      th.textContent = '';
+    }
+  }
+
   document.getElementById('startBtn').textContent = 'Save Setup';
   document.getElementById('startBtnTop').textContent = 'Save';
 
@@ -3219,13 +3244,16 @@ function editSetup() {
 
 function setupBack() {
   if (_editingProjectId) {
+    const p = (store.projects || []).find(x => x.id === _editingProjectId) || project;
+    const hasPlan = !!(p && p.plan && p.plan.dataUrl);
     _editingProjectId = null;
     _setupPlan = null;
     _setupRooms = null;
     _setupFrontDoor = null;
     document.getElementById('startBtn').textContent = 'Start Survey';
     document.getElementById('startBtnTop').textContent = 'Start';
-    showScreen('screenWork');
+    if (hasPlan) showScreen('screenWork');
+    else goHome();
   } else {
     goHome();
   }
