@@ -1,43 +1,68 @@
-# Why this device still fails offline intermittently
+# Multiple named plans in one survey
 
-Assessment only — no code changes proposed yet. You're right that the shared offline code matches visual-surveyor. The difference is in the *edges around* that shared code in this project, plus leftovers from the recovery release.
+Today a survey holds exactly one floor plan. This adds the ability to keep
+several named plans (e.g. "Main Floor", "Basement", "North Elevation") inside
+the same survey, without changing how a single-plan job feels or behaves.
 
-## Most likely primary cause: the start_url query string
+## How it works for you
 
-`public/manifest.webmanifest` uses `start_url` / `id` = `/survey.html?pwa=fr-v2` (added during the earlier cache-reset work; visual-surveyor almost certainly doesn't have this).
+- Setup stays the same: upload one plan, name it if you like, start working.
+  If you never add a second plan, nothing on screen changes.
+- A small plan name appears in the project header. Tapping it opens a short
+  list: your plans, plus "➕ Add plan".
+- Adding a plan opens the same upload + rooms + front-door setup you already
+  know, then drops you onto the new plan.
+- Each plan keeps its own pins, drawings, boundaries, rooms and front door.
+- Pin numbers keep counting across plans: if Main Floor ends at 12, Basement
+  starts at 13. Photo filenames stay unique, one continuous set.
+- Renaming or deleting a plan lives in that same list (delete asks first and
+  warns if the plan has pins).
 
-What that does offline:
+## Export
 
-- The precache list (`vite.config.ts`) contains `/` and `/survey.html` — no query string. Workbox precache matching is exact except for a small default ignore-list (`utm_*`, `fbclid`), so `/survey.html?pwa=fr-v2` is **not** a precache hit.
-- It therefore falls through to the `NetworkFirst` navigation route. Offline, the network leg fails and it looks in the `html-navigations` runtime cache — under the key `/survey.html?pwa=fr-v2`, which only exists if the app was launched *from the home-screen icon while online* since the current worker installed.
-- If that miss happens, `setCatchHandler` in `src/sw.ts` tries `cache.match("/survey.html")` then `"/"` in `html-navigations` only — it never consults the precache. Those keys only exist if you had previously visited plain `/survey.html` online in that same context.
+One export for the whole survey, as now:
 
-That produces exactly your symptom set: works sometimes, blank sometimes, and "works after closing and reopening" (a reopen that happens to hit a warm runtime-cache entry, or a moment with a sliver of connectivity).
+- `photos/` — unchanged, one continuous numbered set.
+- `pins.csv` / `pins.json` — one new `plan` column/field with the plan name.
+  Rows stay in pin-number order.
+- PDF pin log — one page per plan (plan image with its pins burned in),
+  followed by the keyed description list, grouped by plan with a heading.
+- Single-plan surveys produce a byte-comparable export to today, with the
+  `plan` column carrying the single plan's name.
 
-## Answers to your two questions
+## Technical notes
 
-### 1. Can the `?sw=off` / `?sw=on` cycle leave old Cache Storage behind on iOS?
+All in `public/survey.html`.
 
-Yes, in three concrete ways here:
+**Data shape.** Introduce `project.plans[]`, each entry holding what is today
+spread across the project root: `{ id, name, plan:{dataUrl,width,height},
+rooms, frontDoor, frontDoorFacing, north, pins, drawings, boundary,
+excludedAreas }`. Add `project.activePlanId`. `project.nextNum` and
+`project.startNum` stay at project level so numbering is global.
 
-- **Name filter is too narrow.** The purge only deletes caches matching `^(workbox-|html-navigations$|app-shell-assets$|cdn-libs$|html-shell$)`. Any cache created by the original hand-written worker or the interim cleanup worker under a different name (for example a `sw-reset-fr-v*`-style bucket) does not match and survives every `?sw=off`.
-- **Unregister is name-scoped too.** It only unregisters registrations whose `scriptURL` ends in `/sw.js`. Anything ever registered at a different path (e.g. `/service-worker.js`) is untouched.
-- **iOS context split.** The kill flag lives in `localStorage` under `lovable:sw:killed`, and on iOS the Safari tab and the installed home-screen app have historically not shared the same storage/SW view reliably. Running `?sw=off` in Safari can therefore clean the Safari copy while the home-screen app keeps its own registration and caches. Also, the purge only runs when `survey.html` actually loads — if the app is offline and blank, the cleanup code never executes.
+**Migration on load.** In `load()`, any project without `plans` is rewritten
+in memory into a single-entry `plans[]` named "Plan 1" (or the address), with
+`activePlanId` set to it. Migration is idempotent and runs before any render.
 
-### 2. Can the recovery release leave a half-migrated state?
+**Compatibility shim.** Rather than rewriting ~60 `project.pins` /
+`project.plan` / `project.rooms` call sites, define accessors that proxy to
+the active plan — e.g. `Object.defineProperty(project, 'pins', {...})` applied
+in one `bindActivePlan(project)` helper called at load, after setup save, and
+on plan switch. Rendering, hit-testing, pin sheet, room logic, undo snapshot
+(`snapshot()` / `restore()`) then need no changes.
 
-Yes. Two mechanisms:
+**Numbering.** `renumberPins()` currently walks `project.pins` and reassigns
+from `startNum`; change it to walk all plans in plan order, then pin order, so
+the global sequence stays gap-free after deletions.
 
-- **`revision: null` precache entries.** `/` and `/survey.html` are injected with `revision: null`, which tells Workbox they are self-versioned and must never be refetched. Once a device precached those two HTML files, later republishes do not replace them. So a phone can be running current JS/CSS chunks against an HTML shell frozen at the recovery release — a genuinely half-migrated state that republishing cannot fix.
-- **`/` is the React shell, not the survey app.** The catch-handler's second fallback serves `/`, which is the TanStack root route, not `survey.html`. If that's what gets served offline, you get a page that isn't the app — reads as "blank screen."
+**Setup screen.** `openSetup()` / setup save gain an optional `planId` arg. New
+plan = same screen with an empty `_setupPlan`, saving pushes a new entry
+instead of mutating the existing one. Add a plan-name text field (defaults to
+"Plan 2", "Plan 3", …).
 
-Additionally, iOS evicts Cache Storage and service workers for sites unused for roughly seven days, and evicts under storage pressure — this app stores photos in IndexedDB, so pressure is realistic. Post-eviction the next cold offline start has nothing to serve.
+**Export.** `composeMapImage()` and `buildPinLogPdf()` take a plan argument and
+are called once per plan; the ZIP writer loops plans for CSV/JSON rows and
+photo writing, keeping the existing photo-resolution and skip logic untouched.
 
-## What I'd verify before changing anything
-
-1. On the device, launch from the home-screen icon while online, then go offline and cold-start — versus opening `/survey.html` (no query) in Safari online, then offline. If plain `/survey.html` survives offline and the icon does not, the `start_url` query string is confirmed as the cause.
-2. Compare `visual-surveyor`'s manifest `start_url` and its catch-handler fallback keys against this one — I expect the query string is the only real divergence.
-
-## If you want a fix later (not doing it now)
-
-Three small, independent changes: drop the `?pwa=fr-v2` from `start_url`/`id` (or make the SW ignore that parameter), give the two HTML precache entries real revisions so republishes actually replace them, and widen the purge pattern plus unregister *all* same-origin registrations rather than only `/sw.js`.
+**Untouched.** Capture flow, camera input attributes, service worker /offline
+code, Quick Capture, voice memos, trash, and backups.
